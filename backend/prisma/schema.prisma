@@ -14,7 +14,7 @@ model User {
   email         String    @unique
   username      String?   @unique
   password      String
-  role          Role      @default(USER)
+  role          UserRole  @default(USER)
   status        UserStatus @default(ACTIVE)
 
   // Profile
@@ -114,11 +114,19 @@ model User {
   @@index([isActive])
 }
 
-enum Role {
+enum UserRole {
   USER
   ADMIN
   MODERATOR
   ANALYST
+  SUPER_ADMIN
+  SUPPORT
+  FINANCE
+  SALES
+  COMPLIANCE
+  LEGAL
+  KYC_REVIEWER
+  BROKER
 }
 
 enum UserStatus {
