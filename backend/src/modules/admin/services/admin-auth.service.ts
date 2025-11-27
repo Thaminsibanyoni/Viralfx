@@ -1,0 +1,399 @@
+import {
+  Injectable,
+  UnauthorizedException,
+  ForbiddenException,
+  BadRequestException,
+  NotFoundException,
+  ConflictException,
+  Logger,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
+import * as speakeasy from 'speakeasy';
+import { v4 as uuidv4 } from 'uuid';
+
+import { AdminUser, AdminRole, AdminStatus } from '../entities/admin-user.entity';
+import { AdminSession } from '../entities/admin-session.entity';
+import { AdminAuditLog, AuditAction, AuditSeverity } from '../entities/admin-audit-log.entity';
+import { AdminPermission } from '../entities/admin-permission.entity';
+import { AdminLoginDto, CreateAdminDto, UpdateAdminDto } from '../dto/create-admin.dto';
+
+export interface AdminTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: string;
+}
+
+@Injectable()
+export class AdminAuthService {
+  private readonly logger = new Logger(AdminAuthService.name);
+  private readonly SALT_ROUNDS = 12;
+  private readonly MAX_ATTEMPTS = 5;
+  private readonly LOCK_TIME = 15 * 60 * 1000; // 15 minutes
+
+  constructor(
+    @InjectRepository(AdminUser)
+    private adminRepository: Repository<AdminUser>,
+    @InjectRepository(AdminSession)
+    private sessionRepository: Repository<AdminSession>,
+    @InjectRepository(AdminAuditLog)
+    private auditLogRepository: Repository<AdminAuditLog>,
+    @InjectRepository(AdminPermission)
+    private permissionRepository: Repository<AdminPermission>,
+    private jwtService: JwtService,
+    private config: ConfigService,
+  ) {}
+
+  async createAdmin(createAdminDto: CreateAdminDto): Promise<AdminUser> {
+    // Check if admin already exists
+    const existingAdmin = await this.adminRepository.findOne({
+      where: { email: createAdminDto.email },
+    });
+
+    if (existingAdmin) {
+      throw new ConflictException('Admin with this email already exists');
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(createAdminDto.password, this.SALT_ROUNDS);
+
+    // Create admin
+    const admin = this.adminRepository.create({
+      ...createAdminDto,
+      password: hashedPassword,
+      isSuperAdmin: createAdminDto.isSuperAdmin || createAdminDto.role === AdminRole.SUPER_ADMIN,
+    });
+
+    const savedAdmin = await this.adminRepository.save(admin);
+
+    // Handle permissions
+    if (createAdminDto.permissionIds && createAdminDto.permissionIds.length > 0) {
+      const permissions = await this.permissionRepository.findByIds(createAdminDto.permissionIds);
+      savedAdmin.permissions = permissions;
+      await this.adminRepository.save(savedAdmin);
+    }
+
+    // Log the action
+    await this.auditLogRepository.save({
+      adminId: 'SYSTEM', // Would be the creating admin's ID
+      action: AuditAction.ADMIN_CREATE,
+      severity: AuditSeverity.HIGH,
+      targetType: 'AdminUser',
+      targetId: savedAdmin.id,
+      metadata: {
+        createdAdmin: {
+          email: savedAdmin.email,
+          role: savedAdmin.role,
+          department: savedAdmin.department,
+        },
+      },
+      description: `Created new admin: ${savedAdmin.email}`,
+    });
+
+    this.logger.log(`New admin created: ${savedAdmin.email}`);
+
+    return savedAdmin;
+  }
+
+  async login(loginDto: AdminLoginDto): Promise<{ admin: AdminUser; tokens: AdminTokens }> {
+    // Find admin
+    const admin = await this.adminRepository.findOne({
+      where: { email: loginDto.email },
+      relations: ['permissions'],
+    });
+
+    if (!admin) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Check account status
+    if (admin.status !== AdminStatus.ACTIVE) {
+      this.logger.warn(`Login attempt for inactive admin account: ${loginDto.email}`);
+      throw new UnauthorizedException('Admin account is not active');
+    }
+
+    // Check login attempts
+    const loginAttempts = await this.getLoginAttempts(admin.id);
+    if (loginAttempts >= this.MAX_ATTEMPTS) {
+      const lastAttempt = await this.getLastLoginAttempt(admin.id);
+      if (lastAttempt && Date.now() - lastAttempt.getTime() < this.LOCK_TIME) {
+        throw new UnauthorizedException('Account temporarily locked. Please try again later.');
+      }
+    }
+
+    // Verify password
+    const passwordValid = await bcrypt.compare(loginDto.password, admin.password);
+    if (!passwordValid) {
+      await this.recordLoginAttempt(admin.id, false);
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Check 2FA if enabled
+    if (admin.twoFactorEnabled) {
+      if (!loginDto.twoFactorCode) {
+        throw new UnauthorizedException('2FA code required');
+      }
+
+      const verified = speakeasy.totp.verify({
+        secret: admin.twoFactorSecret!,
+        encoding: 'base32',
+        token: loginDto.twoFactorCode,
+        window: 2,
+      });
+
+      if (!verified) {
+        await this.recordLoginAttempt(admin.id, false);
+        throw new UnauthorizedException('Invalid 2FA code');
+      }
+    }
+
+    // Clear login attempts on successful login
+    await this.clearLoginAttempts(admin.id);
+
+    // Update admin record
+    await this.adminRepository.update(admin.id, {
+      lastLoginAt: new Date(),
+      lastLoginIp: loginDto.ipAddress,
+    });
+
+    // Generate tokens
+    const tokens = await this.generateTokens(admin.id, admin.email);
+
+    // Create session
+    await this.createSession(admin.id, tokens, loginDto);
+
+    // Log successful login
+    await this.auditLogRepository.save({
+      adminId: admin.id,
+      action: AuditAction.LOGIN,
+      severity: AuditSeverity.LOW,
+      targetType: 'AdminUser',
+      targetId: admin.id,
+      ipAddress: loginDto.ipAddress,
+      userAgent: loginDto.userAgent,
+      description: `Admin login: ${admin.email}`,
+    });
+
+    this.logger.log(`Admin logged in successfully: ${admin.email}`);
+
+    return {
+      admin: this.sanitizeAdmin(admin),
+      tokens,
+    };
+  }
+
+  async logout(adminId: string, sessionId: string): Promise<void> {
+    // Deactivate session
+    await this.sessionRepository.update(
+      { id: sessionId, adminId },
+      { isActive: false },
+    );
+
+    // Log logout
+    await this.auditLogRepository.save({
+      adminId,
+      action: AuditAction.LOGOUT,
+      severity: AuditSeverity.LOW,
+      targetType: 'AdminUser',
+      targetId: adminId,
+      description: 'Admin logout',
+    });
+
+    this.logger.log(`Admin logged out: ${adminId}`);
+  }
+
+  async refreshToken(refreshToken: string): Promise<AdminTokens> {
+    try {
+      // Verify refresh token
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: this.config.get('JWT_ADMIN_REFRESH_SECRET'),
+      });
+
+      // Find session
+      const session = await this.sessionRepository.findOne({
+        where: { refreshToken, isActive: true },
+        relations: ['admin'],
+      });
+
+      if (!session || session.expiresAt < new Date()) {
+        throw new UnauthorizedException('Invalid or expired refresh token');
+      }
+
+      if (session.admin.status !== AdminStatus.ACTIVE) {
+        throw new UnauthorizedException('Admin account is not active');
+      }
+
+      // Generate new tokens
+      const tokens = await this.generateTokens(session.admin.id, session.admin.email);
+
+      // Update session
+      await this.sessionRepository.update(session.id, {
+        token: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      });
+
+      return tokens;
+    } catch (error) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
+  async updateAdmin(adminId: string, updateDto: UpdateAdminDto): Promise<AdminUser> {
+    const admin = await this.adminRepository.findOne({
+      where: { id: adminId },
+      relations: ['permissions'],
+    });
+
+    if (!admin) {
+      throw new NotFoundException('Admin not found');
+    }
+
+    // Update admin fields
+    Object.assign(admin, updateDto);
+
+    if (updateDto.permissionIds) {
+      const permissions = await this.permissionRepository.findByIds(updateDto.permissionIds);
+      admin.permissions = permissions;
+    }
+
+    const updatedAdmin = await this.adminRepository.save(admin);
+
+    // Log the update
+    await this.auditLogRepository.save({
+      adminId, // Would be the updating admin's ID
+      action: AuditAction.ADMIN_UPDATE,
+      severity: AuditSeverity.MEDIUM,
+      targetType: 'AdminUser',
+      targetId: adminId,
+      metadata: {
+        changes: updateDto,
+      },
+      description: `Updated admin: ${admin.email}`,
+    });
+
+    return this.sanitizeAdmin(updatedAdmin);
+  }
+
+  async getAdminById(adminId: string): Promise<AdminUser> {
+    const admin = await this.adminRepository.findOne({
+      where: { id: adminId },
+      relations: ['permissions'],
+    });
+
+    if (!admin) {
+      throw new NotFoundException('Admin not found');
+    }
+
+    return this.sanitizeAdmin(admin);
+  }
+
+  async getAllAdmins(page: number = 1, limit: number = 50): Promise<{ admins: AdminUser[]; total: number }> {
+    const [admins, total] = await this.adminRepository.findAndCount({
+      relations: ['permissions'],
+      skip: (page - 1) * limit,
+      take: limit,
+      order: { createdAt: 'DESC' },
+    });
+
+    return {
+      admins: admins.map(admin => this.sanitizeAdmin(admin)),
+      total,
+    };
+  }
+
+  private sanitizeAdmin(admin: AdminUser): AdminUser {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password, twoFactorSecret, ...sanitized } = admin;
+    return sanitized as AdminUser;
+  }
+
+  private async generateTokens(adminId: string, email: string): Promise<AdminTokens> {
+    const payload = {
+      sub: adminId,
+      email,
+      type: 'admin',
+    };
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload, {
+        secret: this.config.get('JWT_ADMIN_SECRET'),
+        expiresIn: this.config.get('JWT_ADMIN_EXPIRES_IN', '15m'),
+      }),
+      this.jwtService.signAsync(payload, {
+        secret: this.config.get('JWT_ADMIN_REFRESH_SECRET'),
+        expiresIn: this.config.get('JWT_ADMIN_REFRESH_EXPIRES_IN', '7d'),
+      }),
+    ]);
+
+    return {
+      accessToken,
+      refreshToken,
+      expiresIn: this.config.get('JWT_ADMIN_EXPIRES_IN', '15m'),
+    };
+  }
+
+  private async createSession(
+    adminId: string,
+    tokens: AdminTokens,
+    loginDto: AdminLoginDto,
+  ): Promise<void> {
+    const session = this.sessionRepository.create({
+      adminId,
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      ipAddress: loginDto.ipAddress,
+      userAgent: loginDto.userAgent,
+      deviceFingerprint: loginDto.deviceFingerprint,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+    });
+
+    await this.sessionRepository.save(session);
+  }
+
+  private async getLoginAttempts(adminId: string): Promise<number> {
+    return await this.auditLogRepository.count({
+      where: {
+        adminId,
+        action: AuditAction.LOGIN,
+        severity: AuditSeverity.MEDIUM, // Failed logins are marked as medium severity
+        createdAt: {
+          $gte: new Date(Date.now() - this.LOCK_TIME),
+        },
+      },
+    });
+  }
+
+  private async getLastLoginAttempt(adminId: string): Promise<Date | null> {
+    const lastAttempt = await this.auditLogRepository.findOne({
+      where: {
+        adminId,
+        action: AuditAction.LOGIN,
+        severity: AuditSeverity.MEDIUM,
+      },
+      order: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+
+    return lastAttempt?.createdAt || null;
+  }
+
+  private async recordLoginAttempt(adminId: string, success: boolean): Promise<void> {
+    await this.auditLogRepository.save({
+      adminId,
+      action: AuditAction.LOGIN,
+      severity: success ? AuditSeverity.LOW : AuditSeverity.MEDIUM,
+      targetType: 'AdminUser',
+      targetId: adminId,
+      description: success ? 'Successful login attempt' : 'Failed login attempt',
+    });
+  }
+
+  private async clearLoginAttempts(adminId: string): Promise<void> {
+    // This would typically clean up recent failed login attempts
+    // Implementation depends on how you want to handle this
+  }
+}

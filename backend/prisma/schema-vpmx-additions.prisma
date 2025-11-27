@@ -1,0 +1,424 @@
+// ==============================
+// VPMX - VIRAL POPULARITY MARKET INDEX
+// ==============================
+
+model VpmxIndex {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+  timestamp       DateTime @default(now())
+  value           Float    // 0-1000 VPMX score
+
+  // 8-factor components (normalized 0-1)
+  components      Json     // { globalSentiment, viralMomentum, trendVelocity, mentionVolume, engagementQuality, trendStability, deceptionRisk, regionalWeight }
+
+  // Metadata and derived metrics
+  metadata        Json?    // { breakoutProbability, confidence, riskLevel, acceleration, momentum }
+  region          String?  // Regional variant
+  version         String   @default("1.0") // Formula version
+
+  // Processing metadata
+  computationJob  String?  @map("computation_job")
+  processedAt     DateTime @default(now()) @map("processed_at")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([vtsSymbol, timestamp])
+  @@index([timestamp])
+  @@index([value])
+  @@index([region])
+  @@index([computationJob])
+}
+
+model VpmxRegionIndex {
+  id              String   @id @default(cuid())
+  region          String
+  vtsSymbol       String?  @map("vts_symbol") // null for aggregate
+  timestamp       DateTime @default(now())
+  value           Float
+
+  // Regional-specific components
+  components      Json     // Component breakdown for this region
+  contribution    Float    // Contribution to global VPMX (0-1)
+  confidence       Float    // Confidence in regional data (0-1)
+  sampleSize      Int      @map("sample_size")
+
+  createdAt       DateTime @default(now())
+
+  @@index([region, timestamp])
+  @@index([vtsSymbol, region])
+  @@index([timestamp])
+}
+
+model VpmxHistory {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+  timestamp       DateTime @default(now())
+  value           Float    // 0-1000
+  open            Float?
+  high            Float?
+  low             Float?
+  close           Float?
+  volume          Float?   @default(0)
+
+  // Calculated metrics
+  change1h        Float?   @map("change_1h")    // 1-hour change
+  change24h       Float?   @map("change_24h")   // 24-hour change
+  change7d        Float?   @map("change_7d")    // 7-day change
+
+  // Technical indicators
+  rsi             Float?
+  macd            Float?
+  volatility      Float?   // Recent volatility
+
+  components      Json     // Full component breakdown
+  metadata        Json?    // Additional metadata
+
+  createdAt       DateTime @default(now())
+
+  @@index([vtsSymbol, timestamp])
+  @@index([timestamp])
+  @@index([value])
+}
+
+model VpmxPrediction {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+
+  // Prediction parameters
+  modelType       String   @map("model_type")      // LSTM, CNN, TRANSFORMER, ENSEMBLE
+  horizon         String   // 1h, 6h, 24h, 7d, 30d
+  timestamp       DateTime @default(now()) // When prediction was made
+
+  // Prediction results
+  predictedValue  Float    @map("predicted_value")
+  confidence      Float    // 0-1 confidence score
+  upperBound      Float    @map("upper_bound")
+  lowerBound      Float    @map("lower_bound")
+
+  // Feature importance
+  features        Json     // { feature_name: importance_weight }
+
+  // Actual outcome (for model evaluation)
+  actualValue     Float?   @map("actual_value")
+  error           Float?   // Absolute error
+  accuracy        Float?   // Prediction accuracy
+
+  status          String   @default("ACTIVE") // ACTIVE, EXPIRED, SETTLED
+
+  createdAt       DateTime @default(now())
+  settledAt       DateTime? @map("settled_at")
+
+  @@index([vtsSymbol, status])
+  @@index([horizon])
+  @@index([timestamp])
+}
+
+model VpmxMarket {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+  question        String
+  description     String?
+
+  // Market configuration
+  outcomeType     String   @map("outcome_type")     // BINARY, RANGE, MULTI
+  strikePrice     Float?   @map("strike_price")
+  expiryDate      DateTime @map("expiry_date")
+
+  // Settlement
+  resolutionCriteria String @map("resolution_criteria")
+  settlementType  String   @map("settlement_type")   // AUTOMATIC, MANUAL, ORACLE
+  oracleParams    Json?    @map("oracle_params")
+
+  // Market state
+  status          String   @default("PENDING")     // PENDING, ACTIVE, PAUSED, SETTLED, CANCELLED
+  liquidityPool   Float    @default(0) @map("liquidity_pool")
+  volume24h       Float    @default(0) @map("volume_24h")
+  totalVolume     Float    @default(0) @map("total_volume")
+
+  // Odds and pricing
+  yesPrice        Float    @map("yes_price")
+  noPrice         Float    @map("no_price")
+  lastPrice       Float?   @map("last_price")
+
+  // Market creation
+  createdBy       String   @map("created_by")
+  creatorStake    Float    @default(0) @map("creator_stake")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  settledAt       DateTime? @map("settled_at")
+
+  // Relations
+  outcomes        VpmxOutcome[]
+  bets            VpmxBet[]
+
+  @@index([vtsSymbol, status])
+  @@index([expiryDate, status])
+  @@index([outcomeType])
+  @@index([createdBy])
+}
+
+model VpmxOutcome {
+  id              String   @id @default(cuid())
+  marketId        String   @map("market_id")
+  label           String
+  description     String?
+  probability     Float?   // Implied probability
+
+  // Settlement
+  isWinner        Boolean? @default(false) @map("is_winner")
+  settlementValue Float?   @map("settlement_value")
+
+  createdAt       DateTime @default(now())
+
+  // Relations
+  market          VpmxMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  bets            VpmxBet[]
+
+  @@index([marketId])
+}
+
+model VpmxBet {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  marketId        String   @map("market_id")
+  outcomeId       String?  @map("outcome_id")
+
+  // Bet details
+  side            String   // YES, NO, RANGE_IN, RANGE_OUT, SPECIFIC_OUTCOME
+  stake           Float    // Amount wagered
+  odds            Float    // Odds at time of bet
+  potentialPayout Float    @map("potential_payout")
+
+  // Settlement
+  status          String   @default("PENDING") // PENDING, ACTIVE, WON, LOST, REFUNDED
+  actualPayout   Float?   @map("actual_payout")
+  settledAt       DateTime? @map("settled_at")
+
+  // Risk management
+  maxLoss         Float    @map("max_loss")
+  marginRequired Float?   @map("margin_required")
+
+  // Security
+  ipAddress       String?  @map("ip_address")
+  userAgent       String?  @map("user_agent")
+  fraudScore      Float?   @map("fraud_score")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id])
+  market          VpmxMarket @relation(fields: [marketId], references: [id])
+  outcome         VpmxOutcome? @relation(fields: [outcomeId], references: [id])
+
+  @@index([userId, status])
+  @@index([marketId, status])
+  @@index([createdAt])
+}
+
+model VpmxExposure {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  marketId        String?  @map("market_id")
+  vtsSymbol       String?  @map("vts_symbol")
+
+  // Exposure metrics
+  totalStake      Float    @map("total_stake")
+  maxPotentialLoss Float    @map("max_potential_loss")
+  currentPnl     Float?   @map("current_pnl")
+
+  // Risk limits
+  riskLevel       String   @default("LOW") // LOW, MEDIUM, HIGH, CRITICAL
+  limitType       String?  // POSITION_SIZE, TOTAL_EXPOSURE, CONCENTRATION
+
+  // Status
+  status          String   @default("ACTIVE") // ACTIVE, CLOSED, BREACHED
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([marketId])
+  @@index([vtsSymbol])
+  @@index([riskLevel])
+}
+
+model VpmxRiskSnapshot {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+
+  // Risk metrics
+  valueAtRisk     Float    @map("value_at_risk")
+  expectedShortfall Float    @map("expected_shortfall")
+  maxDrawdown     Float    @map("max_drawdown")
+  volatility      Float
+  beta            Float?
+  sharpeRatio     Float?   @map("sharpe_ratio")
+
+  // Risk ratings
+  riskRating      String   // AAA, AA, A, BBB, BB, B, CCC
+  riskScore       Float    @map("risk_score") // 0-100
+
+  // Market context
+  marketCondition String   @map("market_condition") // BULLISH, BEARISH, SIDEWAYS, VOLATILE
+
+  timestamp       DateTime @default(now())
+
+  @@index([vtsSymbol])
+  @@index([timestamp])
+  @@index([riskRating])
+}
+
+model VpmxAnomaly {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+
+  // Anomaly details
+  type            String   // SPIKE, DIP, PATTERN_BREAK, OUTLIER, ABNORMAL_VOLUME
+  severity        String   // LOW, MEDIUM, HIGH, CRITICAL
+  confidence      Float    // 0-1 confidence in anomaly
+
+  // Anomaly data
+  detectedAt      DateTime @default(now()) @map("detected_at")
+  resolvedAt      DateTime? @map("resolved_at")
+  value           Float    // VPMX value at anomaly
+  expectedValue   Float?   @map("expected_value")
+
+  // Description
+  description     String
+  suggestedAction String? @map("suggested_action")
+
+  // Status
+  status          String   @default("ACTIVE") // ACTIVE, RESOLVED, IGNORED
+
+  @@index([vtsSymbol, status])
+  @@index([severity])
+  @@index([detectedAt])
+}
+
+model VpmxBreakoutEvent {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+
+  // Breakout details
+  breakoutType    String   // MOMENTUM, SENTIMENT, VIRAL, CATALYST, TECHNICAL
+  strength        Float    // 0-1 breakout strength
+
+  // Timing
+  detectedAt      DateTime @default(now()) @map("detected_at")
+  confirmedAt     DateTime? @map("confirmed_at")
+
+  // Value metrics
+  preBreakoutValue Float?   @map("pre_breakout_value")
+  breakoutValue   Float    @map("breakout_value")
+  currentPeak     Float?   @map("current_peak")
+
+  // Prediction
+  predictedPeak   Float?   @map("predicted_peak")
+  predictedDuration Int?     @map("predicted_duration") // in hours
+
+  // Status
+  status          String   @default("PENDING") // PENDING, CONFIRMED, FAILED, PEAKED
+
+  metadata        Json?    // Additional breakout analysis data
+
+  @@index([vtsSymbol, status])
+  @@index([breakoutType])
+  @@index([detectedAt])
+}
+
+model VpmxInfluencerImpact {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+
+  // Influencer details
+  platform        String   // TWITTER, INSTAGRAM, TIKTOK, YOUTUBE
+  handle          String
+  followers       Int      @map("followers_count")
+
+  // Impact metrics
+  influenceScore  Float    @map("influence_score") // 0-1 influence on VPMX
+  engagementRate  Float    @map("engagement_rate")
+  sentimentBias   String   // POSITIVE, NEGATIVE, NEUTRAL
+
+  // Activity
+  firstSeenAt     DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt      DateTime @default(now()) @map("last_seen_at")
+  mentionCount    Int      @default(0) @map("mention_count")
+
+  // Status
+  status          String   @default("ACTIVE") // ACTIVE, INACTIVE, BLACKLISTED
+
+  metadata        Json?    // Additional influencer data
+
+  @@index([vtsSymbol, platform])
+  @@index([handle])
+  @@index([status])
+}
+
+model VpmxWeightConfig {
+  id              String   @id @default(cuid())
+  name            String   @unique // "default", "conservative", "aggressive"
+  description     String?
+
+  // Weight configuration (must sum to 1.0)
+  globalSentiment Float    @map("global_sentiment_weight")      @default(0.20)
+  viralMomentum   Float    @map("viral_momentum_weight")        @default(0.20)
+  trendVelocity   Float    @map("trend_velocity_weight")        @default(0.15)
+  mentionVolume   Float    @map("mention_volume_weight")        @default(0.15)
+  engagementQuality Float    @map("engagement_quality_weight")    @default(0.10)
+  trendStability  Float    @map("trend_stability_weight")       @default(0.10)
+  deceptionRisk   Float    @map("deception_risk_weight")          @default(0.05)
+  regionalWeight  Float    @map("regional_weight")              @default(0.05)
+
+  // Status
+  isActive        Boolean  @default(true) @map("is_active")
+  isDefault       Boolean  @default(false) @map("is_default")
+
+  // Metadata
+  createdBy       String?  @map("created_by")
+  version         Int      @default(1)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([isDefault])
+}
+
+model VpmxAudit {
+  id              String   @id @default(cuid())
+
+  // Action details
+  action          String   // COMPUTE, PREDICT, MARKET_CREATE, BET_PLACE, SETTLE
+  entityType      String   // VPMX_INDEX, MARKET, BET, USER
+  entityId        String?  @map("entity_id")
+
+  // Request details
+  userId          String?  @map("user_id")
+  ipAddress       String?  @map("ip_address")
+  userAgent       String?  @map("user_agent")
+
+  // Data changes
+  oldValue       Json?    @map("old_value")
+  newValue       Json?    @map("new_value")
+  changes         Json?    // Detailed change description
+
+  // Status
+  status          String   // SUCCESS, ERROR, PENDING
+  errorCode       String?  @map("error_code")
+  errorMessage    String?  @map("error_message")
+
+  // Performance
+  duration        Int?     // Processing time in milliseconds
+  memoryUsage     Int?     @map("memory_usage") // MB
+
+  timestamp       DateTime @default(now())
+
+  @@index([action, entityType])
+  @@index([userId])
+  @@index([timestamp])
+  @@index([status])
+}

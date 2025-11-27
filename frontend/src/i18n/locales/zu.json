@@ -1,0 +1,156 @@
+{
+  "common": {
+    "loading": "Ilayisha...",
+    "error": "Iphutha",
+    "success": "Iphumelelile",
+    "warning": "Isexwayiso",
+    "info": "Ulwazi",
+    "cancel": "Khansela",
+    "save": "Gcina",
+    "delete": "Cisha",
+    "edit": "Hlela",
+    "view": "Buka",
+    "close": "Vala",
+    "confirm": "Qinisekisa",
+    "yes": "Yebo",
+    "no": "Cha",
+    "search": "Sesha",
+    "filter": "Hlunga",
+    "clear": "Sula",
+    "reset": "Setha kabusha",
+    "submit": "Thumela",
+    "back": "Emuva",
+    "next": "Okulandelayo",
+    "previous": "Okwangaphambilini",
+    "done": "Kwenziwe",
+    "copy": "Kopisha",
+    "share": "Yabelana",
+    "download": "Landa",
+    "upload": "Layisha",
+    "refresh": "Lungisa kabusha"
+  },
+  "navigation": {
+    "dashboard": "Ibhowu elingundoqo",
+    "trading": "Ukokwebenza",
+    "portfolio": "Iwindi",
+    "markets": "Imakethe",
+    "settings": "Izilungiselelo",
+    "profile": "Iphrofayili",
+    "security": "Ukuvikela",
+    "notifications": "Izaziso",
+    "wallet": "Iwikili",
+    "broker": "Umthengi",
+    "preferences": "Okuthandwayo",
+    "logout": "Phuma",
+    "login": "Ngena",
+    "register": "Bhalisa"
+  },
+  "settings": {
+    "title": "Izilungiselelo",
+    "subtitle": "Phatha izilungiselelo zakho ze-akhawunti nezethandwayo",
+    "profile": {
+      "title": "Iphrofayili",
+      "subtitle": "Phatha ulwazi lakho lobuqu nozilungiselelo zeprofayili",
+      "firstName": "Igama lokuqala",
+      "lastName": "Isibongo",
+      "email": "Idilesi ye-imeyili",
+      "phone": "Inombolo ye-telefone",
+      "country": "Izwe",
+      "bio": "I-Bio",
+      "avatar": "Isithombe sephrofayili",
+      "changeAvatar": "Shintsha i-Avatar",
+      "verified": "Iqinisekisiwe",
+      "notVerified": "Awuqinisekiswanga"
+    },
+    "security": {
+      "title": "Ukuvikela",
+      "subtitle": "Phatha izilungiselelo zakho zokuvikela nokunqenqa",
+      "password": "Iphasiwedi",
+      "twoFactor": "Ukunqenwa kwemibili",
+      "activeSessions": "Iziteshini ezisebenzayo"
+    },
+    "notifications": {
+      "title": "Izaziso",
+      "subtitle": "Phatha okuthandwayo kwakho okuzazisayo",
+      "emailNotifications": "Izaziso ze-imeyili",
+      "pushNotifications": "Izaziso ezishisayo",
+      "securityAlerts": "Izexwayiso zokuvikela"
+    },
+    "wallet": {
+      "title": "Iwikili",
+      "subtitle": "Phatha iwikili nakho ndlela zokuhlawula",
+      "balance": "Ibalansi",
+      "deposit": "Idiphothi",
+      "withdraw": "Thola",
+      "transactionHistory": "Umlando we-transakshini"
+    },
+    "broker": {
+      "title": "Umthengi",
+      "subtitle": "Phatha ubudlelwano bakho nomthengi",
+      "linkedBroker": "Umthengi oqhathaniswe",
+      "linkBroker": "Qhathanisa umthengi",
+      "status": "Isimo"
+    },
+    "preferences": {
+      "title": "Okuthandwayo",
+      "subtitle": "Ngqamisa ukubukwa kwe-ViralFX",
+      "theme": "Isihloko",
+      "language": "Ulimi",
+      "currency": "Imali eisisiseko",
+      "darkTheme": "Okumnyama",
+      "lightTheme": "Okukhanyayo"
+    }
+  },
+  "trading": {
+    "title": "Ukokwebenza",
+    "buy": "Thenga",
+    "sell": "Thengisa",
+    "market": "Imakethe",
+    "orderBook": "Incwadi yohlelo",
+    "priceChart": "Itjaji yexabiso",
+    "openOrders": "Izilungiselelo ezivulekile",
+    "balance": "Ibalansi",
+    "profit": "Inzuzo",
+    "loss": "Ukucweba",
+    "volume": "Ivolumu",
+    "price": "Ixabiso",
+    "placeOrder": "Beka uhlelo"
+  },
+  "portfolio": {
+    "title": "Iwindi",
+    "totalValue": "Ixabiso elipheleleyo",
+    "totalReturn": "Ubuyo olupheleleyo",
+    "assetAllocation": "Ukunikezwa kwamandla",
+    "holdings": "Okondliwayo",
+    "performance": "Ukusebenza",
+    "profitLoss": "Inzuzo/Ukucweba"
+  },
+  "auth": {
+    "login": "Ngena",
+    "register": "Bhalisa",
+    "logout": "Phuma",
+    "email": "Imeyili",
+    "password": "Iphasiwedi",
+    "confirmPassword": "Qinisekisa iphasiwedi",
+    "forgotPassword": "Ukhulule iphasiwedi?",
+    "rememberMe": "Ngingakhumbula"
+  },
+  "errors": {
+    "generic": "Kube nenxenxa. Zama kwakhona.",
+    "networkError": "Iphutha lenethiwekhi. Hlola ukuhlanganiswa kwakho.",
+    "validationError": "Hlola ukufakwayo akho uze uzame kwakhona.",
+    "unauthorized": "Awuvunyelwile ukwenza lesi senzo.",
+    "requiredField": "Le ndawo iyadingeka."
+  },
+  "success": {
+    "profileUpdated": "Iphrofayili ihlisiwe ngempumelelo!",
+    "passwordChanged": "Iphasiwedi ishintshiwe ngempumelelo!",
+    "loginSuccess": "Ukungena kuwimpumelelo"
+  },
+  "currency": {
+    "ZAR": "iRand yaseNingizimu Afrika",
+    "USD": "iDola yaseMelika",
+    "EUR": "iYuro",
+    "BTC": "iBitcoin"
+  }
+}

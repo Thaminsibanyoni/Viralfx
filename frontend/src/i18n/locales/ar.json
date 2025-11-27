@@ -1,0 +1,156 @@
+{
+  "common": {
+    "loading": "جاري التحميل...",
+    "error": "خطأ",
+    "success": "نجح",
+    "warning": "تحذير",
+    "info": "معلومات",
+    "cancel": "إلغاء",
+    "save": "حفظ",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "view": "عرض",
+    "close": "إغلاق",
+    "confirm": "تأكيد",
+    "yes": "نعم",
+    "no": "لا",
+    "search": "بحث",
+    "filter": "تصفية",
+    "clear": "مسح",
+    "reset": "إعادة تعيين",
+    "submit": "إرسال",
+    "back": "رجوع",
+    "next": "التالي",
+    "previous": "السابق",
+    "done": "تم",
+    "copy": "نسخ",
+    "share": "مشاركة",
+    "download": "تحميل",
+    "upload": "رفع",
+    "refresh": "تحديث"
+  },
+  "navigation": {
+    "dashboard": "لوحة القيادة",
+    "trading": "التداول",
+    "portfolio": "محفظة",
+    "markets": "الأسواق",
+    "settings": "الإعدادات",
+    "profile": "الملف الشخصي",
+    "security": "الأمان",
+    "notifications": "الإشعارات",
+    "wallet": "محفظة",
+    "broker": "وسيط",
+    "preferences": "التفضيلات",
+    "logout": "تسجيل الخروج",
+    "login": "تسجيل الدخول",
+    "register": "إنشاء حساب"
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "subtitle": "إدارة إعدادات الحساب والتفضيلات",
+    "profile": {
+      "title": "الملف الشخصي",
+      "subtitle": "إدارة المعلومات الشخصية وإعدادات الملف",
+      "firstName": "الاسم الأول",
+      "lastName": "اسم العائلة",
+      "email": "البريد الإلكتروني",
+      "phone": "رقم الهاتف",
+      "country": "البلد",
+      "bio": "السيرة الذاتية",
+      "avatar": "صورة الملف الشخصي",
+      "changeAvatar": "تغيير الصورة",
+      "verified": "موثق",
+      "notVerified": "غير موثق"
+    },
+    "security": {
+      "title": "الأمان",
+      "subtitle": "إدارة إعدادات الأمان والمصادقة",
+      "password": "كلمة المرور",
+      "twoFactor": "المصادقة الثنائية",
+      "activeSessions": "الجلسات النشطة"
+    },
+    "notifications": {
+      "title": "الإشعارات",
+      "subtitle": "إدارة تفضيلات الإشعارات",
+      "emailNotifications": "إشعارات البريد الإلكتروني",
+      "pushNotifications": "الإشعارات الفورية",
+      "securityAlerts": "تنبيهات الأمان"
+    },
+    "wallet": {
+      "title": "المحفظة",
+      "subtitle": "إدارة المحفظة وطرق الدفع",
+      "balance": "الرصيد",
+      "deposit": "إيداع",
+      "withdraw": "سحب",
+      "transactionHistory": "سجل المعاملات"
+    },
+    "broker": {
+      "title": "الوسيط",
+      "subtitle": "إدارة علاقات الوسطاء",
+      "linkedBroker": "وسيط مرتبط",
+      "linkBroker": "ربط وسيط",
+      "status": "الحالة"
+    },
+    "preferences": {
+      "title": "التفضيلات",
+      "subtitle": "تخصيص تجربة ViralFX",
+      "theme": "المظهر",
+      "language": "اللغة",
+      "currency": "العملة الافتراضية",
+      "darkTheme": "داكن",
+      "lightTheme": "فاتح"
+    }
+  },
+  "trading": {
+    "title": "التداول",
+    "buy": "شراء",
+    "sell": "بيع",
+    "market": "السوق",
+    "orderBook": "دفتر الأوامر",
+    "priceChart": "مخطط السعر",
+    "openOrders": "الأوامر المفتوحة",
+    "balance": "الرصيد",
+    "profit": "ربح",
+    "loss": "خسارة",
+    "volume": "الحجم",
+    "price": "السعر",
+    "placeOrder": "وضع أمر"
+  },
+  "portfolio": {
+    "title": "المحفظة",
+    "totalValue": "القيمة الإجمالية",
+    "totalReturn": "العائد الإجمالي",
+    "assetAllocation": "تخصيص الأصول",
+    "holdings": "الحيازات",
+    "performance": "الأداء",
+    "profitLoss": "الربح/الخسارة"
+  },
+  "auth": {
+    "login": "تسجيل الدخول",
+    "register": "إنشاء حساب",
+    "logout": "تسجيل الخروج",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "forgotPassword": "نسيت كلمة المرور؟",
+    "rememberMe": "تذكرني"
+  },
+  "errors": {
+    "generic": "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
+    "networkError": "خطأ في الشبكة. يرجى فحص اتصالك.",
+    "validationError": "يرجى فحص المدخلات والمحاولة مرة أخرى.",
+    "unauthorized": "غير مصرح لك بتنفيذ هذا الإجراء.",
+    "requiredField": "هذا الحقل مطلوب."
+  },
+  "success": {
+    "profileUpdated": "تم تحديث الملف الشخصي بنجاح!",
+    "passwordChanged": "تم تغيير كلمة المرور بنجاح!",
+    "loginSuccess": "تم تسجيل الدخول بنجاح"
+  },
+  "currency": {
+    "ZAR": "راند جنوب أفريقيا",
+    "USD": "دولار أمريكي",
+    "EUR": "يورو",
+    "BTC": "بيتكوين"
+  }
+}

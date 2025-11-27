@@ -1,0 +1,156 @@
+{
+  "common": {
+    "loading": "Laden...",
+    "error": "Fehler",
+    "success": "Erfolg",
+    "warning": "Warnung",
+    "info": "Information",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "view": "Ansehen",
+    "close": "Schließen",
+    "confirm": "Bestätigen",
+    "yes": "Ja",
+    "no": "Nein",
+    "search": "Suchen",
+    "filter": "Filtern",
+    "clear": "Löschen",
+    "reset": "Zurücksetzen",
+    "submit": "Absenden",
+    "back": "Zurück",
+    "next": "Weiter",
+    "previous": "Vorherige",
+    "done": "Fertig",
+    "copy": "Kopieren",
+    "share": "Teilen",
+    "download": "Herunterladen",
+    "upload": "Hochladen",
+    "refresh": "Aktualisieren"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "trading": "Handel",
+    "portfolio": "Portfolio",
+    "markets": "Märkte",
+    "settings": "Einstellungen",
+    "profile": "Profil",
+    "security": "Sicherheit",
+    "notifications": "Benachrichtigungen",
+    "wallet": "Brieftasche",
+    "broker": "Broker",
+    "preferences": "Präferenzen",
+    "logout": "Abmelden",
+    "login": "Anmelden",
+    "register": "Registrieren"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "subtitle": "Kontoeinstellungen und Präferenzen verwalten",
+    "profile": {
+      "title": "Profil",
+      "subtitle": "Persönliche Informationen und Profileinstellungen verwalten",
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "email": "E-Mail-Adresse",
+      "phone": "Telefonnummer",
+      "country": "Land",
+      "bio": "Biografie",
+      "avatar": "Profilbild",
+      "changeAvatar": "Avatar ändern",
+      "verified": "Verifiziert",
+      "notVerified": "Nicht verifiziert"
+    },
+    "security": {
+      "title": "Sicherheit",
+      "subtitle": "Sicherheitseinstellungen und Authentifizierung verwalten",
+      "password": "Passwort",
+      "twoFactor": "Zwei-Faktor-Authentifizierung",
+      "activeSessions": "Aktive Sitzungen"
+    },
+    "notifications": {
+      "title": "Benachrichtigungen",
+      "subtitle": "Benachrichtigungseinstellungen verwalten",
+      "emailNotifications": "E-Mail-Benachrichtigungen",
+      "pushNotifications": "Push-Benachrichtigungen",
+      "securityAlerts": "Sicherheitswarnungen"
+    },
+    "wallet": {
+      "title": "Brieftasche",
+      "subtitle": "Brieftasche und Zahlungsmethoden verwalten",
+      "balance": "Guthaben",
+      "deposit": "Einzahlen",
+      "withdraw": "Abheben",
+      "transactionHistory": "Transaktionsverlauf"
+    },
+    "broker": {
+      "title": "Broker",
+      "subtitle": "Broker-Beziehungen verwalten",
+      "linkedBroker": "Verknüpfter Broker",
+      "linkBroker": "Broker verknüpfen",
+      "status": "Status"
+    },
+    "preferences": {
+      "title": "Präferenzen",
+      "subtitle": "ViralFX-Erlebnis anpassen",
+      "theme": "Design",
+      "language": "Sprache",
+      "currency": "Standardwährung",
+      "darkTheme": "Dunkel",
+      "lightTheme": "Hell"
+    }
+  },
+  "trading": {
+    "title": "Handel",
+    "buy": "Kaufen",
+    "sell": "Verkaufen",
+    "market": "Markt",
+    "orderBook": "Auftragsbuch",
+    "priceChart": "Preisdiagramm",
+    "openOrders": "Offene Aufträge",
+    "balance": "Guthaben",
+    "profit": "Gewinn",
+    "loss": "Verlust",
+    "volume": "Volumen",
+    "price": "Preis",
+    "placeOrder": "Auftrag platzieren"
+  },
+  "portfolio": {
+    "title": "Portfolio",
+    "totalValue": "Gesamtwert",
+    "totalReturn": "Gesamtrendite",
+    "assetAllocation": "Anlageverteilung",
+    "holdings": "Bestände",
+    "performance": "Performance",
+    "profitLoss": "Gewinn/Verlust"
+  },
+  "auth": {
+    "login": "Anmelden",
+    "register": "Registrieren",
+    "logout": "Abmelden",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "confirmPassword": "Passwort bestätigen",
+    "forgotPassword": "Passwort vergessen?",
+    "rememberMe": "Angemeldet bleiben"
+  },
+  "errors": {
+    "generic": "Etwas ist schief gelaufen. Bitte versuchen Sie es erneut.",
+    "networkError": "Netzwerkfehler. Bitte überprüfen Sie Ihre Verbindung.",
+    "validationError": "Bitte überprüfen Sie Ihre Eingabe und versuchen Sie es erneut.",
+    "unauthorized": "Sie sind nicht berechtigt, diese Aktion durchzuführen.",
+    "requiredField": "Dieses Feld ist erforderlich."
+  },
+  "success": {
+    "profileUpdated": "Profil erfolgreich aktualisiert!",
+    "passwordChanged": "Passwort erfolgreich geändert!",
+    "loginSuccess": "Anmeldung erfolgreich"
+  },
+  "currency": {
+    "ZAR": "Südafrikanischer Rand",
+    "USD": "US-Dollar",
+    "EUR": "Euro",
+    "BTC": "Bitcoin"
+  }
+}

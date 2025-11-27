@@ -1,0 +1,156 @@
+{
+  "common": {
+    "loading": "Laden...",
+    "error": "Fout",
+    "success": "Succes",
+    "warning": "Waarschuwing",
+    "info": "Informatie",
+    "cancel": "Annuleren",
+    "save": "Opslaan",
+    "delete": "Verwijderen",
+    "edit": "Bewerken",
+    "view": "Bekijken",
+    "close": "Sluiten",
+    "confirm": "Bevestigen",
+    "yes": "Ja",
+    "no": "Nee",
+    "search": "Zoeken",
+    "filter": "Filteren",
+    "clear": "Wissen",
+    "reset": "Resetten",
+    "submit": "Indienen",
+    "back": "Terug",
+    "next": "Volgende",
+    "previous": "Vorige",
+    "done": "Klaar",
+    "copy": "Kopiëren",
+    "share": "Delen",
+    "download": "Downloaden",
+    "upload": "Uploaden",
+    "refresh": "Vernieuwen"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "trading": "Handel",
+    "portfolio": "Portefeuille",
+    "markets": "Markten",
+    "settings": "Instellingen",
+    "profile": "Profiel",
+    "security": "Veiligheid",
+    "notifications": "Notificaties",
+    "wallet": "Portemonnee",
+    "broker": "Makelaar",
+    "preferences": "Voorkeuren",
+    "logout": "Uitloggen",
+    "login": "Inloggen",
+    "register": "Registreren"
+  },
+  "settings": {
+    "title": "Instellingen",
+    "subtitle": "Beheer accountinstellingen en voorkeuren",
+    "profile": {
+      "title": "Profiel",
+      "subtitle": "Beheer persoonlijke informatie en profielinstellingen",
+      "firstName": "Voornaam",
+      "lastName": "Achternaam",
+      "email": "E-mailadres",
+      "phone": "Telefoonnummer",
+      "country": "Land",
+      "bio": "Biografie",
+      "avatar": "Profielfoto",
+      "changeAvatar": "Avatar wijzigen",
+      "verified": "Geverifieerd",
+      "notVerified": "Niet geverifieerd"
+    },
+    "security": {
+      "title": "Veiligheid",
+      "subtitle": "Beheer veiligheidsinstellingen en authenticatie",
+      "password": "Wachtwoord",
+      "twoFactor": "Tweefactorauthenticatie",
+      "activeSessions": "Actieve sessies"
+    },
+    "notifications": {
+      "title": "Notificaties",
+      "subtitle": "Beheer notificatievoorkeuren",
+      "emailNotifications": "E-mailnotificaties",
+      "pushNotifications": "Push-notificaties",
+      "securityAlerts": "Veiligheidswaarschuwingen"
+    },
+    "wallet": {
+      "title": "Portemonnee",
+      "subtitle": "Beheer portemonnee en betalingsmethoden",
+      "balance": "Saldo",
+      "deposit": "Storten",
+      "withdraw": "Opnemen",
+      "transactionHistory": "Transactiegeschiedenis"
+    },
+    "broker": {
+      "title": "Makelaar",
+      "subtitle": "Beheer makelaarsrelaties",
+      "linkedBroker": "Gekoppelde makelaar",
+      "linkBroker": "Makelaar koppelen",
+      "status": "Status"
+    },
+    "preferences": {
+      "title": "Voorkeuren",
+      "subtitle": "Personaliseer ViralFX-ervaring",
+      "theme": "Thema",
+      "language": "Taal",
+      "currency": "Standaardvaluta",
+      "darkTheme": "Donker",
+      "lightTheme": "Licht"
+    }
+  },
+  "trading": {
+    "title": "Handel",
+    "buy": "Kopen",
+    "sell": "Verkopen",
+    "market": "Markt",
+    "orderBook": "Orderboek",
+    "priceChart": "Prijsgrafiek",
+    "openOrders": "Open orders",
+    "balance": "Saldo",
+    "profit": "Winst",
+    "loss": "Verlies",
+    "volume": "Volume",
+    "price": "Prijs",
+    "placeOrder": "Order plaatsen"
+  },
+  "portfolio": {
+    "title": "Portefeuille",
+    "totalValue": "Totale waarde",
+    "totalReturn": "Totaalrendement",
+    "assetAllocation": "Actiatoewijzing",
+    "holdings": "Posities",
+    "performance": "Prestaties",
+    "profitLoss": "Winst/Verlies"
+  },
+  "auth": {
+    "login": "Inloggen",
+    "register": "Registreren",
+    "logout": "Uitloggen",
+    "email": "E-mail",
+    "password": "Wachtwoord",
+    "confirmPassword": "Bevestig wachtwoord",
+    "forgotPassword": "Wachtwoord vergeten?",
+    "rememberMe": "Onthoud mij"
+  },
+  "errors": {
+    "generic": "Er is iets misgegaan. Probeer opnieuw.",
+    "networkError": "Netwerkfout. Controleer uw verbinding.",
+    "validationError": "Controleer uw invoer en probeer opnieuw.",
+    "unauthorized": "U bent niet geautoriseerd om deze actie uit te voeren.",
+    "requiredField": "Dit veld is verplicht."
+  },
+  "success": {
+    "profileUpdated": "Profiel succesvol bijgewerkt!",
+    "passwordChanged": "Wachtwoord succesvol gewijzigd!",
+    "loginSuccess": "Inloggen succesvol"
+  },
+  "currency": {
+    "ZAR": "Zuid-Afrikaanse rand",
+    "USD": "Amerikaanse dollar",
+    "EUR": "Euro",
+    "BTC": "Bitcoin"
+  }
+}

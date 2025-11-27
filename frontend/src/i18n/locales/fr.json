@@ -1,0 +1,156 @@
+{
+  "common": {
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès",
+    "warning": "Avertissement",
+    "info": "Information",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "view": "Voir",
+    "close": "Fermer",
+    "confirm": "Confirmer",
+    "yes": "Oui",
+    "no": "Non",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "clear": "Effacer",
+    "reset": "Réinitialiser",
+    "submit": "Soumettre",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "done": "Terminé",
+    "copy": "Copier",
+    "share": "Partager",
+    "download": "Télécharger",
+    "upload": "Télécharger",
+    "refresh": "Actualiser"
+  },
+  "navigation": {
+    "dashboard": "Tableau de bord",
+    "trading": "Trading",
+    "portfolio": "Portefeuille",
+    "markets": "Marchés",
+    "settings": "Paramètres",
+    "profile": "Profil",
+    "security": "Sécurité",
+    "notifications": "Notifications",
+    "wallet": "Portefeuille",
+    "broker": "Courtier",
+    "preferences": "Préférences",
+    "logout": "Déconnexion",
+    "login": "Connexion",
+    "register": "S'inscrire"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "subtitle": "Gérer les paramètres de votre compte et vos préférences",
+    "profile": {
+      "title": "Profil",
+      "subtitle": "Gérer vos informations personnelles et paramètres de profil",
+      "firstName": "Prénom",
+      "lastName": "Nom",
+      "email": "Adresse e-mail",
+      "phone": "Numéro de téléphone",
+      "country": "Pays",
+      "bio": "Biographie",
+      "avatar": "Photo de profil",
+      "changeAvatar": "Changer d'avatar",
+      "verified": "Vérifié",
+      "notVerified": "Non vérifié"
+    },
+    "security": {
+      "title": "Sécurité",
+      "subtitle": "Gérer vos paramètres de sécurité et d'authentification",
+      "password": "Mot de passe",
+      "twoFactor": "Authentification à deux facteurs",
+      "activeSessions": "Sessions actives"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "subtitle": "Gérer vos préférences de notification",
+      "emailNotifications": "Notifications par e-mail",
+      "pushNotifications": "Notifications push",
+      "securityAlerts": "Alertes de sécurité"
+    },
+    "wallet": {
+      "title": "Portefeuille",
+      "subtitle": "Gérer votre portefeuille et vos méthodes de paiement",
+      "balance": "Solde",
+      "deposit": "Déposer",
+      "withdraw": "Retirer",
+      "transactionHistory": "Historique des transactions"
+    },
+    "broker": {
+      "title": "Courtier",
+      "subtitle": "Gérer vos relations avec les courtiers",
+      "linkedBroker": "Courtier lié",
+      "linkBroker": "Lier un courtier",
+      "status": "Statut"
+    },
+    "preferences": {
+      "title": "Préférences",
+      "subtitle": "Personnalisez votre expérience ViralFX",
+      "theme": "Thème",
+      "language": "Langue",
+      "currency": "Devise par défaut",
+      "darkTheme": "Sombre",
+      "lightTheme": "Clair"
+    }
+  },
+  "trading": {
+    "title": "Trading",
+    "buy": "Acheter",
+    "sell": "Vendre",
+    "market": "Marché",
+    "orderBook": "Carnet d'ordres",
+    "priceChart": "Graphique des prix",
+    "openOrders": "Ordres ouverts",
+    "balance": "Solde",
+    "profit": "Profit",
+    "loss": "Perte",
+    "volume": "Volume",
+    "price": "Prix",
+    "placeOrder": "Passer un ordre"
+  },
+  "portfolio": {
+    "title": "Portefeuille",
+    "totalValue": "Valeur totale",
+    "totalReturn": "Rendement total",
+    "assetAllocation": "Allocation d'actifs",
+    "holdings": "Positions",
+    "performance": "Performance",
+    "profitLoss": "Profit/Perte"
+  },
+  "auth": {
+    "login": "Connexion",
+    "register": "S'inscrire",
+    "logout": "Déconnexion",
+    "email": "E-mail",
+    "password": "Mot de passe",
+    "confirmPassword": "Confirmer le mot de passe",
+    "forgotPassword": "Mot de passe oublié ?",
+    "rememberMe": "Se souvenir de moi"
+  },
+  "errors": {
+    "generic": "Une erreur s'est produite. Veuillez réessayer.",
+    "networkError": "Erreur réseau. Veuillez vérifier votre connexion.",
+    "validationError": "Veuillez vérifier votre saisie et réessayer.",
+    "unauthorized": "Vous n'êtes pas autorisé à effectuer cette action.",
+    "requiredField": "Ce champ est obligatoire."
+  },
+  "success": {
+    "profileUpdated": "Profil mis à jour avec succès !",
+    "passwordChanged": "Mot de passe modifié avec succès !",
+    "loginSuccess": "Connexion réussie"
+  },
+  "currency": {
+    "ZAR": "Rand sud-africain",
+    "USD": "Dollar américain",
+    "EUR": "Euro",
+    "BTC": "Bitcoin"
+  }
+}

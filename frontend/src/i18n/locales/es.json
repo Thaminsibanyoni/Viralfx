@@ -1,0 +1,156 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "warning": "Advertencia",
+    "info": "Información",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "view": "Ver",
+    "close": "Cerrar",
+    "confirm": "Confirmar",
+    "yes": "Sí",
+    "no": "No",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "clear": "Limpiar",
+    "reset": "Reiniciar",
+    "submit": "Enviar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "previous": "Anterior",
+    "done": "Hecho",
+    "copy": "Copiar",
+    "share": "Compartir",
+    "download": "Descargar",
+    "upload": "Subir",
+    "refresh": "Actualizar"
+  },
+  "navigation": {
+    "dashboard": "Panel",
+    "trading": "Comercio",
+    "portfolio": "Cartera",
+    "markets": "Mercados",
+    "settings": "Configuración",
+    "profile": "Perfil",
+    "security": "Seguridad",
+    "notifications": "Notificaciones",
+    "wallet": "Billetera",
+    "broker": "Corredor",
+    "preferences": "Preferencias",
+    "logout": "Salir",
+    "login": "Iniciar sesión",
+    "register": "Registrarse"
+  },
+  "settings": {
+    "title": "Configuración",
+    "subtitle": "Gestiona la configuración de tu cuenta y preferencias",
+    "profile": {
+      "title": "Perfil",
+      "subtitle": "Gestiona tu información personal y configuración del perfil",
+      "firstName": "Nombre",
+      "lastName": "Apellido",
+      "email": "Correo electrónico",
+      "phone": "Número de teléfono",
+      "country": "País",
+      "bio": "Biografía",
+      "avatar": "Foto de perfil",
+      "changeAvatar": "Cambiar avatar",
+      "verified": "Verificado",
+      "notVerified": "No verificado"
+    },
+    "security": {
+      "title": "Seguridad",
+      "subtitle": "Gestiona tu configuración de seguridad y autenticación",
+      "password": "Contraseña",
+      "twoFactor": "Autenticación de dos factores",
+      "activeSessions": "Sesiones activas"
+    },
+    "notifications": {
+      "title": "Notificaciones",
+      "subtitle": "Gestiona tus preferencias de notificación",
+      "emailNotifications": "Notificaciones por correo",
+      "pushNotifications": "Notificaciones push",
+      "securityAlerts": "Alertas de seguridad"
+    },
+    "wallet": {
+      "title": "Billetera",
+      "subtitle": "Gestiona tu billetera y métodos de pago",
+      "balance": "Saldo",
+      "deposit": "Depositar",
+      "withdraw": "Retirar",
+      "transactionHistory": "Historial de transacciones"
+    },
+    "broker": {
+      "title": "Corredor",
+      "subtitle": "Gestiona tus relaciones con corredores",
+      "linkedBroker": "Corredor vinculado",
+      "linkBroker": "Vincular corredor",
+      "status": "Estado"
+    },
+    "preferences": {
+      "title": "Preferencias",
+      "subtitle": "Personaliza tu experiencia ViralFX",
+      "theme": "Tema",
+      "language": "Idioma",
+      "currency": "Moneda predeterminada",
+      "darkTheme": "Oscuro",
+      "lightTheme": "Claro"
+    }
+  },
+  "trading": {
+    "title": "Comercio",
+    "buy": "Comprar",
+    "sell": "Vender",
+    "market": "Mercado",
+    "orderBook": "Libro de órdenes",
+    "priceChart": "Gráfico de precios",
+    "openOrders": "Órdenes abiertas",
+    "balance": "Saldo",
+    "profit": "Ganancia",
+    "loss": "Pérdida",
+    "volume": "Volumen",
+    "price": "Precio",
+    "placeOrder": "Colocar orden"
+  },
+  "portfolio": {
+    "title": "Cartera",
+    "totalValue": "Valor total",
+    "totalReturn": "Retorno total",
+    "assetAllocation": "Asignación de activos",
+    "holdings": "Tenencias",
+    "performance": "Rendimiento",
+    "profitLoss": "Ganancia/Pérdida"
+  },
+  "auth": {
+    "login": "Iniciar sesión",
+    "register": "Registrarse",
+    "logout": "Salir",
+    "email": "Correo",
+    "password": "Contraseña",
+    "confirmPassword": "Confirmar contraseña",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "rememberMe": "Recordarme"
+  },
+  "errors": {
+    "generic": "Algo salió mal. Intenta de nuevo.",
+    "networkError": "Error de red. Verifica tu conexión.",
+    "validationError": "Verifica tu entrada e intenta de nuevo.",
+    "unauthorized": "No estás autorizado para realizar esta acción.",
+    "requiredField": "Este campo es obligatorio."
+  },
+  "success": {
+    "profileUpdated": "¡Perfil actualizado con éxito!",
+    "passwordChanged": "¡Contraseña cambiada con éxito!",
+    "loginSuccess": "Inicio de sesión exitoso"
+  },
+  "currency": {
+    "ZAR": "Rand sudafricano",
+    "USD": "Dólar estadounidense",
+    "EUR": "Euro",
+    "BTC": "Bitcoin"
+  }
+}

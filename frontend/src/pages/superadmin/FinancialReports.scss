@@ -1,0 +1,185 @@
+.financial-reports {
+  padding: 24px;
+  background: #f5f5f5;
+  min-height: 100vh;
+
+  .financial-reports-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 400px;
+  }
+
+  .financial-reports-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    padding: 24px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+    .header-content {
+      h2 {
+        margin: 0 0 8px 0;
+        color: #262626;
+        font-size: 24px;
+        font-weight: 600;
+      }
+
+      p {
+        margin: 0;
+        color: #8c8c8c;
+      }
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+  }
+
+  .financial-overview {
+    .ant-card {
+      text-align: center;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+      }
+
+      .ant-statistic-title {
+        font-size: 14px;
+        color: #8c8c8c;
+        margin-bottom: 8px;
+      }
+
+      .ant-statistic-content {
+        font-size: 24px;
+        font-weight: 600;
+        color: #262626;
+      }
+    }
+  }
+
+  .chart-card {
+    .ant-card-head {
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .ant-card-body {
+      padding: 24px;
+    }
+  }
+
+  .ant-tabs-content-holder {
+    background: white;
+    border-radius: 8px;
+    padding: 24px;
+    margin-top: 24px;
+  }
+
+  .ant-tabs-nav {
+    margin-bottom: 0;
+
+    .ant-tabs-tab {
+      padding: 12px 24px;
+      font-weight: 500;
+
+      &.ant-tabs-tab-active {
+        .ant-tabs-tab-btn {
+          color: #1890ff;
+        }
+      }
+    }
+  }
+
+  .report-detail {
+    .ant-typography {
+      margin-bottom: 16px;
+    }
+
+    .ant-descriptions {
+      margin-bottom: 24px;
+    }
+  }
+
+  // Responsive design
+  @media (max-width: 768px) {
+    padding: 16px;
+
+    .financial-reports-header {
+      flex-direction: column;
+      gap: 16px;
+
+      .header-actions {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+      }
+    }
+
+    .ant-col {
+      margin-bottom: 16px;
+    }
+  }
+
+  // Dark theme support
+  @media (prefers-color-scheme: dark) {
+    background: #141414;
+
+    .financial-reports-header {
+      background: #1f1f1f;
+      color: #fff;
+
+      .header-content {
+        h2 {
+          color: #fff;
+        }
+
+        p {
+          color: #a6a6a6;
+        }
+      }
+    }
+
+    .ant-tabs-content-holder {
+      background: #1f1f1f;
+      color: #fff;
+    }
+
+    .financial-overview {
+      .ant-card {
+        background: #1f1f1f;
+        border-color: #434343;
+
+        .ant-statistic-title {
+          color: #a6a6a6;
+        }
+
+        .ant-statistic-content {
+          color: #fff;
+        }
+      }
+    }
+
+    .chart-card {
+      background: #1f1f1f;
+      border-color: #434343;
+
+      .ant-card-head {
+        border-bottom-color: #434343;
+        color: #fff;
+      }
+
+      .ant-card-body {
+        background: #1f1f1f;
+      }
+    }
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "common": {
+    "loading": "Caricamento...",
+    "error": "Errore",
+    "success": "Successo",
+    "warning": "Avviso",
+    "info": "Informazioni",
+    "cancel": "Annulla",
+    "save": "Salva",
+    "delete": "Elimina",
+    "edit": "Modifica",
+    "view": "Visualizza",
+    "close": "Chiudi",
+    "confirm": "Conferma",
+    "yes": "Sì",
+    "no": "No",
+    "search": "Cerca",
+    "filter": "Filtra",
+    "clear": "Cancella",
+    "reset": "Reimposta",
+    "submit": "Invia",
+    "back": "Indietro",
+    "next": "Successivo",
+    "previous": "Precedente",
+    "done": "Fatto",
+    "copy": "Copia",
+    "share": "Condividi",
+    "download": "Scarica",
+    "upload": "Carica",
+    "refresh": "Aggiorna"
+  },
+  "navigation": {
+    "dashboard": "Pannello",
+    "trading": "Trading",
+    "portfolio": "Portafoglio",
+    "markets": "Mercati",
+    "settings": "Impostazioni",
+    "profile": "Profilo",
+    "security": "Sicurezza",
+    "notifications": "Notifiche",
+    "wallet": "Portafoglio",
+    "broker": "Broker",
+    "preferences": "Preferenze",
+    "logout": "Esci",
+    "login": "Accedi",
+    "register": "Registrati"
+  },
+  "settings": {
+    "title": "Impostazioni",
+    "subtitle": "Gestisci impostazioni account e preferenze",
+    "profile": {
+      "title": "Profilo",
+      "subtitle": "Gestisci informazioni personali e impostazioni profilo",
+      "firstName": "Nome",
+      "lastName": "Cognome",
+      "email": "Email",
+      "phone": "Telefono",
+      "country": "Paese",
+      "bio": "Biografia",
+      "avatar": "Immagine profilo",
+      "changeAvatar": "Cambia avatar",
+      "verified": "Verificato",
+      "notVerified": "Non verificato"
+    },
+    "security": {
+      "title": "Sicurezza",
+      "subtitle": "Gestisci impostazioni di sicurezza e autenticazione",
+      "password": "Password",
+      "twoFactor": "Autenticazione a due fattori",
+      "activeSessions": "Sessioni attive"
+    },
+    "notifications": {
+      "title": "Notifiche",
+      "subtitle": "Gestisci preferenze notifiche",
+      "emailNotifications": "Notifiche email",
+      "pushNotifications": "Notifiche push",
+      "securityAlerts": "Avvisi di sicurezza"
+    },
+    "wallet": {
+      "title": "Portafoglio",
+      "subtitle": "Gestisci portafoglio e metodi di pagamento",
+      "balance": "Saldo",
+      "deposit": "Deposita",
+      "withdraw": "Preleva",
+      "transactionHistory": "Cronologia transazioni"
+    },
+    "broker": {
+      "title": "Broker",
+      "subtitle": "Gestisci relazioni con broker",
+      "linkedBroker": "Broker collegato",
+      "linkBroker": "Collega broker",
+      "status": "Stato"
+    },
+    "preferences": {
+      "title": "Preferenze",
+      "subtitle": "Personalizza esperienza ViralFX",
+      "theme": "Tema",
+      "language": "Lingua",
+      "currency": "Valuta predefinita",
+      "darkTheme": "Scuro",
+      "lightTheme": "Chiaro"
+    }
+  },
+  "trading": {
+    "title": "Trading",
+    "buy": "Compra",
+    "sell": "Vendi",
+    "market": "Mercato",
+    "orderBook": "Libro ordini",
+    "priceChart": "Grafico prezzi",
+    "openOrders": "Ordini aperti",
+    "balance": "Saldo",
+    "profit": "Profitto",
+    "loss": "Perdita",
+    "volume": "Volume",
+    "price": "Prezzo",
+    "placeOrder": "Piazza ordine"
+  },
+  "portfolio": {
+    "title": "Portafoglio",
+    "totalValue": "Valore totale",
+    "totalReturn": "Ritorno totale",
+    "assetAllocation": "Allocazione asset",
+    "holdings": "Partecipazioni",
+    "performance": "Performance",
+    "profitLoss": "Profitto/Perdita"
+  },
+  "auth": {
+    "login": "Accedi",
+    "register": "Registrati",
+    "logout": "Esci",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Conferma password",
+    "forgotPassword": "Password dimenticata?",
+    "rememberMe": "Ricordami"
+  },
+  "errors": {
+    "generic": "Qualcosa è andato storto. Riprova.",
+    "networkError": "Errore di rete. Controlla la connessione.",
+    "validationError": "Controlla input e riprova.",
+    "unauthorized": "Non autorizzato a eseguire questa azione.",
+    "requiredField": "Campo obbligatorio."
+  },
+  "success": {
+    "profileUpdated": "Profilo aggiornato con successo!",
+    "passwordChanged": "Password modificata con successo!",
+    "loginSuccess": "Accesso riuscito"
+  },
+  "currency": {
+    "ZAR": "Rand sudafricano",
+    "USD": "Dollaro americano",
+    "EUR": "Euro",
+    "BTC": "Bitcoin"
+  }
+}

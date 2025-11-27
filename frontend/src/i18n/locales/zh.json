@@ -1,0 +1,156 @@
+{
+  "common": {
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "warning": "警告",
+    "info": "信息",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "view": "查看",
+    "close": "关闭",
+    "confirm": "确认",
+    "yes": "是",
+    "no": "否",
+    "search": "搜索",
+    "filter": "筛选",
+    "clear": "清除",
+    "reset": "重置",
+    "submit": "提交",
+    "back": "返回",
+    "next": "下一步",
+    "previous": "上一步",
+    "done": "完成",
+    "copy": "复制",
+    "share": "分享",
+    "download": "下载",
+    "upload": "上传",
+    "refresh": "刷新"
+  },
+  "navigation": {
+    "dashboard": "仪表板",
+    "trading": "交易",
+    "portfolio": "投资组合",
+    "markets": "市场",
+    "settings": "设置",
+    "profile": "个人资料",
+    "security": "安全",
+    "notifications": "通知",
+    "wallet": "钱包",
+    "broker": "经纪人",
+    "preferences": "偏好设置",
+    "logout": "退出",
+    "login": "登录",
+    "register": "注册"
+  },
+  "settings": {
+    "title": "设置",
+    "subtitle": "管理您的账户设置和偏好",
+    "profile": {
+      "title": "个人资料",
+      "subtitle": "管理您的个人信息和资料设置",
+      "firstName": "名字",
+      "lastName": "姓氏",
+      "email": "电子邮件地址",
+      "phone": "电话号码",
+      "country": "国家",
+      "bio": "个人简介",
+      "avatar": "头像",
+      "changeAvatar": "更换头像",
+      "verified": "已验证",
+      "notVerified": "未验证"
+    },
+    "security": {
+      "title": "安全",
+      "subtitle": "管理您的安全设置和身份验证",
+      "password": "密码",
+      "twoFactor": "双因素身份验证",
+      "activeSessions": "活动会话"
+    },
+    "notifications": {
+      "title": "通知",
+      "subtitle": "管理您的通知偏好",
+      "emailNotifications": "电子邮件通知",
+      "pushNotifications": "推送通知",
+      "securityAlerts": "安全警报"
+    },
+    "wallet": {
+      "title": "钱包",
+      "subtitle": "管理您的钱包和支付方式",
+      "balance": "余额",
+      "deposit": "存款",
+      "withdraw": "取款",
+      "transactionHistory": "交易历史"
+    },
+    "broker": {
+      "title": "经纪人",
+      "subtitle": "管理您的经纪人关系",
+      "linkedBroker": "已关联经纪人",
+      "linkBroker": "关联经纪人",
+      "status": "状态"
+    },
+    "preferences": {
+      "title": "偏好设置",
+      "subtitle": "自定义您的 ViralFX 体验",
+      "theme": "主题",
+      "language": "语言",
+      "currency": "默认货币",
+      "darkTheme": "深色",
+      "lightTheme": "浅色"
+    }
+  },
+  "trading": {
+    "title": "交易",
+    "buy": "买入",
+    "sell": "卖出",
+    "market": "市场",
+    "orderBook": "订单簿",
+    "priceChart": "价格图表",
+    "openOrders": "未完成订单",
+    "balance": "余额",
+    "profit": "利润",
+    "loss": "亏损",
+    "volume": "成交量",
+    "price": "价格",
+    "placeOrder": "下单"
+  },
+  "portfolio": {
+    "title": "投资组合",
+    "totalValue": "总价值",
+    "totalReturn": "总回报",
+    "assetAllocation": "资产配置",
+    "holdings": "持仓",
+    "performance": "表现",
+    "profitLoss": "盈亏"
+  },
+  "auth": {
+    "login": "登录",
+    "register": "注册",
+    "logout": "退出",
+    "email": "电子邮件",
+    "password": "密码",
+    "confirmPassword": "确认密码",
+    "forgotPassword": "忘记密码？",
+    "rememberMe": "记住我"
+  },
+  "errors": {
+    "generic": "出现错误。请重试。",
+    "networkError": "网络错误。请检查您的连接。",
+    "validationError": "请检查您的输入并重试。",
+    "unauthorized": "您无权执行此操作。",
+    "requiredField": "此字段为必填项。"
+  },
+  "success": {
+    "profileUpdated": "个人资料更新成功！",
+    "passwordChanged": "密码更改成功！",
+    "loginSuccess": "登录成功"
+  },
+  "currency": {
+    "ZAR": "南非兰特",
+    "USD": "美元",
+    "EUR": "欧元",
+    "BTC": "比特币"
+  }
+}

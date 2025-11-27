@@ -1,0 +1,271 @@
+/**
+ * ViralFX Universal Trend Symbol System (VTS) Database Schema
+ * Prisma schema for VTS symbol management and tracking
+ * © 2025 ViralFX - Global Symbol Standard
+ */
+
+model VTSTrend {
+  id          String   @id @default(cuid())
+  symbol      String   @unique // V:REGION:CAT:TOPIC_ID format
+  region      String   // RegionCode enum
+  category    String   // CategoryCode enum
+  topicId     String   // Unique topic identifier
+  displayName String   // Human-readable name
+  description String   // Trend description
+  hashRoot    String   // Hash root for verification
+
+  // Metadata
+  originalTopic String  // Original topic text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  firstSeenAt  DateTime @default(now())
+  expiresAt    DateTime? // Trend expiration
+
+  // Status and verification
+  status       TrendStatus @default(EMERGING)
+  verificationLevel VerificationLevel @default(LOW)
+  consensusScore Float @default(0.0)
+  riskLevel    RiskLevel @default(LOW)
+
+  // Metrics
+  sentimentScore Float @default(0.0)
+  viralityScore  Float @default(0.0)
+  momentumScore  Float @default(0.0)
+  authorityScore Float @default(0.0)
+
+  // Engagement metrics
+  totalLikes    BigInt @default(0)
+  totalShares   BigInt @default(0)
+  totalComments BigInt @default(0)
+  totalViews    BigInt @default(0)
+
+  // Platform and language data
+  platforms     String[] // Array of platform names
+  languages     String[] // Array of language codes
+  firstSeenPlatform String @default("unknown")
+
+  // Regional data
+  countryCodes  String[] // Associated country codes
+  localContext  Json? // Regional context data
+
+  // Content samples
+  sampleContent Json[] // Sample content items
+
+  // Trading data
+  isActive      Boolean @default(true)
+  tradable      Boolean @default(false)
+  baseValue     Float @default(0.0)
+  currentPrice  Float @default(0.0)
+  volume24h     BigInt @default(0)
+
+  // Classification data
+  nmcValidation Json? // Neural Mesh Consensus validation data
+  classificationData Json? // Detailed classification results
+
+  // Relationships
+  vtsHistory    VTSHistory[]
+  vtsAlert      VTSAlert[]
+  vtsRelatedFrom VTSTrendRelation[] @relation("TrendFrom")
+  vtsRelatedTo   VTSTrendRelation[] @relation("TrendTo")
+
+  @@map("vts_trends")
+  @@index([symbol])
+  @@index([region])
+  @@index([category])
+  @@index([status])
+  @@index([createdAt])
+  @@index([viralityScore])
+}
+
+model VTSHistory {
+  id          String   @id @default(cuid())
+  vtsTrendId  String
+  timestamp   DateTime @default(now())
+
+  // Price and volume data
+  price       Float
+  volume      BigInt
+  marketCap   BigInt
+
+  // Metrics
+  viralityScore  Float
+  sentimentScore Float
+  momentumScore  Float
+
+  // Regional breakdown
+  regionalData Json? // Regional performance data
+
+  // Event data
+  eventType   HistoryEventType @default(PRICE_UPDATE)
+  eventData   Json?
+
+  vtsTrend    VTSTrend @relation(fields: [vtsTrendId], references: [id], onDelete: Cascade)
+
+  @@map("vts_history")
+  @@index([vtsTrendId])
+  @@index([timestamp])
+  @@index([eventType])
+}
+
+model VTSAlert {
+  id          String   @id @default(cuid())
+  vtsTrendId  String
+  alertType   AlertType
+  severity    AlertSeverity @default(MEDIUM)
+  message     String
+  data        Json?
+
+  isRead      Boolean @default(false)
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+
+  vtsTrend    VTSTrend @relation(fields: [vtsTrendId], references: [id], onDelete: Cascade)
+
+  @@map("vts_alerts")
+  @@index([vtsTrendId])
+  @@index([alertType])
+  @@index([severity])
+  @@index([createdAt])
+}
+
+model VTSTrendRelation {
+  id            String @id @default(cuid())
+  fromTrendId   String
+  toTrendId     String
+  relationType  RelationType
+  strength      Float  // 0.0 to 1.0
+
+  createdAt     DateTime @default(now())
+
+  fromTrend     VTSTrend @relation("TrendFrom", fields: [fromTrendId], references: [id], onDelete: Cascade)
+  toTrend       VTSTrend @relation("TrendTo", fields: [toTrendId], references: [id], onDelete: Cascade)
+
+  @@unique([fromTrendId, toTrendId, relationType])
+  @@map("vts_trend_relations")
+  @@index([fromTrendId])
+  @@index([toTrendId])
+  @@index([relationType])
+}
+
+model VTSMarketData {
+  id            String   @id @default(cuid())
+  symbol        String   @unique
+
+  // Current market data
+  lastPrice     Float
+  bidPrice      Float
+  askPrice      Float
+  volume24h     BigInt
+  change24h     Float
+  changePercent24h Float
+
+  // Market metrics
+  marketCap     BigInt
+  circulatingSupply BigInt
+  maxSupply     BigInt?
+
+  // Trading metrics
+  high24h       Float
+  low24h        Float
+  vwap24h       Float // Volume Weighted Average Price
+
+  // Liquidity metrics
+  liquidityScore Float
+  orderBookDepth BigInt
+
+  // Timestamps
+  lastUpdated   DateTime @default(now())
+
+  @@map("vts_market_data")
+  @@index([symbol])
+  @@index([lastUpdated])
+}
+
+model VTSUserWatchlist {
+  id            String   @id @default(cuid())
+  userId        String
+  symbol        String
+  vtsTrendId    String
+
+  // Watchlist settings
+  alertThresholds Json? // Price, volume, sentiment alerts
+  notes         String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt()
+
+  @@unique([userId, symbol])
+  @@map("vts_user_watchlist")
+  @@index([userId])
+  @@index([symbol])
+}
+
+// Enums
+enum TrendStatus {
+  EMERGING     // 0-6 hours old
+  SURGING      // 6-24 hours, high momentum
+  PEAK         // 24-72 hours, maximum reach
+  SUSTAINING   // 72+ hours, steady engagement
+  DECLINING    // Waning interest
+  EXPIRED      // No longer relevant
+  MANIPULATED  // Detected manipulation
+  REMOVED      // Removed for policy violations
+}
+
+enum VerificationLevel {
+  LOW           // Unverified or low confidence
+  MEDIUM        // Some verification
+  HIGH          // Well verified
+  VERIFIED      // Officially verified
+  SUSPICIOUS    // Potential manipulation
+  REJECTED      // Rejected as fake/harmful
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum HistoryEventType {
+  PRICE_UPDATE
+  VOLUME_SPIKE
+  SENTIMENT_SHIFT
+  MOMENTUM_CHANGE
+  CONSENSUS_UPDATE
+  REGIONAL_EXPANSION
+  PLATFORM_ADDITION
+  VERIFICATION_CHANGE
+  ALERT_TRIGGERED
+}
+
+enum AlertType {
+  MOMENTUM_SPIKE
+  SENTIMENT_SHIFT
+  VIRALITY_BREAKOUT
+  MANIPULATION_DETECTED
+  VERIFICATION_CHANGED
+  CROSS_PLATFORM_EXPANSION
+  REGIONAL_CONVERGENCE
+  PRICE_MOVEMENT
+  VOLUME_ANOMALY
+  RISK_LEVEL_CHANGE
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RelationType {
+  SIMILAR_TOPIC      // Same topic on different platforms
+  RELATED_TOPIC     // Topically related
+  CAUSAL_RELATION   // One trend causing another
+  COMPETING_TOPIC   // Competing for attention
+  SEQUEL_PREQUEL    // Sequential trends
+  REBUTTAL_RESPONSE // Contradictory trends
+  AMPLIFICATION     // One trend amplifying another
+}

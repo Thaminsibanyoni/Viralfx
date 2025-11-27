@@ -1,0 +1,501 @@
+version: '3.9'
+
+x-common-variables: &common-variables
+  NODE_ENV: development
+  TZ: UTC
+
+x-backend-variables: &backend-variables
+  DATABASE_URL: postgresql://viralfx:${VIRALFX_DB_PASSWORD:-viralfx_dev_password}@postgres:5432/viralfx
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+  JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_change_in_production}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_change_in_production}
+  JWT_EXPIRES_IN: 15m
+  JWT_REFRESH_EXPIRES_IN: 7d
+  AWS_S3_ENDPOINT: http://minio:9000
+  AWS_S3_ACCESS_KEY: ${AWS_S3_ACCESS_KEY:-viralfx}
+  AWS_S3_SECRET_KEY: ${AWS_S3_SECRET_KEY:-viralfx_dev_password}
+  AWS_S3_BUCKET: ${AWS_S3_BUCKET:-viralfx-uploads}
+  AWS_S3_REGION: us-east-1
+  SENTIMENT_SERVICE_URL: http://sentiment-service:8000
+  DECEPTION_SERVICE_URL: http://deception-service:8000
+  MEDIA_SERVICE_URL: http://media-service:8000
+  TREND_INTEL_SERVICE_URL: http://trend-intel-service:8003
+  CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+  THROTTLE_TTL: 60000
+  THROTTLE_LIMIT: 100
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: viralfx_postgres
+    environment:
+      <<: *common-variables
+      POSTGRES_USER: viralfx
+      POSTGRES_PASSWORD: ${VIRALFX_DB_PASSWORD:-viralfx_dev_password}
+      POSTGRES_DB: viralfx
+      POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --lc-collate=C --lc-ctype=C'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - '5432:5432'
+    networks:
+      - viralfx_network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U viralfx -d viralfx']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # Redis Cache & Queue
+  redis:
+    image: redis:7-alpine
+    container_name: viralfx_redis
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:-}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+      - ./infra/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    ports:
+      - '6379:6379'
+    networks:
+      - viralfx_network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # MinIO (S3-compatible storage)
+  minio:
+    image: minio/minio:latest
+    container_name: viralfx_minio
+    command: server /data --console-address ":9001"
+    environment:
+      <<: *common-variables
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-viralfx}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-viralfx_dev_password}
+    volumes:
+      - minio_data:/data
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    networks:
+      - viralfx_network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # Create MinIO buckets
+  minio-setup:
+    image: minio/mc
+    container_name: viralfx_minio_setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:-viralfx} ${MINIO_ROOT_PASSWORD:-viralfx_dev_password};
+      /usr/bin/mc mb myminio/${AWS_S3_BUCKET:-viralfx-uploads} || true;
+      /usr/bin/mc mb myminio/${AWS_S3_BUCKET:-viralfx-media} || true;
+      /usr/bin/mc policy set public myminio/${AWS_S3_BUCKET:-viralfx-uploads};
+      /usr/bin/mc policy set public myminio/${AWS_S3_BUCKET:-viralfx-media};
+      exit 0;
+      "
+    networks:
+      - viralfx_network
+    restart: 'no'
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+      target: development
+    container_name: viralfx_backend
+    command: npm run start:dev
+    environment:
+      <<: *backend-variables
+      PORT: 3000
+      HOST: 0.0.0.0
+    volumes:
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules
+      - backend_uploads:/usr/src/app/uploads
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - viralfx_network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # Backend Worker - Ingest
+  backend-ingest-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+      target: development
+    container_name: viralfx_ingest_worker
+    command: npm run start:worker:ingest
+    environment:
+      <<: *backend-variables
+    volumes:
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - backend
+      - redis
+    networks:
+      - viralfx_network
+    restart: unless-stopped
+
+  # Backend Worker - Aggregator
+  backend-aggregator-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+      target: development
+    container_name: viralfx_aggregator_worker
+    command: npm run start:worker:aggregator
+    environment:
+      <<: *backend-variables
+    volumes:
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - backend
+      - redis
+    networks:
+      - viralfx_network
+    restart: unless-stopped
+
+  # Frontend Web App
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: viralfx_frontend
+    command: npm run dev -- --host 0.0.0.0
+    environment:
+      <<: *common-variables
+      VITE_API_URL: http://localhost:3000/api/v1
+      VITE_WS_URL: ws://localhost:3000
+      VITE_APP_NAME: ViralFX
+      VITE_APP_VERSION: 1.0.0
+    volumes:
+      - ./frontend:/usr/src/app
+      - /usr/src/app/node_modules
+    ports:
+      - '5173:5173'
+    networks:
+      - viralfx_network
+    restart: unless-stopped
+
+  # Sentiment Analysis Service
+  sentiment-service:
+    build:
+      context: ./ml-services/sentiment
+      dockerfile: Dockerfile
+      target: development
+    container_name: viralfx_sentiment
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      <<: *common-variables
+      MODEL_PATH: /models/sentiment
+      LOG_LEVEL: INFO
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./ml-services/sentiment:/app
+      - sentiment_models:/models
+    ports:
+      - '8000:8000'
+    networks:
+      - viralfx_network
+    restart: unless-stopped
+
+  # Deception Detection Service
+  deception-service:
+    build:
+      context: ./ml-services/deception
+      dockerfile: Dockerfile
+      target: development
+    container_name: viralfx_deception
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      <<: *common-variables
+      MODEL_PATH: /models/deception
+      LOG_LEVEL: INFO
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./ml-services/deception:/app
+      - deception_models:/models
+    ports:
+      - '8001:8000'
+    networks:
+      - viralfx_network
+    restart: unless-stopped
+
+  # Media Processing Service
+  media-service:
+    build:
+      context: ./ml-services/media
+      dockerfile: Dockerfile
+      target: development
+    container_name: viralfx_media
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      <<: *common-variables
+      LOG_LEVEL: INFO
+      REDIS_URL: redis://redis:6379
+      AWS_S3_ENDPOINT: http://minio:9000
+      AWS_S3_ACCESS_KEY: ${AWS_S3_ACCESS_KEY:-viralfx}
+      AWS_S3_SECRET_KEY: ${AWS_S3_SECRET_KEY:-viralfx_dev_password}
+    volumes:
+      - ./ml-services/media:/app
+    ports:
+      - '8002:8000'
+    depends_on:
+      - minio
+    networks:
+      - viralfx_network
+    restart: unless-stopped
+
+  # Trend Intelligence Service
+  trend-intel-service:
+    build:
+      context: ./ml-services/trend-intel
+      dockerfile: Dockerfile
+      target: development
+    container_name: viralfx_trend_intel
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8003 --reload
+    environment:
+      <<: *common-variables
+      LOG_LEVEL: INFO
+      DATABASE_URL: postgresql://viralfx:${VIRALFX_DB_PASSWORD:-viralfx_dev_password}@postgres:5432/viralfx
+      REDIS_URL: redis://redis:6379
+      # Model Configuration
+      MODEL_PATH: /app/models
+      SENTIMENT_MODEL: sentiment_model_v1
+      TOXICITY_MODEL: toxicity_model_v1
+      VIRALITY_MODEL: virality_model_v1
+      # API Keys for Social Media (Phase 2)
+      TWITTER_BEARER_TOKEN: ${TWITTER_BEARER_TOKEN:-}
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      FACEBOOK_ACCESS_TOKEN: ${FACEBOOK_ACCESS_TOKEN:-}
+      INSTAGRAM_ACCESS_TOKEN: ${INSTAGRAM_ACCESS_TOKEN:-}
+      TIKTOK_API_KEY: ${TIKTOK_API_KEY:-}
+      # Processing Configuration
+      BATCH_SIZE: 100
+      MAX_WORKERS: 4
+      CACHE_TTL: 300
+      REQUEST_TIMEOUT: 30
+    volumes:
+      - ./ml-services/trend-intel:/app
+      - trend_intel_models:/app/models
+    ports:
+      - '8003:8003'
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - viralfx_network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8003/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy (Production)
+  nginx:
+    image: nginx:alpine
+    container_name: viralfx_nginx
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/sites-enabled:/etc/nginx/sites-enabled:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    ports:
+      - '80:80'
+      - '443:443'
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - viralfx_network
+    profiles:
+      - production
+    restart: unless-stopped
+
+  # Prometheus (Metrics)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: viralfx_prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - '9090:9090'
+    networks:
+      - viralfx_network
+    profiles:
+      - monitoring
+    restart: unless-stopped
+
+  # Grafana (Dashboards)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: viralfx_grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - '3001:3000'
+    depends_on:
+      - prometheus
+    networks:
+      - viralfx_network
+    profiles:
+      - monitoring
+    restart: unless-stopped
+
+  # Loki (Log aggregation)
+  loki:
+    image: grafana/loki:latest
+    container_name: viralfx_loki
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./infra/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    ports:
+      - '3100:3100'
+    networks:
+      - viralfx_network
+    profiles:
+      - monitoring
+    restart: unless-stopped
+
+  # Promtail (Log collection)
+  promtail:
+    image: grafana/promtail:latest
+    container_name: viralfx_promtail
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./infra/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - viralfx_network
+    profiles:
+      - monitoring
+    restart: unless-stopped
+
+  # PgAdmin (Database management)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: viralfx_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@viralfx.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./infra/pgadmin/servers.json:/pgadmin4/servers.json:ro
+    ports:
+      - '5050:80'
+    depends_on:
+      - postgres
+    networks:
+      - viralfx_network
+    profiles:
+      - tools
+    restart: unless-stopped
+
+  # Redis Commander (Redis management)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: viralfx_redis_commander
+    environment:
+      REDIS_HOSTS: local:redis:6379:${REDIS_PASSWORD:-}
+      HTTP_USER: ${REDIS_COMMANDER_USER:-admin}
+      HTTP_PASSWORD: ${REDIS_COMMANDER_PASSWORD:-admin}
+    ports:
+      - '8081:8081'
+    depends_on:
+      - redis
+    networks:
+      - viralfx_network
+    profiles:
+      - tools
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+  sentiment_models:
+    driver: local
+  deception_models:
+    driver: local
+  backend_uploads:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  loki_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  trend_intel_models:
+    driver: local
+
+networks:
+  viralfx_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

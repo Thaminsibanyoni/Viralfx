@@ -1,0 +1,272 @@
+.keys {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+
+    .title {
+      margin-bottom: 8px;
+      color: #1a1a1a;
+      font-weight: 700;
+      font-size: 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .description {
+      color: #666;
+      font-size: 16px;
+      margin: 0;
+    }
+  }
+
+  .stats {
+    margin-bottom: 32px;
+
+    :global(.ant-card) {
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      border: none;
+
+      .ant-card-body {
+        padding: 24px;
+      }
+
+      .ant-statistic {
+        .ant-statistic-title {
+          font-size: 14px;
+          color: #666;
+          margin-bottom: 8px;
+        }
+
+        .ant-statistic-content {
+          font-size: 32px;
+          font-weight: 700;
+          color: #4B0082;
+        }
+      }
+    }
+  }
+
+  .tableCard {
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: none;
+
+    :global(.ant-card-head) {
+      border-bottom: 1px solid #f0f0f0;
+      padding: 16px 24px;
+
+      .ant-card-head-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1a1a1a;
+      }
+    }
+
+    :global(.ant-table) {
+      .ant-table-thead > tr > th {
+        background: #fafafa;
+        font-weight: 600;
+        color: #1a1a1a;
+        border-bottom: 2px solid #f0f0f0;
+      }
+
+      .ant-table-tbody > tr {
+        cursor: pointer;
+        transition: background-color 0.2s;
+
+        &:hover {
+          background-color: #f6f8fa;
+        }
+
+        > td {
+          border-bottom: 1px solid #f0f0f0;
+          padding: 16px;
+        }
+      }
+
+      .selectedRow {
+        background-color: #e6f7ff;
+      }
+    }
+  }
+
+  .keyDisplay {
+    margin: 16px 0;
+
+    :global(.ant-input) {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+  }
+
+  // Modal customizations
+  :global(.ant-modal) {
+    .ant-modal-header {
+      background: linear-gradient(135deg, #4B0082, #6A0DAD);
+      border-radius: 12px 12px 0 0;
+
+      .ant-modal-title {
+        color: white;
+        font-weight: 600;
+      }
+    }
+
+    .ant-modal-close {
+      color: white;
+
+      &:hover {
+        color: #f0f0f0;
+      }
+    }
+
+    .ant-modal-content {
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .ant-modal-body {
+      padding: 32px;
+    }
+  }
+
+  // Form styling
+  :global(.ant-form) {
+    .ant-form-item-label > label {
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+
+    .ant-select-selection-item {
+      font-weight: 500;
+    }
+
+    .ant-form-item-explain {
+      font-size: 12px;
+    }
+  }
+
+  // Progress bar styling
+  :global(.ant-progress) {
+    .ant-progress-bg {
+      transition: all 0.3s ease;
+    }
+  }
+
+  // Alert styling
+  :global(.ant-alert) {
+    border-radius: 8px;
+
+    &.ant-alert-warning {
+      background-color: #fffbe6;
+      border-color: #ffe58f;
+    }
+
+    &.ant-alert-error {
+      background-color: #fff2f0;
+      border-color: #ffccc7;
+    }
+  }
+
+  // Chart container
+  :global(.ant-card) {
+    .g2-tooltip {
+      background: rgba(0, 0, 0, 0.8);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: white;
+      font-size: 12px;
+    }
+  }
+}
+
+// Responsive Design
+@media (max-width: 768px) {
+  .keys {
+    padding: 16px;
+
+    .header {
+      flex-direction: column;
+      gap: 16px;
+
+      .title {
+        font-size: 24px;
+      }
+    }
+
+    .stats {
+      .ant-col {
+        margin-bottom: 16px;
+      }
+    }
+
+    .tableCard {
+      :global(.ant-table) {
+        .ant-table-container {
+          overflow-x: auto;
+        }
+
+        .ant-table-tbody > tr > td {
+          padding: 12px 8px;
+        }
+      }
+    }
+
+    :global(.ant-modal) {
+      .ant-modal-body {
+        padding: 20px;
+      }
+    }
+  }
+}
+
+// Animations
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.keys {
+  .stats {
+    .ant-card {
+      animation: fadeIn 0.5s ease-out;
+    }
+  }
+
+  .tableCard {
+    animation: fadeIn 0.5s ease-out 0.1s both;
+  }
+}
+
+// Status badge colors
+:global(.ant-tag) {
+  &.ant-tag-success {
+    background-color: #f6ffed;
+    border-color: #d9f7be;
+    color: #389e0d;
+  }
+
+  &.ant-tag-error {
+    background-color: #fff2f0;
+    border-color: #ffccc7;
+    color: #cf1322;
+  }
+
+  &.ant-tag-warning {
+    background-color: #fffbe6;
+    border-color: #ffe58f;
+    color: #d46b08;
+  }
+}

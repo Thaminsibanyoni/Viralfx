@@ -1,0 +1,156 @@
+{
+  "common": {
+    "loading": "Загрузка...",
+    "error": "Ошибка",
+    "success": "Успешно",
+    "warning": "Предупреждение",
+    "info": "Информация",
+    "cancel": "Отмена",
+    "save": "Сохранить",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "view": "Просмотр",
+    "close": "Закрыть",
+    "confirm": "Подтвердить",
+    "yes": "Да",
+    "no": "Нет",
+    "search": "Поиск",
+    "filter": "Фильтр",
+    "clear": "Очистить",
+    "reset": "Сброс",
+    "submit": "Отправить",
+    "back": "Назад",
+    "next": "Далее",
+    "previous": "Назад",
+    "done": "Готово",
+    "copy": "Копировать",
+    "share": "Поделиться",
+    "download": "Скачать",
+    "upload": "Загрузить",
+    "refresh": "Обновить"
+  },
+  "navigation": {
+    "dashboard": "Панель",
+    "trading": "Торговля",
+    "portfolio": "Портфель",
+    "markets": "Рынки",
+    "settings": "Настройки",
+    "profile": "Профиль",
+    "security": "Безопасность",
+    "notifications": "Уведомления",
+    "wallet": "Кошелек",
+    "broker": "Брокер",
+    "preferences": "Предпочтения",
+    "logout": "Выход",
+    "login": "Вход",
+    "register": "Регистрация"
+  },
+  "settings": {
+    "title": "Настройки",
+    "subtitle": "Управление настройками аккаунта и предпочтениями",
+    "profile": {
+      "title": "Профиль",
+      "subtitle": "Управление личной информацией и настройками профиля",
+      "firstName": "Имя",
+      "lastName": "Фамилия",
+      "email": "Адрес электронной почты",
+      "phone": "Номер телефона",
+      "country": "Страна",
+      "bio": "Биография",
+      "avatar": "Фото профиля",
+      "changeAvatar": "Сменить аватар",
+      "verified": "Подтвержден",
+      "notVerified": "Не подтвержден"
+    },
+    "security": {
+      "title": "Безопасность",
+      "subtitle": "Управление настройками безопасности и аутентификацией",
+      "password": "Пароль",
+      "twoFactor": "Двухфакторная аутентификация",
+      "activeSessions": "Активные сессии"
+    },
+    "notifications": {
+      "title": "Уведомления",
+      "subtitle": "Управление предпочтениями уведомлений",
+      "emailNotifications": "Email-уведомления",
+      "pushNotifications": "Push-уведомления",
+      "securityAlerts": "Оповещения безопасности"
+    },
+    "wallet": {
+      "title": "Кошелек",
+      "subtitle": "Управление кошельком и способами оплаты",
+      "balance": "Баланс",
+      "deposit": "Пополнить",
+      "withdraw": "Снять",
+      "transactionHistory": "История транзакций"
+    },
+    "broker": {
+      "title": "Брокер",
+      "subtitle": "Управление отношениями с брокерами",
+      "linkedBroker": "Привязанный брокер",
+      "linkBroker": "Привязать брокера",
+      "status": "Статус"
+    },
+    "preferences": {
+      "title": "Предпочтения",
+      "subtitle": "Настроить опыт ViralFX",
+      "theme": "Тема",
+      "language": "Язык",
+      "currency": "Валюта по умолчанию",
+      "darkTheme": "Темная",
+      "lightTheme": "Светлая"
+    }
+  },
+  "trading": {
+    "title": "Торговля",
+    "buy": "Купить",
+    "sell": "Продать",
+    "market": "Рынок",
+    "orderBook": "Стакан ордеров",
+    "priceChart": "График цены",
+    "openOrders": "Открытые ордера",
+    "balance": "Баланс",
+    "profit": "Прибыль",
+    "loss": "Убыток",
+    "volume": "Объем",
+    "price": "Цена",
+    "placeOrder": "Разместить ордер"
+  },
+  "portfolio": {
+    "title": "Портфель",
+    "totalValue": "Общая стоимость",
+    "totalReturn": "Общая доходность",
+    "assetAllocation": "Распределение активов",
+    "holdings": "Владения",
+    "performance": "Производительность",
+    "profitLoss": "Прибыль/Убыток"
+  },
+  "auth": {
+    "login": "Войти",
+    "register": "Зарегистрироваться",
+    "logout": "Выйти",
+    "email": "Email",
+    "password": "Пароль",
+    "confirmPassword": "Подтвердить пароль",
+    "forgotPassword": "Забыли пароль?",
+    "rememberMe": "Запомнить меня"
+  },
+  "errors": {
+    "generic": "Что-то пошло не так. Попробуйте еще раз.",
+    "networkError": "Ошибка сети. Проверьте подключение.",
+    "validationError": "Проверьте ввод и попробуйте еще раз.",
+    "unauthorized": "Вы не авторизованы для выполнения этого действия.",
+    "requiredField": "Это поле обязательно."
+  },
+  "success": {
+    "profileUpdated": "Профиль успешно обновлен!",
+    "passwordChanged": "Пароль успешно изменен!",
+    "loginSuccess": "Вход выполнен успешно"
+  },
+  "currency": {
+    "ZAR": "Южноафриканский рэнд",
+    "USD": "Доллар США",
+    "EUR": "Евро",
+    "BTC": "Биткоин"
+  }
+}

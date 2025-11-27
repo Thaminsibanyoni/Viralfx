@@ -1,0 +1,2916 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============= USER & AUTH =============
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  username      String?   @unique
+  password      String
+  role          Role      @default(USER)
+  status        UserStatus @default(ACTIVE)
+
+  // Profile
+  firstName     String?
+  lastName      String?
+  avatar        String?
+  bio           String?
+  country       String?
+
+  // Wallet
+  balanceUsd    Decimal   @default(0) @db.Decimal(12, 2)
+  balanceLocked Decimal   @default(0) @db.Decimal(12, 2)
+
+  // KYC
+  kycStatus     KycStatus @default(NONE)
+  kycDocuments  Json?
+
+  // Security
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret  String?
+  emailVerified    Boolean @default(false)
+  emailVerifiedAt  DateTime?
+
+  // Metadata
+  lastLoginAt   DateTime?
+  lastLoginIp   String?
+  deviceFingerprint String?
+
+  // Soft delete fields for preserving VPMX historical data
+  isDeleted     Boolean   @default(false) @map("is_deleted")
+  deletedAt     DateTime? @map("deleted_at")
+
+  // Additional status fields for user management
+  isActive      Boolean   @default(true) @map("is_active")
+  isVerified    Boolean   @default(false) @map("is_verified")
+  suspensionReason String? @map("suspension_reason")
+  suspendedAt   DateTime? @map("suspended_at")
+
+  // Referral system
+  referralCode  String?   @map("referral_code")
+  referredBy    String?   @map("referred_by")
+
+  // User preferences
+  preferences   Json?
+
+  // Broker Relationships
+  brokerId      String?   @map("broker_id")
+  broker        Broker?   @relation(fields: [brokerId], references: [id])
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  bets          Bet[]
+  vpmxBets      VPMXBet[] @relation("VPMXBets")
+  transactions  Transaction[]
+  watchlists    Watchlist[]
+  notifications Notification[]
+  chatMessages  ChatMessage[]
+  sessions      Session[]
+  auditLogs     AuditLog[]
+  oracleProofs  OracleProof[]
+  brokerClients BrokerClient[]
+  deviceTokens  DeviceToken[]
+  notificationPreferences NotificationPreferences?
+  verificationCodes VerificationCode[]
+  apiKeys       ApiKey[]
+
+  // CRM Relations
+  clientRecord  ClientRecord?
+  clientInteractions ClientInteraction[] @relation("ClientInteractionStaff")
+  assignedTickets Ticket[] @relation("TicketAssignment")
+  dealActivities DealActivity[]
+  assignedDeals BrokerDeal[] @relation("DealAssignment")
+  staffMember   StaffMember?
+  uploadedDocuments BrokerDocument[] @relation("UploadedDocuments")
+  verifiedDocuments BrokerDocument[] @relation("DocumentVerifier")
+  authoredBrokerNotes BrokerNote[] @relation("BrokerNoteAuthor")
+  ticketAssignmentsBy TicketAssignment[] @relation("TicketAssignmentBy")
+  ticketAssignmentsTo TicketAssignment[] @relation("TicketAssignmentTo")
+
+  // Support Desk Relations
+  tickets       Ticket[] @relation("TicketUser")
+  ticketMessagesAsAuthor TicketMessage[] @relation("TicketMessageAuthor")
+
+  // VPMX Relations - cascade deletes removed to preserve historical data
+  vpmxFairness  VPMXUserFairness?
+  vpmxBetsLegacy VpmxBet[] @relation("VpmxBetsLegacy")
+  vpmxExposures VpmxExposure[]
+
+  @@index([email])
+  @@index([username])
+  @@index([status])
+  @@index([brokerId])
+  @@index([isDeleted])
+  @@index([deletedAt])
+  @@index([isActive])
+}
+
+enum Role {
+  USER
+  ADMIN
+  MODERATOR
+  ANALYST
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  DELETED
+}
+
+enum KycStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ============= BROKER MODELS =============
+
+enum BrokerStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum BrokerTier {
+  STARTER
+  VERIFIED
+  PREMIUM
+  ENTERPRISE
+}
+
+enum BrokerType {
+  FINANCIAL_INSTITUTION
+  INDEPENDENT_BROKER
+  TRADING_FIRM
+  CRYPTOCURRENCY_EXCHANGE
+}
+
+enum AttributionType {
+  REFERRAL_LINK
+  REFERRAL_CODE
+  DIRECT_SIGNUP
+  API_INTEGRATION
+  WHITE_LABEL
+  OAUTH
+}
+
+model Broker {
+  id                      String   @id @default(uuid())
+  companyName             String
+  registrationNumber      String   @unique
+  fscaLicenseNumber       String?
+  fscaLicenseExpiry       DateTime?
+  tier                    BrokerTier @default(STARTER)
+  type                    BrokerType @default(INDEPENDENT_BROKER)
+  status                  BrokerStatus @default(PENDING)
+  contactEmail            String
+  contactPhone            String?
+  physicalAddress         String
+  postalAddress           String?
+  website                 String?
+
+  // Business Profile
+  businessProfile         Json?
+  complianceInfo          Json?
+  paymentInfo             Json?
+  oauthConfig             Json?
+  apiConfig               Json?
+  riskAssessment          Json?
+
+  // Public Listing
+  isPubliclyListed        Boolean  @default(false)
+  acceptNewClients        Boolean  @default(true)
+
+  // Metrics
+  totalTraders            Int      @default(0)
+  totalVolume             Decimal  @default(0) @db.Decimal(15, 2)
+  averageRating           Decimal  @default(0) @db.Decimal(3, 2)
+  numberOfReviews         Int      @default(0)
+  trustScore              Decimal  @default(0) @db.Decimal(3, 2)
+
+  // Branding
+  logoUrl                 String?
+  bannerUrl               String?
+  socialLinks             Json?
+  operatingHours          Json?
+
+  // Status
+  isActive                Boolean  @default(true)
+  metadata                Json?
+
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  // Relations
+  users                   User[]
+  brokerClients           BrokerClient[]
+  bills                   BrokerBill[]
+  apiKeys                 ApiKey[]
+
+  // CRM Relations
+  brokerAccount           BrokerAccount?
+  brokerInvoices          BrokerInvoice[]
+  brokerPayments          BrokerPayment[]
+  brokerSubscriptions     BrokerSubscription[]
+  brokerNotes             BrokerNote[]
+  brokerDocuments         BrokerDocument[]
+  clientRecords           ClientRecord[]
+  deals                   BrokerDeal[]
+  tickets                 Ticket[] @relation("TicketBroker")
+
+  @@index([status])
+  @@index([tier])
+  @@index([isActive])
+  @@index([trustScore])
+}
+
+model BrokerClient {
+  id                        String   @id @default(uuid())
+  brokerId                  String   @map("broker_id")
+  clientId                  String   @map("client_id")
+
+  // Attribution
+  attributionType           AttributionType
+  attributionDate           DateTime @default(now())
+  attributionMetadata       Json?
+
+  // Status
+  status                    String   @default("ACTIVE")
+  isActive                  Boolean  @default(true)
+
+  // Commission Tracking
+  totalCommission           Decimal  @default(0) @db.Decimal(12, 2)
+  totalBrokerCommission     Decimal  @default(0) @db.Decimal(12, 2)
+  totalPlatformCommission   Decimal  @default(0) @db.Decimal(12, 2)
+  lastCommissionAt          DateTime?
+
+  // Client Metrics
+  totalOrders               Int      @default(0)
+  totalVolume               Decimal  @default(0) @db.Decimal(15, 2)
+  lastOrderAt               DateTime?
+
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  // Relations
+  broker                    Broker   @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  user                      User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([brokerId, clientId])
+  @@index([brokerId, status])
+  @@index([clientId, attributionType])
+}
+
+model BrokerBill {
+  id                  String   @id @default(uuid())
+  brokerId            String   @map("broker_id")
+
+  // Billing Period
+  periodStart         DateTime @map("period_start")
+  periodEnd           DateTime @map("period_end")
+  dueDate             DateTime @map("due_date")
+
+  // Financial Details
+  totalCommission     Decimal  @db.Decimal(12, 2)
+  baseFee             Decimal  @db.Decimal(12, 2)
+  volumeDiscount      Decimal  @db.Decimal(12, 2)
+  performanceBonus    Decimal  @db.Decimal(12, 2)
+  tierMultiplier      Decimal  @db.Decimal(5, 4)
+  vatAmount           Decimal  @db.Decimal(12, 2)
+  totalAmount         Decimal  @db.Decimal(12, 2)
+
+  // Status
+  status              String   @default("PENDING")
+  paidAt              DateTime?
+  paymentMethod       String?
+  transactionId       String?
+
+  // Details
+  clientCount         Int
+  transactionCount    Int
+  volumeBreakdown     Json?
+  commissionBreakdown Json?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  broker              Broker   @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+
+  @@index([brokerId, periodStart])
+  @@index([status, dueDate])
+}
+
+model Session {
+  id          String   @id @default(uuid())
+  userId      String
+  token       String   @unique
+  refreshToken String?  @unique
+  expiresAt   DateTime
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+// ============= TOPICS & CONTENT =============
+
+model Topic {
+  id            String   @id @default(uuid())
+  name          String
+  slug          String   @unique
+  category      String
+  description   String?
+
+  // Canonical representation
+  canonical     Json     // { hashtags: [], keywords: [], entities: [] }
+
+  // Status
+  status        TopicStatus @default(ACTIVE)
+  isVerified    Boolean  @default(false)
+
+  // Metadata
+  totalVolume   Decimal  @default(0) @db.Decimal(12, 2)
+  totalBets     Int      @default(0)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  ingestEvents  IngestEvent[]
+  viralSnapshots ViralIndexSnapshot[]
+  markets       Market[]
+  watchlists    Watchlist[]
+
+  @@index([slug])
+  @@index([category])
+  @@index([status])
+}
+
+enum TopicStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+model IngestEvent {
+  id            String   @id @default(uuid())
+  topicId       String?
+
+  // Source
+  platform      Platform
+  nativeId      String?
+  authorId      String?
+  authorHandle  String?
+
+  // Content
+  contentType   ContentType
+  textContent   String?
+  mediaUrls     Json?    // [{ type, url, s3Path }]
+  s3RawPath     String?
+
+  // Metrics
+  engagementCount Int?
+  likesCount      Int?
+  sharesCount     Int?
+  commentsCount   Int?
+  viewsCount      Int?
+
+  // Processing
+  processed     Boolean  @default(false)
+  processingErrors Json?
+
+  ingestedAt    DateTime @default(now())
+  publishedAt   DateTime?
+
+  // Relations
+  topic         Topic?   @relation(fields: [topicId], references: [id])
+  sentiment     SentimentSnapshot?
+  deception     DeceptionSnapshot?
+
+  @@index([topicId])
+  @@index([platform])
+  @@index([processed])
+  @@index([ingestedAt])
+}
+
+enum Platform {
+  TWITTER
+  INSTAGRAM
+  TIKTOK
+  YOUTUBE
+  FACEBOOK
+  REDDIT
+  DISCORD
+  TELEGRAM
+  CUSTOM
+}
+
+enum ContentType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  MIXED
+}
+
+// ============= SENTIMENT ANALYSIS =============
+
+model SentimentSnapshot {
+  id            String   @id @default(uuid())
+  ingestEventId String   @unique
+  topicId       String
+
+  // Scores
+  scoreFloat    Float    // -1 to 1
+  posPct        Float
+  negPct        Float
+  neutralPct    Float
+
+  // Emotion breakdown
+  emotions      Json?    // { joy: 0.3, anger: 0.1, ... }
+
+  // Model metadata
+  modelVersion  String
+  confidence    Float
+
+  // Raw response
+  rawResponse   Json?
+
+  ts            DateTime @default(now())
+
+  ingestEvent   IngestEvent @relation(fields: [ingestEventId], references: [id], onDelete: Cascade)
+
+  @@index([topicId, ts])
+}
+
+// ============= DECEPTION DETECTION =============
+
+model DeceptionSnapshot {
+  id            String   @id @default(uuid())
+  ingestEventId String   @unique
+  topicId       String
+
+  // Deception Risk Score (0-1)
+  drs           Float
+
+  // Component breakdown
+  components    Json     // [{ type, score, weight, evidence }]
+
+  // Evidence
+  evidenceItems Json     // [{ type, source, snippet, stance, confidence }]
+
+  // Model metadata
+  modelVersion  String
+  confidence    Float
+
+  // Signatures
+  hmacSignature String
+  rawResponse   Json?
+
+  ts            DateTime @default(now())
+
+  ingestEvent   IngestEvent @relation(fields: [ingestEventId], references: [id], onDelete: Cascade)
+
+  @@index([topicId, ts])
+  @@index([drs])
+}
+
+// ============= VIRAL INDEX =============
+
+model ViralIndexSnapshot {
+  id              String   @id @default(uuid())
+  topicId         String
+
+  // Core metrics
+  viralIndex      Float    // 0-100 composite score
+  viralVelocity   Float    // Rate of change in engagement
+  viralSentiment  Float    // Sentiment volatility
+  truthTension    Float    // Deception variance
+
+  // Raw metrics
+  engagementTotal Int
+  engagementRate  Float
+  sentimentMean   Float
+  sentimentStd    Float
+  deceptionMean   Float
+  deceptionStd    Float
+
+  // Metadata
+  sampleSize      Int
+  windowMinutes   Int      @default(60)
+  rawMetrics      Json?
+
+  ts              DateTime @default(now())
+
+  topic           Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([topicId, ts])
+  @@index([viralIndex])
+}
+
+// ============= MARKETS & TRADING =============
+
+model Market {
+  id            String   @id @default(uuid())
+  topicId       String
+
+  // Market details
+  marketType    MarketType
+  question      String
+  description   String?
+
+  // Timing
+  openAt        DateTime
+  closeAt       DateTime
+  settleAt      DateTime?
+
+  // Status
+  status        MarketStatus @default(PENDING)
+
+  // Settlement
+  settlementParams Json   // type-specific params
+  settlementValue  Float?
+  settlementProof  Json?
+  settlementSignature String?
+
+  // Metadata
+  totalVolume   Decimal  @default(0) @db.Decimal(12, 2)
+  totalBets     Int      @default(0)
+  liquidityPool Decimal  @default(0) @db.Decimal(12, 2)
+
+  // Odds (for binary markets)
+  oddsYes       Float?
+  oddsNo        Float?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  topic         Topic    @relation(fields: [topicId], references: [id])
+  bets          Bet[]
+
+  @@index([topicId])
+  @@index([status])
+  @@index([closeAt])
+}
+
+enum MarketType {
+  BINARY        // Will index go up/down?
+  RANGE         // Will index be in range X-Y?
+  THRESHOLD     // Will index exceed X?
+  BASKET        // Combined index performance
+}
+
+enum MarketStatus {
+  PENDING
+  OPEN
+  CLOSED
+  SETTLING
+  SETTLED
+  PAUSED
+  CANCELLED
+}
+
+model Bet {
+  id            String   @id @default(uuid())
+  userId        String
+  marketId      String
+
+  // Bet details
+  side          String   // YES/NO/RANGE_IN/RANGE_OUT
+  stake         Decimal  @db.Decimal(12, 2)
+  odds          Float
+  potentialPayout Decimal @db.Decimal(12, 2)
+
+  // Settlement
+  status        BetStatus @default(PENDING)
+  actualPayout  Decimal?  @db.Decimal(12, 2)
+  settledAt     DateTime?
+
+  // Security
+  hmacSignature String
+  ipAddress     String?
+
+  createdAt     DateTime @default(now())
+
+  // Relations
+  user          User     @relation(fields: [userId], references: [id])
+  market        Market   @relation(fields: [marketId], references: [id])
+
+  @@index([userId])
+  @@index([marketId])
+  @@index([status])
+}
+
+enum BetStatus {
+  PENDING
+  ACTIVE
+  WON
+  LOST
+  REFUNDED
+  CANCELLED
+}
+
+// ============= WALLET & TRANSACTIONS =============
+
+model Transaction {
+  id            String   @id @default(uuid())
+  userId        String
+
+  // Transaction details
+  type          TransactionType
+  amount        Decimal  @db.Decimal(12, 2)
+  currency      String   @default("USD")
+
+  // Status
+  status        TransactionStatus @default(PENDING)
+
+  // Payment provider details
+  provider      String?
+  providerTxId  String?
+  providerResponse Json?
+
+  // Metadata
+  description   String?
+  metadata      Json?
+
+  // Balances (snapshot)
+  balanceBefore Decimal  @db.Decimal(12, 2)
+  balanceAfter  Decimal  @db.Decimal(12, 2)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  BET_STAKE
+  BET_PAYOUT
+  BET_REFUND
+  FEE
+  BONUS
+  ADJUSTMENT
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+// ============= SOCIAL FEATURES =============
+
+model Watchlist {
+  id          String   @id @default(uuid())
+  userId      String
+  topicId     String
+
+  // Alert settings
+  alertEnabled Boolean @default(true)
+  alertThreshold Float?
+
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic       Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id          String   @id @default(uuid())
+  userId      String
+  topicId     String?
+  marketId    String?
+
+  content     String
+  contentType String   @default("text")
+
+  // Moderation
+  flagged     Boolean  @default(false)
+  deleted     Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([topicId])
+  @@index([marketId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+
+  type        String   // 'info', 'success', 'warning', 'error'
+  category    String   // 'system', 'trading', 'security', 'billing', 'social', 'promotion', 'order', 'alert', 'broker'
+  priority    String   @default("medium") // 'low', 'medium', 'high'
+  title       String
+  message     String   @db.Text
+  actionUrl   String?
+  actionText  String?
+  read        Boolean  @default(false)
+  readAt      DateTime?
+  metadata    Json?    // Flexible data for category-specific info
+
+  // Delivery tracking
+  deliveryStatus String? @default("PENDING") // 'EMAIL_SENT', 'EMAIL_FAILED', 'PUSH_SENT', 'PUSH_FAILED', 'SMS_SENT', 'SMS_FAILED', 'IN_APP_SENT', 'IN_APP_FAILED'
+  deliveredAt    DateTime?
+
+  // Soft delete support
+  deletedAt   DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relations for additional notification features
+  deliveryLogs    NotificationDeliveryLog[]
+  inAppNotifications InAppNotification[]
+
+  @@index([userId, read, createdAt])
+  @@index([userId, category])
+  @@index([createdAt])
+  @@index([deliveryStatus])
+}
+
+// Additional notification-related models
+
+model NotificationPreferences {
+  id                    String @id @default(uuid())
+  userId                String @unique
+
+  // Channel preferences
+  emailNotifications     Boolean @default(true)
+  pushNotifications      Boolean @default(true)
+  smsNotifications       Boolean @default(false)
+  inAppNotifications     Boolean @default(true)
+
+  // Quiet hours
+  quietHoursEnabled      Boolean @default(false)
+  quietHoursStart        String? // "22:00"
+  quietHoursEnd          String? // "08:00"
+
+  // Rate limiting
+  maxDailySMS            Int?    @default(10)
+  maxEmailsPerHour       Int?    @default(20)
+
+  // Frequency settings
+  batchEmails            Boolean @default(true)
+  batchIntervalMinutes   Int?    @default(30)
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NotificationDeliveryLog {
+  id          String   @id @default(uuid())
+  notificationId String
+  channel     String   // 'email', 'push', 'sms', 'in-app'
+  recipient   String   // Email address, phone number, device token, or user ID
+  status      String   // 'SUCCESS', 'FAILED', 'PENDING'
+  sentAt      DateTime?
+  errorDetails String?  @db.Text
+  metadata    Json?    // Channel-specific metadata (messageId, cost, etc.)
+  createdAt   DateTime @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+  @@index([channel, status])
+  @@index([createdAt])
+}
+
+model DeviceToken {
+  id            String   @id @default(uuid())
+  userId        String
+  token         String   @unique
+  platform      String   // 'ios', 'android', 'web'
+  userAgent     String?
+  isActive      Boolean  @default(true)
+
+  // Device details
+  deviceId      String?
+  appVersion    String?
+  osVersion     String?
+
+  // Management
+  lastSeenAt    DateTime @default(now())
+  deactivationReason String?
+  deactivatedAt DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([isActive])
+}
+
+model InAppNotification {
+  id                  String   @id @default(uuid())
+  userId              String
+  notificationId      String?  // Link to main notification if applicable
+
+  title               String
+  message             String   @db.Text
+  data                Json?    // Full notification payload
+  priority            String   @default("medium")
+  category            String
+
+  // UI elements
+  actionUrl           String?
+  actionText          String?
+  icon                String?
+  imageUrl            String?
+
+  // Delivery tracking
+  deliveredSessions   Int      @default(0)
+  totalSessions       Int      @default(0)
+
+  // Read status
+  read                Boolean  @default(false)
+  readAt              DateTime?
+
+  // Expiration
+  expiresAt           DateTime
+
+  createdAt           DateTime @default(now())
+
+  notification        Notification? @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([expiresAt])
+}
+
+model VerificationCode {
+  id          String   @id @default(uuid())
+  userId      String
+  code        String
+  type        String   // 'phone_verification', 'two_factor', 'email_verification'
+
+  // Target
+  phoneNumber String?
+  email       String?
+
+  // Expiration
+  expiresAt   DateTime
+
+  // Usage tracking
+  usedAt      DateTime?
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(3)
+
+  // Metadata
+  ipAddress   String?
+  userAgent   String?
+  messageId   String?  // From SMS/email provider
+
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([expiresAt])
+}
+
+model SMSAnalytics {
+  id                String   @id @default(uuid())
+  provider          String
+  date              String   // YYYY-MM-DD
+  type              String   // 'notification', 'verification', 'marketing'
+
+  sent              Int      @default(0)
+  delivered         Int      @default(0)
+  failed            Int      @default(0)
+  cost              Decimal  @default(0) @db.Decimal(10, 2)
+
+  lastUsedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([provider, date, type])
+}
+
+model EmailAnalytics {
+  id                String   @id @default(uuid())
+  template          String
+  date              String   // YYYY-MM-DD
+
+  sent              Int      @default(0)
+  delivered         Int      @default(0)
+  opened            Int      @default(0)
+  clicked           Int      @default(0)
+
+  lastUsedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([template, date])
+}
+
+// ============= ADMIN & FORENSICS =============
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+
+  action      String
+  entity      String
+  entityId    String?
+
+  changes     Json?
+  metadata    Json?
+
+  ipAddress   String?
+  userAgent   String?
+
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+model SystemMetric {
+  id          String   @id @default(uuid())
+
+  metricName  String
+  metricValue Float
+  tags        Json?
+
+  ts          DateTime @default(now())
+
+  @@index([metricName, ts])
+}
+
+// ============= ORACLE NETWORK =============
+
+model OracleProof {
+  id                  String   @id @default(uuid())
+  trendId             String
+
+  // Oracle results
+  viralityScore       Decimal  @db.Decimal(5, 4)
+  confidence          Decimal  @db.Decimal(5, 4)
+
+  // Cryptographic proof
+  proofHash           String   @unique @db.VarChar(64)
+  merkleRoot          String   @db.VarChar(64)
+
+  // Consensus information
+  consensusLevel      Decimal  @db.Decimal(3, 2)
+  consensusStrength   Decimal  @db.Decimal(5, 4)
+
+  // Validator signatures
+  validatorSignatures Json
+  payload             Json
+
+  // Network metadata
+  networkType         String   @default("docker-simulated") @db.VarChar(50)
+  blockchainTx        String?  @db.VarChar(64)
+
+  // Verification status
+  verified            Boolean  @default(false)
+  verificationCount   Int      @default(0)
+
+  // Relations
+  userId              String?
+  user                User?    @relation(fields: [userId], references: [id])
+
+  // Timestamps
+  createdAt           DateTime @default(now())
+  expiresAt           DateTime?
+
+  @@index([trendId])
+  @@index([proofHash])
+  @@index([createdAt])
+  @@index([networkType])
+}
+
+model ValidatorNode {
+  id              String   @id @default(uuid())
+  nodeId          String   @unique @db.VarChar(50)
+
+  // Node information
+  endpoint        String?
+  publicKey       String?  @db.VarChar(128)
+  version         String?
+
+  // Status
+  status          ValidatorStatus @default(OFFLINE)
+  lastSeen        DateTime?
+  responseTime    Int?     // Response time in milliseconds
+
+  // Performance metrics
+  totalRequests   Int      @default(0)
+  successfulRequests Int   @default(0)
+  averageResponseTime Decimal? @db.Decimal(8, 2)
+
+  // Reputation
+  reputationScore Decimal  @default(1.0) @db.Decimal(3, 2)
+  stakeAmount     Decimal  @default(0) @db.Decimal(12, 2)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([nodeId])
+  @@index([status])
+  @@index([lastSeen])
+}
+
+enum ValidatorStatus {
+  ONLINE
+  OFFLINE
+  MAINTENANCE
+  SUSPENDED
+}
+
+model OracleRequest {
+  id              String   @id @default(uuid())
+  requestId       String   @unique
+  trendId         String
+
+  // Request parameters
+  dataType        String   @default("virality")
+  platform        String?
+  keywords        Json?
+  timeframe       String?
+
+  // Processing status
+  status          OracleRequestStatus @default(PENDING)
+
+  // Consensus tracking
+  validatorResponses Json?
+  consensusLevel     Decimal? @db.Decimal(3, 2)
+  processingTime     Int?     // Processing time in milliseconds
+
+  // Result
+  result          Json?
+  proofHash       String?  @db.VarChar(64)
+
+  // Metadata
+  ipAddress       String?
+  userAgent       String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  completedAt     DateTime?
+
+  @@index([requestId])
+  @@index([trendId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum OracleRequestStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  TIMEOUT
+}
+
+// ============= API MARKETPLACE =============
+
+model ApiProduct {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  description String?
+  publicDocs  String?
+  category    String
+  defaultPlan String
+  features    Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  plans       ApiPlan[]
+  apiKeys     ApiKey[]
+  apiUsage    ApiUsage[]
+
+  @@index([slug])
+  @@index([category])
+  @@index([isActive])
+}
+
+model ApiPlan {
+  id          String   @id @default(uuid())
+  productId   String   @map("product_id")
+  name        String
+  code        String   @unique
+  monthlyFee  Decimal  @db.Decimal(12, 2)
+  perCallFee  Decimal? @db.Decimal(12, 6)
+  rateLimit   Int
+  burstLimit  Int?
+  quota       Int?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  product     ApiProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  apiKeys     ApiKey[]
+
+  @@index([productId])
+  @@index([code])
+  @@index([isActive])
+}
+
+model ApiKey {
+  id            String   @id @default(uuid())
+  userId        String?  @map("user_id")
+  brokerId      String?  @map("broker_id")
+  subscriptionId String? @map("subscription_id")
+  planId        String   @map("plan_id")
+  productId     String?  @map("product_id")
+  key           String   @unique
+  secretHash    String   @map("secret_hash")
+  label         String?
+  ipWhitelist   String[] @map("ip_whitelist")
+  revoked       Boolean  @default(false)
+  usageCount    Int      @default(0) @map("usage_count")
+  quotaResetAt  DateTime? @map("quota_reset_at")
+  createdAt     DateTime @default(now())
+  lastUsedAt    DateTime? @map("last_used_at")
+  expiresAt     DateTime? @map("expires_at")
+  metadata      Json?
+  isSandbox     Boolean  @default(false) @map("is_sandbox")
+
+  // Relations
+  user          User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  broker        Broker?             @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  subscription  BrokerSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  plan          ApiPlan             @relation(fields: [planId], references: [id])
+  product       ApiProduct?         @relation(fields: [productId], references: [id])
+  apiUsage      ApiUsage[]
+
+  @@index([userId])
+  @@index([brokerId])
+  @@index([subscriptionId])
+  @@index([planId])
+  @@index([productId])
+  @@index([key])
+  @@index([revoked])
+}
+
+model ApiUsage {
+  id            String   @id @default(uuid())
+  subscriptionId String? @map("subscription_id")
+  apiKeyId      String   @map("api_key_id")
+  productId     String   @map("product_id")
+  path          String
+  method        String
+  statusCode    Int      @map("status_code")
+  bytesIn       Int      @default(0) @map("bytes_in")
+  bytesOut      Int      @default(0) @map("bytes_out")
+  latencyMs     Int      @default(0) @map("latency_ms")
+
+  // Cost calculation fields
+  cost          Decimal  @default(0) @db.Decimal(10, 6)
+  quantity      Decimal  @default(0) @db.Decimal(10, 2)
+  billingRate   Decimal  @default(0) @db.Decimal(10, 6)
+
+  createdAt     DateTime @default(now())
+
+  // Relations
+  subscription  BrokerSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  apiKey        ApiKey             @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  product       ApiProduct         @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, createdAt])
+  @@index([apiKeyId, createdAt])
+  @@index([productId, createdAt])
+  @@index([createdAt])
+}
+
+model ApiInvoice {
+  id                String   @id @default(uuid())
+  customerId        String?  @map("customer_id")
+  customerType      String   @map("customer_type") // USER or BROKER
+  billingPeriodStart DateTime @map("billing_period_start")
+  billingPeriodEnd   DateTime @map("billing_period_end")
+  amountDue         Decimal  @db.Decimal(12, 2) @map("amount_due")
+  amountPaid        Decimal  @db.Decimal(12, 2) @default(0) @map("amount_paid")
+  currency          String   @default("USD")
+  status            String   @default("PENDING")
+  createdAt         DateTime @default(now())
+  paidAt            DateTime? @map("paid_at")
+  invoicePdfUrl     String?  @map("invoice_pdf_url")
+  metadata          Json?
+
+  @@index([customerId, createdAt])
+  @@index([status])
+  @@index([billingPeriodStart])
+}
+
+model ApiWebhook {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  url       String
+  events    String[]
+  secret    String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now())
+
+  // Relations
+  deliveryLogs WebhookDeliveryLog[]
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+model WebhookDeliveryLog {
+  id          String   @id @default(uuid())
+  webhookId   String   @map("webhook_id")
+  eventId     String   @map("event_id")
+
+  // Delivery details
+  event       String   // Event type: usage.threshold, invoice.paid, etc.
+  status      WebhookDeliveryStatus @default(PENDING)
+  attempt     Int      @default(1) // Delivery attempt number
+
+  // Request details
+  requestUrl  String   @map("request_url")
+  requestBody String?  @map("request_body") @db.Text
+  requestHeaders Json?  @map("request_headers")
+
+  // Response details
+  responseStatus Int?    @map("response_status") // HTTP status code
+  responseHeaders Json?  @map("response_headers")
+  responseBody String?  @map("response_body") @db.Text
+  responseTime Int?     @map("response_time") // Response time in milliseconds
+
+  // Error details
+  errorCode   String?  @map("error_code")
+  errorMessage String? @map("error_message") @db.Text
+  errorType   String?  @map("error_type") // NETWORK_ERROR, TIMEOUT, HTTP_ERROR, PARSING_ERROR, etc.
+
+  // Retry information
+  retryCount  Int      @default(0) @map("retry_count")
+  nextRetryAt DateTime? @map("next_retry_at")
+  maxRetries  Int      @default(3) @map("max_retries")
+
+  // Processing details
+  deliveredAt DateTime? @map("delivered_at")
+  completedAt DateTime? @map("completed_at")
+  processingTime Int?   @map("processing_time") // Total processing time in milliseconds
+
+  // Metadata
+  signature   String?  // Webhook signature for verification
+  metadata    Json?    // Additional delivery metadata
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  webhook     ApiWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, status])
+  @@index([webhookId, event])
+  @@index([status, createdAt])
+  @@index([deliveredAt])
+  @@index([retryCount])
+  @@index([errorType])
+  @@index([responseStatus])
+}
+
+enum WebhookDeliveryStatus {
+  PENDING     // Queued for delivery
+  PROCESSING  // Currently being delivered
+  SUCCESS     // Successfully delivered
+  FAILED      // Delivery failed (will retry if retries available)
+  PERMANENTLY_FAILED // All retries exhausted
+  CANCELLED   // Delivery cancelled
+}
+
+model RateLimitCounter {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  count     Int      @default(0)
+  windowEnd DateTime @map("window_end")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+  @@index([windowEnd])
+}
+
+// ============= CRM MODULE =============
+
+// A. Broker CRM Management
+model BrokerAccount {
+  id                String   @id @default(uuid())
+  brokerId          String   @unique @map("broker_id")
+
+  // Account Details
+  accountType       String   // CORPORATE, INDIVIDUAL, PARTNERSHIP
+  businessNumber    String?  @map("business_number")
+  taxNumber         String?  @map("tax_number")
+  vatRegistered     Boolean  @default(false) @map("vat_registered")
+  vatNumber         String?  @map("vat_number")
+
+  // Banking Details
+  bankName          String?
+  bankAccountNumber String?  @map("bank_account_number")
+  bankAccountType   String?  @map("bank_account_type") // CHEQUE, SAVINGS, BUSINESS
+  bankBranchCode    String?  @map("bank_branch_code")
+  swiftCode         String?  @map("swift_code")
+
+  // Compliance
+  fscaVerified      Boolean  @default(false) @map("fsca_verified")
+  fscaVerificationDate DateTime? @map("fsca_verification_date")
+  riskRating        String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+  complianceStatus  String   @default("PENDING") // PENDING, APPROVED, SUSPENDED
+
+  // Account Status
+  status            String   @default("ACTIVE") // ACTIVE, SUSPENDED, PENDING, TERMINATED
+  creditLimit       Decimal  @default(0) @db.Decimal(12, 2)
+  paymentTerms      Int      @default(30) // Days
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  broker            Broker   @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  invoices          BrokerInvoice[]
+  subscriptions     BrokerSubscription[]
+  notes             BrokerNote[]
+  documents         BrokerDocument[]
+
+  @@index([brokerId])
+  @@index([status])
+  @@index([complianceStatus])
+}
+
+model BrokerInvoice {
+  id                String   @id @default(uuid())
+  brokerId          String   @map("broker_id")
+  brokerAccountId   String   @map("broker_account_id")
+
+  // Invoice Details
+  invoiceNumber     String   @unique
+  issueDate         DateTime @map("issue_date")
+  dueDate           DateTime @map("due_date")
+  periodStart       DateTime @map("period_start")
+  periodEnd         DateTime @map("period_end")
+
+  // Financial Details
+  subscriptionFee   Decimal @default(0) @db.Decimal(12, 2) @map("subscription_fee")
+  apiUsageFee       Decimal @default(0) @db.Decimal(12, 2) @map("api_usage_fee")
+  transactionFee    Decimal @default(0) @db.Decimal(12, 2) @map("transaction_fee")
+  overageFee        Decimal @default(0) @db.Decimal(12, 2) @map("overage_fee")
+  penaltyFee        Decimal @default(0) @db.Decimal(12, 2) @map("penalty_fee")
+  vatAmount         Decimal @default(0) @db.Decimal(12, 2) @map("vat_amount")
+  totalAmount       Decimal @db.Decimal(12, 2) @map("total_amount")
+  amountPaid        Decimal @default(0) @db.Decimal(12, 2) @map("amount_paid")
+
+  // Status
+  status            String   @default("DRAFT") // DRAFT, SENT, PAID, OVERDUE, CANCELLED
+  paymentStatus     String   @default("UNPAID") // UNPAID, PARTIALLY_PAID, PAID, OVERDUE
+
+  // Metadata
+  currency          String   @default("USD")
+  notes             String?
+  metadata          Json?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  paidAt            DateTime? @map("paid_at")
+
+  // Relations
+  broker            Broker   @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  brokerAccount     BrokerAccount @relation(fields: [brokerAccountId], references: [id], onDelete: Cascade)
+  payments          BrokerPayment[]
+  items             BrokerInvoiceItem[]
+
+  @@index([brokerId, status])
+  @@index([dueDate, status])
+  @@index([invoiceNumber])
+}
+
+model BrokerInvoiceItem {
+  id                String   @id @default(uuid())
+  invoiceId         String   @map("invoice_id")
+
+  // Item Details
+  description       String
+  quantity          Int      @default(1)
+  unitPrice         Decimal  @db.Decimal(12, 2) @map("unit_price")
+  total             Decimal  @db.Decimal(12, 2)
+  itemType          String   // SUBSCRIPTION, API_CALL, TRANSACTION, OVERAGE, PENALTY
+
+  // Reference
+  referenceId       String?  @map("reference_id") // Reference to usage record or subscription
+  referenceType     String?  @map("reference_type")
+
+  createdAt         DateTime @default(now())
+
+  // Relations
+  invoice           BrokerInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([itemType])
+}
+
+model BrokerPayment {
+  id                String   @id @default(uuid())
+  brokerId          String   @map("broker_id")
+  invoiceId         String   @map("invoice_id")
+
+  // Payment Details
+  amount            Decimal  @db.Decimal(12, 2)
+  paymentDate       DateTime @map("payment_date")
+  paymentMethod     String   @map("payment_method") // BANK_TRANSFER, CREDIT_CARD, CRYPTO, WALLET
+  transactionId     String?  @map("transaction_id")
+  reference         String?
+
+  // Status
+  status            String   @default("PENDING") // PENDING, COMPLETED, FAILED, REFUNDED
+
+  // Metadata
+  currency          String   @default("USD")
+  fees              Decimal  @default(0) @db.Decimal(12, 2)
+  netAmount         Decimal  @db.Decimal(12, 2) @map("net_amount")
+  provider          String?  // Payment provider
+  metadata          Json?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  completedAt       DateTime? @map("completed_at")
+
+  // Relations
+  broker            Broker   @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  invoice           BrokerInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([brokerId, status])
+  @@index([invoiceId])
+  @@index([paymentDate])
+}
+
+model BrokerSubscription {
+  id                String   @id @default(uuid())
+  brokerId          String   @map("broker_id")
+  brokerAccountId   String   @map("broker_account_id")
+
+  // Subscription Details
+  tier              String   // STARTER, VERIFIED, PARTNER, ENTERPRISE
+  planType          String   @default("MONTHLY") // MONTHLY, QUARTERLY, YEARLY
+  price             Decimal  @db.Decimal(12, 2)
+  currency          String   @default("USD")
+
+  // Features & Limits
+  apiCallsLimit     Int?     @map("api_calls_limit")
+  apiCallsUsed      Int      @default(0) @map("api_calls_used")
+  clientLimit       Int?     @map("client_limit")
+  clientCount       Int      @default(0) @map("client_count")
+  features          Json?    // { "advanced_analytics": true, "api_access": true, ... }
+
+  // Billing
+  billingCycle      String   @default("MONTHLY") // MONTHLY, QUARTERLY, YEARLY
+  nextBillingDate   DateTime @map("next_billing_date")
+  trialEndsAt       DateTime? @map("trial_ends_at")
+
+  // Status
+  status            String   @default("ACTIVE") // ACTIVE, SUSPENDED, CANCELLED, EXPIRED
+  autoRenew         Boolean  @default(true) @map("auto_renew")
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  cancelledAt       DateTime? @map("cancelled_at")
+
+  // Relations
+  broker            Broker       @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  brokerAccount     BrokerAccount @relation(fields: [brokerAccountId], references: [id], onDelete: Cascade)
+  usageRecords      ApiUsage[]
+  apiKeys           ApiKey[]
+
+  @@index([brokerId, status])
+  @@index([nextBillingDate])
+  @@index([tier])
+}
+
+model BrokerNote {
+  id                String   @id @default(uuid())
+  brokerId          String   @map("broker_id")
+  brokerAccountId   String   @map("broker_account_id")
+  authorId          String   @map("author_id") // Admin user ID
+
+  // Note Details
+  title             String
+  content           String
+  category          String   // GENERAL, COMPLIANCE, BILLING, SUPPORT, PERFORMANCE
+  priority          String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+
+  // Visibility
+  isInternal        Boolean  @default(true) @map("is_internal")
+  isPinned          Boolean  @default(false) @map("is_pinned")
+
+  // Reminders
+  reminderDate      DateTime? @map("reminder_date")
+  reminderSent      Boolean  @default(false) @map("reminder_sent")
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  broker            Broker   @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  brokerAccount     BrokerAccount @relation(fields: [brokerAccountId], references: [id], onDelete: Cascade)
+  author            User     @relation("BrokerNoteAuthor", fields: [authorId], references: [id])
+
+  @@index([brokerId, category])
+  @@index([authorId])
+  @@index([reminderDate])
+}
+
+model BrokerDocument {
+  id                String   @id @default(uuid())
+  brokerId          String   @map("broker_id")
+  brokerAccountId   String   @map("broker_account_id")
+
+  // Document Details
+  documentType      String   // KYC, FSCA_LICENSE, CERTIFICATE_OF_INCORPORATION, TAX_CLEARANCE, BANK_DETAILS, CONTRACT
+  title             String
+  description       String?
+  fileName          String   @map("file_name")
+  fileUrl           String   @map("file_url")
+  fileSize          Int      @map("file_size")
+  mimeType          String   @map("mime_type")
+
+  // Status
+  status            String   @default("PENDING") // PENDING, APPROVED, REJECTED, EXPIRED
+  verifiedBy        String?  @map("verified_by")
+  verifiedAt        DateTime? @map("verified_at")
+  rejectionReason   String?  @map("rejection_reason")
+
+  // Expiry
+  expiryDate        DateTime? @map("expiry_date")
+  reminderSent      Boolean  @default(false) @map("reminder_sent")
+
+  // Metadata
+  uploadedBy        String   @map("uploaded_by")
+  metadata          Json?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  broker            Broker   @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  brokerAccount     BrokerAccount @relation(fields: [brokerAccountId], references: [id], onDelete: Cascade)
+  uploader          User     @relation("UploadedDocuments", fields: [uploadedBy], references: [id])
+  verifier          User?    @relation("DocumentVerifier", fields: [verifiedBy], references: [id])
+
+  @@index([brokerId, documentType])
+  @@index([status, expiryDate])
+  @@index([uploadedBy])
+}
+
+// B. Client CRM
+model ClientRecord {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  brokerId          String?  @map("broker_id") // If assigned to broker
+
+  // Client Profile
+  segment           String   @default("STANDARD") // VIP, ACTIVE, DORMANT, HIGH_RISK, STANDARD
+  source            String?  // ORGANIC, REFERRAL, ADVERTISING, PARTNER, BROKER
+  campaign          String?
+
+  // Activity Metrics
+  totalTrades       Int      @default(0) @map("total_trades")
+  totalVolume       Decimal  @default(0) @db.Decimal(15, 2) @map("total_volume")
+  totalPnl          Decimal  @default(0) @db.Decimal(12, 2) @map("total_pnl")
+  avgTradeSize      Decimal  @default(0) @db.Decimal(12, 2) @map("avg_trade_size")
+  lastActivityAt    DateTime? @map("last_activity_at")
+
+  // Risk Assessment
+  riskScore         Decimal? @default(0) @db.Decimal(3, 2) @map("risk_score")
+  riskFactors       Json?    // { "high_volatility": true, "large_positions": false, ... }
+
+  // Communication Preferences
+  preferredContact  String   @default("EMAIL") // EMAIL, SMS, PHONE, WHATSAPP
+  marketingConsent  Boolean  @default(false) @map("marketing_consent")
+  newsletterConsent Boolean  @default(true) @map("newsletter_consent")
+
+  // Status
+  status            String   @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED, CHURNED
+
+  // Metadata
+  notes             String?
+  tags              String[]
+  customFields      Json?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  broker            Broker?  @relation(fields: [brokerId], references: [id])
+  interactions      ClientInteraction[]
+
+  @@unique([userId])
+  @@index([brokerId, segment])
+  @@index([segment, status])
+  @@index([lastActivityAt])
+}
+
+model ClientInteraction {
+  id                String   @id @default(uuid())
+  clientId          String   @map("client_id")
+  staffId           String   @map("staff_id")
+
+  // Interaction Details
+  type              String   // CALL, EMAIL, MEETING, NOTE, TICKET, CHAT
+  direction         String   // INBOUND, OUTBOUND
+  subject           String?
+  content           String
+  duration          Int?     // Minutes for calls/meetings
+
+  // Contact Info
+  contactMethod     String?  // PHONE, EMAIL, SMS, WHATSAPP, IN_PERSON
+  contactDetails    String?  // Phone number, email address, etc.
+
+  // Outcomes
+  outcome           String?  // SUCCESSFUL, NEEDS_FOLLOWUP, NOT_INTERESTED, CALLBACK_REQUIRED
+  nextAction        String?
+  nextActionDate    DateTime? @map("next_action_date")
+  priority          String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+
+  // Metadata
+  tags              String[]
+  attachments       Json?    // [{ "url": "...", "name": "...", "type": "pdf" }]
+  metadata          Json?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  clientRecord      ClientRecord @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  staff             User     @relation("ClientInteractionStaff", fields: [staffId], references: [id])
+
+  @@index([clientId, createdAt])
+  @@index([staffId, createdAt])
+  @@index([type, direction])
+  @@index([nextActionDate])
+}
+
+// C. Sales Pipeline
+model PipelineStage {
+  id                String   @id @default(uuid())
+
+  // Stage Details
+  name              String
+  description       String?
+  stageOrder        Int      @unique @map("stage_order")
+  color             String?  // Hex color for UI
+
+  // Probability & Duration
+  defaultProbability Int     @default(50) @map("default_probability") // Percentage
+  averageDuration   Int?     @map("average_duration") // Days in stage
+
+  // Stage Configuration
+  isActive          Boolean  @default(true) @map("is_active")
+  requiresApproval  Boolean  @default(false) @map("requires_approval")
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  deals             BrokerDeal[]
+
+  @@index([stageOrder])
+}
+
+model BrokerDeal {
+  id                String   @id @default(uuid())
+  brokerId          String   @map("broker_id")
+  stageId           String   @map("stage_id")
+  assignedToId      String?  @map("assigned_to_id") // Sales rep
+
+  // Deal Details
+  title             String
+  description       String?
+  value             Decimal  @db.Decimal(12, 2)
+  currency          String   @default("USD")
+  probability       Int      @default(50) // Percentage
+  weightedValue     Decimal  @db.Decimal(12, 2) @map("weighted_value")
+
+  // Timeline
+  expectedCloseDate DateTime? @map("expected_close_date")
+  actualCloseDate   DateTime? @map("actual_close_date")
+
+  // Deal Information
+  source            String?  // WEBSITE, REFERRAL, COLD_CALL, PARTNER, EVENT
+  campaign          String?
+  contactPerson     String?  @map("contact_person")
+  contactEmail      String?  @map("contact_email")
+  contactPhone      String?  @map("contact_phone")
+
+  // Status
+  status            String   @default("OPEN") // OPEN, WON, LOST, CANCELLED, ON_HOLD
+  lossReason        String?  @map("loss_reason")
+  winReason         String?  @map("win_reason")
+
+  // Requirements
+  requirements      Json?    // { "kyc_required": true, "api_access": true, ... }
+  customFields      Json?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  broker            Broker   @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  stage             PipelineStage @relation(fields: [stageId], references: [id])
+  assignedTo        User?    @relation("DealAssignment", fields: [assignedToId], references: [id])
+  activities        DealActivity[]
+
+  @@index([brokerId, status])
+  @@index([stageId])
+  @@index([assignedToId])
+  @@index([expectedCloseDate])
+}
+
+model DealActivity {
+  id                String   @id @default(uuid())
+  dealId            String   @map("deal_id")
+  authorId          String   @map("author_id")
+
+  // Activity Details
+  type              String   // CALL, EMAIL, MEETING, NOTE, TASK, DEMO, PROPOSAL
+  subject           String
+  content           String
+  duration          Int?     // Minutes for meetings/calls
+
+  // Outcome
+  result            String?  // POSITIVE, NEUTRAL, NEGATIVE
+  nextSteps         String?
+
+  // Metadata
+  attachments       Json?    // [{ "url": "...", "name": "...", "type": "pdf" }]
+  metadata          Json?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  deal              BrokerDeal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  author            User     @relation(fields: [authorId], references: [id])
+
+  @@index([dealId, createdAt])
+  @@index([authorId])
+  @@index([type])
+}
+
+// D. Support Desk
+model Ticket {
+  id                String   @id @default(uuid())
+  ticketNumber      String   @unique
+  userId            String?  @map("user_id")
+  brokerId          String?  @map("broker_id")
+
+  // Ticket Details
+  subject           String
+  description       String
+  categoryId        String   @map("category_id")
+  priorityId        String   @map("priority_id")
+
+  // Assignment
+  assignedToId      String?  @map("assigned_to_id")
+  department        String?  // SUPPORT, BILLING, TECHNICAL, COMPLIANCE, SALES
+
+  // Status
+  status            String   @default("OPEN") // OPEN, IN_PROGRESS, PENDING_CUSTOMER, RESOLVED, CLOSED
+  resolution        String?
+
+  // SLA Tracking
+  slaDueDate        DateTime @map("sla_due_date")
+  slaBreach         Boolean  @default(false) @map("sla_breach")
+  firstResponseAt   DateTime? @map("first_response_at")
+  resolvedAt        DateTime? @map("resolved_at")
+
+  // Customer Satisfaction
+  satisfactionScore Int?     @map("satisfaction_score") // 1-5
+  satisfactionComment String? @map("satisfaction_comment")
+
+  // Metadata
+  source            String   @default("WEB") // WEB, EMAIL, API, PHONE, CHAT
+  tags              String[]
+  customFields      Json?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  closedAt          DateTime? @map("closed_at")
+
+  // Relations
+  user              User?    @relation("TicketUser", fields: [userId], references: [id])
+  broker            Broker?  @relation("TicketBroker", fields: [brokerId], references: [id])
+  category          TicketCategory @relation(fields: [categoryId], references: [id])
+  priority          TicketPriority @relation(fields: [priorityId], references: [id])
+  assignedTo        User?    @relation("TicketAssignment", fields: [assignedToId], references: [id])
+  messages          TicketMessage[]
+  assignments       TicketAssignment[]
+
+  @@index([status, priorityId])
+  @@index([assignedToId, status])
+  @@index([slaDueDate, slaBreach])
+  @@index([userId, createdAt])
+  @@index([brokerId, createdAt])
+}
+
+model TicketCategory {
+  id                String   @id @default(uuid())
+
+  // Category Details
+  name              String
+  description       String?
+  icon              String?  // Icon name or emoji
+  color             String?  // Hex color for UI
+
+  // Configuration
+  isActive          Boolean  @default(true) @map("is_active")
+  parentCategoryId  String?  @map("parent_category_id")
+
+  // SLA Settings
+  defaultSlaHours   Int      @default(24) @map("default_sla_hours")
+  escalationHours   Int?     @map("escalation_hours")
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  parentCategory    TicketCategory? @relation("CategoryHierarchy", fields: [parentCategoryId], references: [id])
+  subcategories     TicketCategory[] @relation("CategoryHierarchy")
+  tickets           Ticket[]
+
+  @@index([isActive])
+  @@index([parentCategoryId])
+}
+
+model TicketPriority {
+  id                String   @id @default(uuid())
+
+  // Priority Details
+  name              String
+  level             Int      @unique // 1=Critical, 2=High, 3=Medium, 4=Low
+  color             String?  // Hex color for UI
+  description       String?
+
+  // SLA Configuration
+  responseTimeHours Int      @map("response_time_hours")
+  resolutionTimeHours Int    @map("resolution_time_hours")
+
+  // Notifications
+  notifyManager     Boolean  @default(false) @map("notify_manager")
+  autoEscalate      Boolean  @default(false) @map("auto_escalate")
+
+  isActive          Boolean  @default(true) @map("is_active")
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  tickets           Ticket[]
+
+  @@index([isActive])
+}
+
+model TicketMessage {
+  id                String   @id @default(uuid())
+  ticketId          String   @map("ticket_id")
+  authorId          String   @map("author_id")
+
+  // Message Details
+  content           String
+  isInternal        Boolean  @default(false) @map("is_internal")
+  isDraft           Boolean  @default(false) @map("is_draft")
+
+  // Attachments
+  attachments       Json?    // [{ "url": "...", "name": "...", "type": "pdf", "size": 1024 }]
+
+  // Metadata
+  source            String   @default("WEB") // WEB, EMAIL, API
+  metadata          Json?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  ticket            Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author            User     @relation("TicketMessageAuthor", fields: [authorId], references: [id])
+
+  @@index([ticketId, createdAt])
+  @@index([authorId])
+}
+
+model TicketSLA {
+  id                String   @id @default(uuid())
+
+  // SLA Configuration
+  name              String
+  description       String?
+
+  // Timeframes
+  firstResponseMinutes Int   @map("first_response_minutes") // Minutes
+  resolutionMinutes  Int     @map("resolution_minutes") // Minutes
+
+  // Business Hours
+  businessHoursOnly  Boolean  @default(true) @map("business_hours_only")
+  timezone           String   @default("UTC")
+
+  // Applicability
+  categoryIds       String[] @map("category_ids")
+  priorityIds       String[] @map("priority_ids")
+  customerType      String?  @map("customer_type") // ALL, VIP, ENTERPRISE, etc.
+
+  isActive          Boolean  @default(true) @map("is_active")
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model TicketAssignment {
+  id                String   @id @default(uuid())
+  ticketId          String   @map("ticket_id")
+  assignedById      String   @map("assigned_by_id")
+  assignedToId      String   @map("assigned_to_id")
+
+  // Assignment Details
+  reason            String?
+  isCurrent         Boolean  @default(true) @map("is_current")
+
+  createdAt         DateTime @default(now())
+
+  // Relations
+  ticket            Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  assignedBy        User     @relation("TicketAssignmentBy", fields: [assignedById], references: [id])
+  assignedTo        User     @relation("TicketAssignmentTo", fields: [assignedToId], references: [id])
+
+  @@index([ticketId, isCurrent])
+  @@index([assignedToId, createdAt])
+}
+
+// E. Enhanced Billing & Usage
+model Invoice {
+  id                String   @id @default(uuid())
+
+  // Invoice Details
+  invoiceNumber     String   @unique
+  type              String   // BROKER, USER, API_MARKETPLACE, SUBSCRIPTION
+  customerId        String   @map("customer_id")
+  customerType      String   @map("customer_type") // USER, BROKER
+
+  // Billing Period
+  periodStart       DateTime @map("period_start")
+  periodEnd         DateTime @map("period_end")
+  issueDate         DateTime @map("issue_date")
+  dueDate           DateTime @map("due_date")
+
+  // Financial Details
+  subtotal          Decimal  @db.Decimal(12, 2)
+  discountAmount    Decimal  @default(0) @db.Decimal(12, 2) @map("discount_amount")
+  taxAmount         Decimal  @default(0) @db.Decimal(12, 2) @map("tax_amount")
+  totalAmount       Decimal  @db.Decimal(12, 2) @map("total_amount")
+  amountPaid        Decimal  @default(0) @db.Decimal(12, 2) @map("amount_paid")
+
+  // Status
+  status            String   @default("DRAFT") // DRAFT, SENT, PAID, OVERDUE, CANCELLED, REFUNDED
+  paymentStatus     String   @default("UNPAID") // UNPAID, PARTIALLY_PAID, PAID, OVERDUE
+
+  // Currency & Localization
+  currency          String   @default("USD")
+  exchangeRate      Decimal  @default(1) @db.Decimal(10, 6) @map("exchange_rate")
+
+  // Metadata
+  notes             String?
+  metadata          Json?
+  pdfUrl            String?  @map("pdf_url")
+
+  // Automation
+  autoGenerated     Boolean  @default(false) @map("auto_generated")
+  reminderSent      Boolean  @default(false) @map("reminder_sent")
+  reminderCount     Int      @default(0) @map("reminder_count")
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  paidAt            DateTime? @map("paid_at")
+  cancelledAt       DateTime? @map("cancelled_at")
+
+  // Relations
+  items             InvoiceItem[]
+  payments          InvoicePayment[]
+
+  @@index([customerId, status])
+  @@index([type, status])
+  @@index([dueDate, status])
+  @@index([invoiceNumber])
+}
+
+model InvoiceItem {
+  id                String   @id @default(uuid())
+  invoiceId         String   @map("invoice_id")
+
+  // Item Details
+  description       String
+  quantity          Int      @default(1)
+  unitPrice         Decimal  @db.Decimal(12, 2) @map("unit_price")
+  discount          Decimal  @default(0) @db.Decimal(12, 2)
+  taxRate           Decimal  @default(0) @db.Decimal(5, 4) @map("tax_rate")
+  total             Decimal  @db.Decimal(12, 2)
+
+  // Classification
+  category          String   // SUBSCRIPTION, API_USAGE, TRANSACTION_FEE, OVERAGE, PENALTY, SETUP_FEE
+  productId         String?  @map("product_id")
+  servicePeriod     Json?    // { "start": "...", "end": "..." }
+
+  // Reference
+  referenceId       String?  @map("reference_id")
+  referenceType     String?  @map("reference_type")
+
+  createdAt         DateTime @default(now())
+
+  // Relations
+  invoice           Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([category])
+}
+
+model InvoicePayment {
+  id                String   @id @default(uuid())
+  invoiceId         String   @map("invoice_id")
+
+  // Payment Details
+  amount            Decimal  @db.Decimal(12, 2)
+  paymentDate       DateTime @map("payment_date")
+  paymentMethod     String   @map("payment_method")
+  transactionId     String?  @map("transaction_id")
+  reference         String?
+
+  // Status
+  status            String   @default("PENDING") // PENDING, COMPLETED, FAILED, REFUNDED, CHARGEBACK
+
+  // Processing
+  processor         String?  // Payment processor
+  processorFee      Decimal  @default(0) @db.Decimal(12, 2) @map("processor_fee")
+  netAmount         Decimal  @db.Decimal(12, 2) @map("net_amount")
+
+  // Refunds
+  refundAmount      Decimal  @default(0) @db.Decimal(12, 2) @map("refund_amount")
+  refundReason      String?  @map("refund_reason")
+  refundDate        DateTime? @map("refund_date")
+
+  // Metadata
+  currency          String   @default("USD")
+  metadata          Json?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  completedAt       DateTime? @map("completed_at")
+  failedAt          DateTime? @map("failed_at")
+
+  // Relations
+  invoice           Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([status, paymentDate])
+}
+
+// F. Staff & Role Management
+model StaffRole {
+  id                String   @id @default(uuid())
+
+  // Role Details
+  name              String
+  displayName       String   @map("display_name")
+  description       String?
+  department        String?  // SALES, SUPPORT, COMPLIANCE, BILLING, TECHNICAL, ADMIN
+
+  // Hierarchy
+  level             Int      @default(0) // 0=Lowest, higher numbers have more authority
+  parentRoleId      String?  @map("parent_role_id")
+
+  // Permissions (JSON structure for flexibility)
+  permissions       Json     // { "crm": ["read", "write"], "billing": ["read"], ... }
+
+  // Status
+  isActive          Boolean  @default(true) @map("is_active")
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  parentRole        StaffRole? @relation("RoleHierarchy", fields: [parentRoleId], references: [id])
+  subRoles          StaffRole[] @relation("RoleHierarchy")
+  staffMembers      StaffMember[]
+
+  @@index([isActive])
+  @@index([department])
+}
+
+model StaffMember {
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  roleId            String   @map("role_id")
+
+  // Employment Details
+  employeeId        String?  @unique @map("employee_id")
+  department        String?
+  position          String?
+  reportsToId       String?  @map("reports_to_id")
+
+  // Contact & Location
+  workEmail         String?
+  workPhone         String?
+  officeLocation    String?  @map("office_location")
+  timezone          String   @default("UTC")
+
+  // Performance
+  hireDate          DateTime @map("hire_date")
+  terminationDate   DateTime? @map("termination_date")
+  performanceRating Decimal? @db.Decimal(2, 1) @map("performance_rating")
+
+  // Status
+  isActive          Boolean  @default(true) @map("is_active")
+  isManager         Boolean  @default(false) @map("is_manager")
+
+  // Metadata
+  metadata          Json?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  user              User     @relation(fields: [userId], references: [id])
+  role              StaffRole @relation(fields: [roleId], references: [id])
+  reportsTo         StaffMember? @relation("StaffReporting", fields: [reportsToId], references: [id])
+  directReports     StaffMember[] @relation("StaffReporting")
+
+  @@index([userId])
+  @@index([roleId, isActive])
+  @@index([department, isActive])
+}
+
+// ============= VPMX - VIRAL POPULARITY MARKET INDEX =============
+
+model VpmxIndex {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+  timestamp       DateTime @default(now())
+  value           Float    // 0-1000 VPMX score
+
+  // 8-factor components (normalized 0-1)
+  components      Json     // { globalSentiment, viralMomentum, trendVelocity, mentionVolume, engagementQuality, trendStability, deceptionRisk, regionalWeight }
+
+  // Metadata and derived metrics
+  metadata        Json?    // { breakoutProbability, confidence, riskLevel, acceleration, momentum }
+  region          String?  // Regional variant
+  version         String   @default("1.0") // Formula version
+
+  // Processing metadata
+  computationJob  String?  @map("computation_job")
+  processedAt     DateTime @default(now()) @map("processed_at")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([vtsSymbol, timestamp])
+  @@index([timestamp])
+  @@index([value])
+  @@index([region])
+  @@index([computationJob])
+}
+
+model VpmxRegionIndex {
+  id              String   @id @default(cuid())
+  region          String
+  vtsSymbol       String?  @map("vts_symbol") // null for aggregate
+  timestamp       DateTime @default(now())
+  value           Float
+
+  // Regional-specific components
+  components      Json     // Component breakdown for this region
+  contribution    Float    // Contribution to global VPMX (0-1)
+  confidence       Float    // Confidence in regional data (0-1)
+  sampleSize      Int      @map("sample_size")
+
+  createdAt       DateTime @default(now())
+
+  @@index([region, timestamp])
+  @@index([vtsSymbol, region])
+  @@index([timestamp])
+}
+
+model VpmxHistory {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+  timestamp       DateTime @default(now())
+  value           Float    // 0-1000
+  open            Float?
+  high            Float?
+  low             Float?
+  close           Float?
+  volume          Float?   @default(0)
+
+  // Calculated metrics
+  change1h        Float?   @map("change_1h")    // 1-hour change
+  change24h       Float?   @map("change_24h")   // 24-hour change
+  change7d        Float?   @map("change_7d")    // 7-day change
+
+  // Technical indicators
+  rsi             Float?
+  macd            Float?
+  volatility      Float?   // Recent volatility
+
+  components      Json     // Full component breakdown
+  metadata        Json?    // Additional metadata
+
+  createdAt       DateTime @default(now())
+
+  @@index([vtsSymbol, timestamp])
+  @@index([timestamp])
+  @@index([value])
+}
+
+model VpmxPrediction {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+
+  // Prediction parameters
+  modelType       String   @map("model_type")      // LSTM, CNN, TRANSFORMER, ENSEMBLE
+  horizon         String   // 1h, 6h, 24h, 7d, 30d
+  timestamp       DateTime @default(now()) // When prediction was made
+
+  // Prediction results
+  predictedValue  Float    @map("predicted_value")
+  confidence      Float    // 0-1 confidence score
+  upperBound      Float    @map("upper_bound")
+  lowerBound      Float    @map("lower_bound")
+
+  // Feature importance
+  features        Json     // { feature_name: importance_weight }
+
+  // Actual outcome (for model evaluation)
+  actualValue     Float?   @map("actual_value")
+  error           Float?   // Absolute error
+  accuracy        Float?   // Prediction accuracy
+
+  status          String   @default("ACTIVE") // ACTIVE, EXPIRED, SETTLED
+
+  createdAt       DateTime @default(now())
+  settledAt       DateTime? @map("settled_at")
+
+  @@index([vtsSymbol, status])
+  @@index([horizon])
+  @@index([timestamp])
+}
+
+model VpmxMarket {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+  question        String
+  description     String?
+
+  // Market configuration
+  outcomeType     String   @map("outcome_type")     // BINARY, RANGE, MULTI
+  strikePrice     Float?   @map("strike_price")
+  expiryDate      DateTime @map("expiry_date")
+
+  // Settlement
+  resolutionCriteria String @map("resolution_criteria")
+  settlementType  String   @map("settlement_type")   // AUTOMATIC, MANUAL, ORACLE
+  oracleParams    Json?    @map("oracle_params")
+
+  // Market state
+  status          String   @default("PENDING")     // PENDING, ACTIVE, PAUSED, SETTLED, CANCELLED
+  liquidityPool   Float    @default(0) @map("liquidity_pool")
+  volume24h       Float    @default(0) @map("volume_24h")
+  totalVolume     Float    @default(0) @map("total_volume")
+
+  // Odds and pricing
+  yesPrice        Float    @map("yes_price")
+  noPrice         Float    @map("no_price")
+  lastPrice       Float?   @map("last_price")
+
+  // Market creation
+  createdBy       String   @map("created_by")
+  creatorStake    Float    @default(0) @map("creator_stake")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  settledAt       DateTime? @map("settled_at")
+
+  // Relations
+  outcomes        VpmxOutcome[]
+  bets            VpmxBet[]
+
+  @@index([vtsSymbol, status])
+  @@index([expiryDate, status])
+  @@index([outcomeType])
+  @@index([createdBy])
+}
+
+model VpmxOutcome {
+  id              String   @id @default(cuid())
+  marketId        String   @map("market_id")
+  label           String
+  description     String?
+  probability     Float?   // Implied probability
+
+  // Settlement
+  isWinner        Boolean? @default(false) @map("is_winner")
+  settlementValue Float?   @map("settlement_value")
+
+  createdAt       DateTime @default(now())
+
+  // Relations
+  market          VpmxMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  bets            VpmxBet[]
+
+  @@index([marketId])
+}
+
+model VpmxBet {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  marketId        String   @map("market_id")
+  outcomeId       String?  @map("outcome_id")
+
+  // Bet details
+  side            String   // YES, NO, RANGE_IN, RANGE_OUT, SPECIFIC_OUTCOME
+  stake           Float    // Amount wagered
+  odds            Float    // Odds at time of bet
+  potentialPayout Float    @map("potential_payout")
+
+  // Settlement
+  status          String   @default("PENDING") // PENDING, ACTIVE, WON, LOST, REFUNDED
+  actualPayout   Float?   @map("actual_payout")
+  settledAt       DateTime? @map("settled_at")
+
+  // Risk management
+  maxLoss         Float    @map("max_loss")
+  marginRequired Float?   @map("margin_required")
+
+  // Security
+  ipAddress       String?  @map("ip_address")
+  userAgent       String?  @map("user_agent")
+  fraudScore      Float?   @map("fraud_score")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user            User     @relation("VpmxBetsLegacy", fields: [userId], references: [id])
+  market          VpmxMarket @relation(fields: [marketId], references: [id])
+  outcome         VpmxOutcome? @relation(fields: [outcomeId], references: [id])
+
+  @@index([userId, status])
+  @@index([marketId, status])
+  @@index([createdAt])
+}
+
+model VpmxExposure {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  user            User     @relation(fields: [userId], references: [id])
+  marketId        String?  @map("market_id")
+  vtsSymbol       String?  @map("vts_symbol")
+
+  // Exposure metrics
+  totalStake      Float    @map("total_stake")
+  maxPotentialLoss Float    @map("max_potential_loss")
+  currentPnl     Float?   @map("current_pnl")
+
+  // Risk limits
+  riskLevel       String   @default("LOW") // LOW, MEDIUM, HIGH, CRITICAL
+  limitType       String?  // POSITION_SIZE, TOTAL_EXPOSURE, CONCENTRATION
+
+  // Status
+  status          String   @default("ACTIVE") // ACTIVE, CLOSED, BREACHED
+
+  // Soft delete support for preserving historical VPMX data
+  deletedAt       DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([marketId])
+  @@index([vtsSymbol])
+  @@index([riskLevel])
+  @@index([deletedAt])
+}
+
+model VpmxRiskSnapshot {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+
+  // Risk metrics
+  valueAtRisk     Float    @map("value_at_risk")
+  expectedShortfall Float    @map("expected_shortfall")
+  maxDrawdown     Float    @map("max_drawdown")
+  volatility      Float
+  beta            Float?
+  sharpeRatio     Float?   @map("sharpe_ratio")
+
+  // Risk ratings
+  riskRating      String   // AAA, AA, A, BBB, BB, B, CCC
+  riskScore       Float    @map("risk_score") // 0-100
+
+  // Market context
+  marketCondition String   @map("market_condition") // BULLISH, BEARISH, SIDEWAYS, VOLATILE
+
+  timestamp       DateTime @default(now())
+
+  @@index([vtsSymbol])
+  @@index([timestamp])
+  @@index([riskRating])
+}
+
+model VpmxAnomaly {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+
+  // Anomaly details
+  type            String   // SPIKE, DIP, PATTERN_BREAK, OUTLIER, ABNORMAL_VOLUME
+  severity        String   // LOW, MEDIUM, HIGH, CRITICAL
+  confidence      Float    // 0-1 confidence in anomaly
+
+  // Anomaly data
+  detectedAt      DateTime @default(now()) @map("detected_at")
+  resolvedAt      DateTime? @map("resolved_at")
+  value           Float    // VPMX value at anomaly
+  expectedValue   Float?   @map("expected_value")
+
+  // Description
+  description     String
+  suggestedAction String? @map("suggested_action")
+
+  // Status
+  status          String   @default("ACTIVE") // ACTIVE, RESOLVED, IGNORED
+
+  @@index([vtsSymbol, status])
+  @@index([severity])
+  @@index([detectedAt])
+}
+
+model VpmxBreakoutEvent {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+
+  // Breakout details
+  breakoutType    String   // MOMENTUM, SENTIMENT, VIRAL, CATALYST, TECHNICAL
+  strength        Float    // 0-1 breakout strength
+
+  // Timing
+  detectedAt      DateTime @default(now()) @map("detected_at")
+  confirmedAt     DateTime? @map("confirmed_at")
+
+  // Value metrics
+  preBreakoutValue Float?   @map("pre_breakout_value")
+  breakoutValue   Float    @map("breakout_value")
+  currentPeak     Float?   @map("current_peak")
+
+  // Prediction
+  predictedPeak   Float?   @map("predicted_peak")
+  predictedDuration Int?     @map("predicted_duration") // in hours
+
+  // Status
+  status          String   @default("PENDING") // PENDING, CONFIRMED, FAILED, PEAKED
+
+  metadata        Json?    // Additional breakout analysis data
+
+  @@index([vtsSymbol, status])
+  @@index([breakoutType])
+  @@index([detectedAt])
+}
+
+model VpmxInfluencerImpact {
+  id              String   @id @default(cuid())
+  vtsSymbol       String   @map("vts_symbol")
+
+  // Influencer details
+  platform        String   // TWITTER, INSTAGRAM, TIKTOK, YOUTUBE
+  handle          String
+  followers       Int      @map("followers_count")
+
+  // Impact metrics
+  influenceScore  Float    @map("influence_score") // 0-1 influence on VPMX
+  engagementRate  Float    @map("engagement_rate")
+  sentimentBias   String   // POSITIVE, NEGATIVE, NEUTRAL
+
+  // Activity
+  firstSeenAt     DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt      DateTime @default(now()) @map("last_seen_at")
+  mentionCount    Int      @default(0) @map("mention_count")
+
+  // Status
+  status          String   @default("ACTIVE") // ACTIVE, INACTIVE, BLACKLISTED
+
+  metadata        Json?    // Additional influencer data
+
+  @@index([vtsSymbol, platform])
+  @@index([handle])
+  @@index([status])
+}
+
+model VpmxWeightConfig {
+  id              String   @id @default(cuid())
+  name            String   @unique // "default", "conservative", "aggressive"
+  description     String?
+
+  // Weight configuration (must sum to 1.0)
+  globalSentiment Float    @map("global_sentiment_weight")      @default(0.20)
+  viralMomentum   Float    @map("viral_momentum_weight")        @default(0.20)
+  trendVelocity   Float    @map("trend_velocity_weight")        @default(0.15)
+  mentionVolume   Float    @map("mention_volume_weight")        @default(0.15)
+  engagementQuality Float    @map("engagement_quality_weight")    @default(0.10)
+  trendStability  Float    @map("trend_stability_weight")       @default(0.10)
+  deceptionRisk   Float    @map("deception_risk_weight")          @default(0.05)
+  regionalWeight  Float    @map("regional_weight")              @default(0.05)
+
+  // Status
+  isActive        Boolean  @default(true) @map("is_active")
+  isDefault       Boolean  @default(false) @map("is_default")
+
+  // Metadata
+  createdBy       String?  @map("created_by")
+  version         Int      @default(1)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([isDefault])
+}
+
+model VpmxAudit {
+  id              String   @id @default(cuid())
+
+  // Action details
+  action          String   // COMPUTE, PREDICT, MARKET_CREATE, BET_PLACE, SETTLE
+  entityType      String   // VPMX_INDEX, MARKET, BET, USER
+  entityId        String?  @map("entity_id")
+
+  // Request details
+  userId          String?  @map("user_id")
+  ipAddress       String?  @map("ip_address")
+  userAgent       String?  @map("user_agent")
+
+  // Data changes
+  oldValue       Json?    @map("old_value")
+  newValue       Json?    @map("new_value")
+  changes         Json?    // Detailed change description
+
+  // Status
+  status          String   // SUCCESS, ERROR, PENDING
+  errorCode       String?  @map("error_code")
+  errorMessage    String?  @map("error_message")
+
+  // Performance
+  duration        Int?     // Processing time in milliseconds
+  memoryUsage     Int?     @map("memory_usage") // MB
+
+  timestamp       DateTime @default(now())
+
+  @@index([action, entityType])
+  @@index([userId])
+  @@index([timestamp])
+  @@index([status])
+}
+
+// ============= VPMX - VIRAL POPULARITY MARKET INDEX =============
+
+model VPMXHistory {
+  id            String   @id @default(cuid())
+  vtsSymbol     String   @map("vts_symbol")
+  timestamp     DateTime @default(now())
+  value         Float    // 0-1000 VPMX score
+
+  // VPMX components (weighted factors)
+  components    Json     // { globalSentimentScore, viralMomentumIndex, trendVelocity, ... }
+
+  // Metadata
+  metadata      Json?    // { breakoutProbability, smiCorrelation, volatilityIndex, confidenceScore }
+  region        String?  // Regional variant
+
+  // System fields
+  computationJob String? @map("computation_job") // Job ID that generated this entry
+  processedAt   DateTime @default(now()) @map("processed_at")
+
+  createdAt     DateTime @default(now())
+
+  @@index([vtsSymbol, timestamp])
+  @@index([timestamp])
+  @@index([value])
+  @@index([region])
+  @@index([computationJob])
+}
+
+model VPMXRegional {
+  id            String   @id @default(cuid())
+  region        String
+  vtsSymbol     String?  @map("vts_symbol") // null for aggregate regional index
+  timestamp     DateTime @default(now())
+  value         Float    // Regional VPMX value
+
+  // Regional components
+  components    Json     // Component breakdown for this region
+  contribution  Float    // Contribution to global VPMX (0-1)
+
+  // Regional metadata
+  sampleSize    Int      @map("sample_size")
+  confidence    Float    // Confidence in regional data (0-1)
+
+  createdAt     DateTime @default(now())
+
+  @@index([region, timestamp])
+  @@index([vtsSymbol, region])
+  @@index([timestamp])
+}
+
+model VPMXWeighting {
+  id            String   @id @default(cuid())
+  name          String   @unique // "default", "conservative", "aggressive", etc.
+  description   String?
+
+  // Weight configuration (must sum to 1.0)
+  globalSentimentWeight    Float    @map("global_sentiment_weight")
+  viralMomentumWeight      Float    @map("viral_momentum_weight")
+  trendVelocityWeight      Float    @map("trend_velocity_weight")
+  mentionVolumeWeight      Float    @map("mention_volume_weight")
+  engagementQualityWeight  Float    @map("engagement_quality_weight")
+  trendStabilityWeight     Float    @map("trend_stability_weight")
+  deceptionRiskWeight      Float    @map("deception_risk_weight")
+  regionalWeightingWeight  Float    @map("regional_weighting_weight")
+
+  // Status
+  isActive      Boolean  @default(true) @map("is_active")
+  isDefault     Boolean  @default(false) @map("is_default")
+
+  // Metadata
+  createdBy     String?  @map("created_by")
+  version       Int      @default(1)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([isDefault])
+}
+
+model VPMXMarket {
+  id            String   @id @default(cuid())
+  vtsSymbol     String   @map("vts_symbol")
+  question      String
+  description   String?
+
+  // Market configuration
+  outcomeType   String   @map("outcome_type") // BINARY, MULTI, RANGE
+  strikePrice   Float?   @map("strike_price") // For RANGE markets
+  expiryDate    DateTime @map("expiry_date")
+
+  // Settlement criteria
+  resolutionCriteria String @map("resolution_criteria")
+  settlementType     String @map("settlement_type") // AUTOMATIC, MANUAL, ORACLE
+  oracleParams       Json?  @map("oracle_params")
+
+  // Market status
+  status        String   @default("PENDING") // PENDING, ACTIVE, PAUSED, SETTLED, CANCELLED
+  liquidityPool Float    @default(0) @map("liquidity_pool")
+  volume24h     Float    @default(0) @map("volume_24h")
+
+  // Current odds/prices
+  yesPrice      Float    @map("yes_price")
+  noPrice       Float    @map("no_price")
+
+  // Market creation
+  createdBy     String   @map("created_by")
+  creatorStake  Float    @default(0) @map("creator_stake")
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  settledAt     DateTime? @map("settled_at")
+
+  // Relations
+  bets          VPMXBet[]
+  marketEvents  VPMXMarketEvent[]
+
+  @@index([vtsSymbol, status])
+  @@index([expiryDate, status])
+  @@index([outcomeType])
+  @@index([createdBy])
+}
+
+model VPMXBet {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  marketId      String   @map("market_id")
+
+  // Bet details
+  side          String   // YES, NO, RANGE_IN, RANGE_OUT
+  stake         Float
+  odds          Float
+  potentialPayout Float  @map("potential_payout")
+
+  // Bet status
+  status        String   @default("PENDING") // PENDING, ACTIVE, WON, LOST, REFUNDED
+  actualPayout  Float?   @map("actual_payout")
+  settledAt     DateTime? @map("settled_at")
+
+  // Risk management
+  maxLoss       Float    @map("max_loss")
+  marginRequired Float?  @map("margin_required")
+
+  // Security
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  fraudScore    Float?   @map("fraud_score")
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user          User     @relation("VPMXBets", fields: [userId], references: [id])
+  market        VPMXMarket @relation(fields: [marketId], references: [id])
+
+  @@index([userId, status])
+  @@index([marketId, status])
+  @@index([createdAt])
+}
+
+model VPMXMarketEvent {
+  id            String   @id @default(cuid())
+  marketId      String   @map("market_id")
+  eventType     String   @map("event_type") // PRICE_UPDATE, VOLUME_UPDATE, SETTLEMENT, PAUSE, RESUME
+  eventData     Json     @map("event_data")
+
+  // Event metadata
+  source        String?  // ORACLE, ADMIN, SYSTEM, USER
+  sourceId      String?  @map("source_id")
+
+  timestamp     DateTime @default(now())
+
+  // Relations
+  market        VPMXMarket @relation(fields: [marketId], references: [id])
+
+  @@index([marketId, eventType])
+  @@index([timestamp])
+}
+
+model VPMXAggregates {
+  id            String   @id @default(cuid())
+  vtsSymbol     String   @map("vts_symbol")
+  interval      String   // 1m, 5m, 15m, 1h, 1d, 1w, 1M
+
+  // Aggregate values for the interval
+  openPrice     Float    @map("open_price")
+  highPrice     Float    @map("high_price")
+  lowPrice      Float    @map("low_price")
+  closePrice    Float    @map("close_price")
+  volume        Float    @default(0)
+
+  // Statistical measures
+  mean          Float
+  median        Float?
+  stdDev        Float    @map("std_dev")
+  variance      Float?
+
+  // Timestamp for this aggregate period
+  timestamp     DateTime @default(now())
+
+  // Quality metrics
+  sampleSize    Int      @map("sample_size")
+  confidence    Float    // Confidence in aggregate (0-1)
+
+  createdAt     DateTime @default(now())
+
+  @@unique([vtsSymbol, interval, timestamp])
+  @@index([vtsSymbol, interval])
+  @@index([timestamp])
+}
+
+// Broker Safety Model for Prediction Markets
+model VPMXBrokerSafety {
+  id            String   @id @default(cuid())
+  brokerId      String   @map("broker_id")
+
+  // Safety limits
+  maxExposure   Float    @map("max_exposure") // Maximum total exposure
+  currentExposure Float  @map("current_exposure") // Current total exposure
+  exposurePercentage Float @map("exposure_percentage") // % of max exposure used
+
+  // Risk configuration
+  riskLevel     String   @map("risk_level") // LOW, MEDIUM, HIGH, CRITICAL
+  maxBetSize    Float    @map("max_bet_size") // Maximum single bet size
+  maxDailyExposure Float  @map("max_daily_exposure")
+
+  // Market restrictions
+  allowedMarkets String[] @map("allowed_markets") // Whitelisted market types
+  blockedMarkets String[] @map("blocked_markets") // Blacklisted markets
+  regions       String[] // Allowed regions for this broker
+
+  // Safety triggers
+  autoLimitReduction Boolean @default(false) @map("auto_limit_reduction")
+  suspensionThreshold Float @map("suspension_threshold") // Auto-suspend at this exposure level
+
+  // Metadata
+  lastRiskAssessment DateTime @map("last_risk_assessment")
+  assessmentScore Float? @map("assessment_score")
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([brokerId])
+  @@index([riskLevel])
+  @@index([exposurePercentage])
+}
+
+// User Fairness Model for Prediction Markets
+model VPMXUserFairness {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  user          User     @relation(fields: [userId], references: [id])
+
+  // Fairness metrics
+  winRate       Float    @map("win_rate") // Overall win rate (0-1)
+  avgBetSize    Float    @map("avg_bet_size") // Average bet size
+  totalWinnings Float    @map("total_winnings")
+  totalLosses   Float    @map("total_losses")
+  netProfit     Float    @map("net_profit")
+  totalBets     Int      @map("total_bets")
+
+  // Fairness score (0-100)
+  fairnessScore Float    @map("fairness_score")
+  isWhale       Boolean  @default(false) @map("is_whale") // High-volume user flag
+
+  // Behavioral limits
+  limits        Json     // { maxBetSize, maxDailyBets, coolingPeriod, maxPositions }
+
+  // Fairness adjustments
+  oddsAdjustment Float   @map("odds_adjustment") // Applied odds adjustment (-0.1 to 0.1)
+  marginRequirement Float @map("margin_requirement") // Additional margin requirement
+
+  // Status
+  isRestricted  Boolean  @default(false) @map("is_restricted")
+  restrictionReason String? @map("restriction_reason")
+  restrictionExpires DateTime? @map("restriction_expires")
+
+  // Metadata
+  lastUpdated   DateTime @default(now()) @map("last_updated")
+  assessmentVersion Int @default(1) @map("assessment_version")
+
+  // Soft delete support for preserving historical VPMX data
+  deletedAt     DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId])
+  @@index([fairnessScore])
+  @@index([isWhale])
+  @@index([isRestricted])
+  @@index([deletedAt])
+}

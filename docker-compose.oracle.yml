@@ -1,0 +1,182 @@
+version: '3.8'
+
+services:
+  oracle-coordinator:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: viralfx-oracle-coordinator
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/viralfx
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=oracle-jwt-secret-key
+      - ORACLE_VALIDATOR_NETWORK=true
+      - ORACLE_COORDINATOR_PORT=3000
+      - VALIDATOR_NODES=validator-node-1:3002,validator-node-2:3003,validator-node-3:3004
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      validator-node-1:
+        condition: service_healthy
+      validator-node-2:
+        condition: service_healthy
+      validator-node-3:
+        condition: service_healthy
+    networks:
+      - oracle-network
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command: npm run start:dev
+
+  validator-node-1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.validator
+    container_name: viralfx-validator-1
+    ports:
+      - "3002:3000"
+    environment:
+      - NODE_ENV=development
+      - VALIDATOR_ID=validator-node-1
+      - VALIDATOR_KEY=${VALIDATOR_KEY_1:-validator-key-1-secret}
+      - VALIDATOR_PORT=3000
+      - ORACLE_COORDINATOR_URL=http://oracle-coordinator:3000
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/viralfx
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - oracle-network
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  validator-node-2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.validator
+    container_name: viralfx-validator-2
+    ports:
+      - "3003:3000"
+    environment:
+      - NODE_ENV=development
+      - VALIDATOR_ID=validator-node-2
+      - VALIDATOR_KEY=${VALIDATOR_KEY_2:-validator-key-2-secret}
+      - VALIDATOR_PORT=3000
+      - ORACLE_COORDINATOR_URL=http://oracle-coordinator:3000
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/viralfx
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - oracle-network
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  validator-node-3:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.validator
+    container_name: viralfx-validator-3
+    ports:
+      - "3004:3000"
+    environment:
+      - NODE_ENV=development
+      - VALIDATOR_ID=validator-node-3
+      - VALIDATOR_KEY=${VALIDATOR_KEY_3:-validator-key-3-secret}
+      - VALIDATOR_PORT=3000
+      - ORACLE_COORDINATOR_URL=http://oracle-coordinator:3000
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/viralfx
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - oracle-network
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: viralfx-oracle-postgres
+    environment:
+      - POSTGRES_DB=viralfx
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/prisma/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - oracle-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: viralfx-oracle-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - oracle-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  oracle-dashboard:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: viralfx-oracle-dashboard
+    ports:
+      - "5174:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3001
+      - VITE_WS_URL=ws://localhost:3001
+      - VITE_ORACLE_MODE=true
+    networks:
+      - oracle-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+
+networks:
+  oracle-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

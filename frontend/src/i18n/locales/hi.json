@@ -1,0 +1,156 @@
+{
+  "common": {
+    "loading": "लोड हो रहा है...",
+    "error": "त्रुटि",
+    "success": "सफलता",
+    "warning": "चेतावनी",
+    "info": "जानकारी",
+    "cancel": "रद्द करें",
+    "save": "सहेजें",
+    "delete": "हटाएं",
+    "edit": "संपादित करें",
+    "view": "देखें",
+    "close": "बंद करें",
+    "confirm": "पुष्टि करें",
+    "yes": "हाँ",
+    "no": "नहीं",
+    "search": "खोजें",
+    "filter": "फ़िल्टर",
+    "clear": "साफ करें",
+    "reset": "रीसेट करें",
+    "submit": "जमा करें",
+    "back": "पीछे",
+    "next": "अगला",
+    "previous": "पिछला",
+    "done": "हो गया",
+    "copy": "कॉपी करें",
+    "share": "साझा करें",
+    "download": "डाउनलोड",
+    "upload": "अपलोड",
+    "refresh": "रिफ्रेश करें"
+  },
+  "navigation": {
+    "dashboard": "डैशबोर्ड",
+    "trading": "ट्रेडिंग",
+    "portfolio": "पोर्टफोलियो",
+    "markets": "बाज़ार",
+    "settings": "सेटिंग्स",
+    "profile": "प्रोफ़ाइल",
+    "security": "सुरक्षा",
+    "notifications": "सूचनाएं",
+    "wallet": "वॉलेट",
+    "broker": "ब्रोकर",
+    "preferences": "प्राथमिकताएं",
+    "logout": "लॉग आउट",
+    "login": "लॉग इन",
+    "register": "रजिस्टर करें"
+  },
+  "settings": {
+    "title": "सेटिंग्स",
+    "subtitle": "अपने खाते की सेटिंग्स और प्राथमिकताएं प्रबंधित करें",
+    "profile": {
+      "title": "प्रोफ़ाइल",
+      "subtitle": "अपनी व्यक्तिगत जानकारी और प्रोफ़ाइल सेटिंग्स प्रबंधित करें",
+      "firstName": "पहला नाम",
+      "lastName": "अंतिम नाम",
+      "email": "ईमेल पता",
+      "phone": "फोन नंबर",
+      "country": "देश",
+      "bio": "बायो",
+      "avatar": "प्रोफ़ाइल चित्र",
+      "changeAvatar": "अवतार बदलें",
+      "verified": "सत्यापित",
+      "notVerified": "असत्यापित"
+    },
+    "security": {
+      "title": "सुरक्षा",
+      "subtitle": "अपनी सुरक्षा सेटिंग्स और प्रमाणीकरण प्रबंधित करें",
+      "password": "पासवर्ड",
+      "twoFactor": "दो-कारक प्रमाणीकरण",
+      "activeSessions": "सक्रिय सत्र"
+    },
+    "notifications": {
+      "title": "सूचनाएं",
+      "subtitle": "अपनी सूचना प्राथमिकताएं प्रबंधित करें",
+      "emailNotifications": "ईमेल सूचनाएं",
+      "pushNotifications": "पुश सूचनाएं",
+      "securityAlerts": "सुरक्षा चेतावनियां"
+    },
+    "wallet": {
+      "title": "वॉलेट",
+      "subtitle": "अपना वॉलेट और भुगतान विधियां प्रबंधित करें",
+      "balance": "बैलेंस",
+      "deposit": "जमा",
+      "withdraw": "निकासी",
+      "transactionHistory": "लेनदेन इतिहास"
+    },
+    "broker": {
+      "title": "ब्रोकर",
+      "subtitle": "ब्रोकर संबंध प्रबंधित करें",
+      "linkedBroker": "लिंक्ड ब्रोकर",
+      "linkBroker": "ब्रोकर लिंक करें",
+      "status": "स्थिति"
+    },
+    "preferences": {
+      "title": "प्राथमिकताएं",
+      "subtitle": "ViralFX अनुभव को अनुकूलित करें",
+      "theme": "थीम",
+      "language": "भाषा",
+      "currency": "डिफ़ॉल्ट मुद्रा",
+      "darkTheme": "डार्क",
+      "lightTheme": "लाइट"
+    }
+  },
+  "trading": {
+    "title": "ट्रेडिंग",
+    "buy": "खरीदें",
+    "sell": "बेचें",
+    "market": "बाज़ार",
+    "orderBook": "ऑर्डर बुक",
+    "priceChart": "मूल्य चार्ट",
+    "openOrders": "खुले ऑर्डर",
+    "balance": "बैलेंस",
+    "profit": "लाभ",
+    "loss": "हानि",
+    "volume": "वॉल्यूम",
+    "price": "मूल्य",
+    "placeOrder": "ऑर्डर दें"
+  },
+  "portfolio": {
+    "title": "पोर्टफोलियो",
+    "totalValue": "कुल मूल्य",
+    "totalReturn": "कुल रिटर्न",
+    "assetAllocation": "संपत्ति आवंटन",
+    "holdings": "होल्डिंग्स",
+    "performance": "प्रदर्शन",
+    "profitLoss": "लाभ/हानि"
+  },
+  "auth": {
+    "login": "लॉग इन",
+    "register": "रजिस्टर करें",
+    "logout": "लॉग आउट",
+    "email": "ईमेल",
+    "password": "पासवर्ड",
+    "confirmPassword": "पासवर्ड की पुष्टि करें",
+    "forgotPassword": "पासवर्ड भूल गए?",
+    "rememberMe": "मुझे याद रखें"
+  },
+  "errors": {
+    "generic": "कुछ गलत हो गया। कृपया फिर से कोशिश करें।",
+    "networkError": "नेटवर्क त्रुटि। कृपया अपना कनेक्शन जांचें।",
+    "validationError": "कृपया अपना इनपुट जांचें और फिर से कोशिश करें।",
+    "unauthorized": "आप इस कार्रवाई करने के लिए अधिकृत नहीं हैं।",
+    "requiredField": "यह फ़ील्ड आवश्यक है।"
+  },
+  "success": {
+    "profileUpdated": "प्रोफ़ाइल सफलतापूर्वक अपडेट किया गया!",
+    "passwordChanged": "पासवर्ड सफलतापूर्वक बदला गया!",
+    "loginSuccess": "लॉग इन सफल"
+  },
+  "currency": {
+    "ZAR": "दक्षिण अफ्रीकी रैंड",
+    "USD": "अमेरिकी डॉलर",
+    "EUR": "यूरो",
+    "BTC": "बिटकॉइन"
+  }
+}

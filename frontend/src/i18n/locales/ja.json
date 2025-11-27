@@ -1,0 +1,156 @@
+{
+  "common": {
+    "loading": "読み込み中...",
+    "error": "エラー",
+    "success": "成功",
+    "warning": "警告",
+    "info": "情報",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "delete": "削除",
+    "edit": "編集",
+    "view": "表示",
+    "close": "閉じる",
+    "confirm": "確認",
+    "yes": "はい",
+    "no": "いいえ",
+    "search": "検索",
+    "filter": "フィルター",
+    "clear": "クリア",
+    "reset": "リセット",
+    "submit": "送信",
+    "back": "戻る",
+    "next": "次へ",
+    "previous": "前へ",
+    "done": "完了",
+    "copy": "コピー",
+    "share": "共有",
+    "download": "ダウンロード",
+    "upload": "アップロード",
+    "refresh": "更新"
+  },
+  "navigation": {
+    "dashboard": "ダッシュボード",
+    "trading": "取引",
+    "portfolio": "ポートフォリオ",
+    "markets": "市場",
+    "settings": "設定",
+    "profile": "プロフィール",
+    "security": "セキュリティ",
+    "notifications": "通知",
+    "wallet": "ウォレット",
+    "broker": "ブローカー",
+    "preferences": "設定",
+    "logout": "ログアウト",
+    "login": "ログイン",
+    "register": "登録"
+  },
+  "settings": {
+    "title": "設定",
+    "subtitle": "アカウント設定と環境設定を管理",
+    "profile": {
+      "title": "プロフィール",
+      "subtitle": "個人情報とプロフィール設定を管理",
+      "firstName": "名",
+      "lastName": "姓",
+      "email": "メールアドレス",
+      "phone": "電話番号",
+      "country": "国",
+      "bio": "自己紹介",
+      "avatar": "プロフィール画像",
+      "changeAvatar": "アバターを変更",
+      "verified": "認証済み",
+      "notVerified": "未認証"
+    },
+    "security": {
+      "title": "セキュリティ",
+      "subtitle": "セキュリティ設定と認証を管理",
+      "password": "パスワード",
+      "twoFactor": "二要素認証",
+      "activeSessions": "アクティブセッション"
+    },
+    "notifications": {
+      "title": "通知",
+      "subtitle": "通知設定を管理",
+      "emailNotifications": "メール通知",
+      "pushNotifications": "プッシュ通知",
+      "securityAlerts": "セキュリティアラート"
+    },
+    "wallet": {
+      "title": "ウォレット",
+      "subtitle": "ウォレットと支払い方法を管理",
+      "balance": "残高",
+      "deposit": "入金",
+      "withdraw": "出金",
+      "transactionHistory": "取引履歴"
+    },
+    "broker": {
+      "title": "ブローカー",
+      "subtitle": "ブローカー関係を管理",
+      "linkedBroker": "リンク済みブローカー",
+      "linkBroker": "ブローカーをリンク",
+      "status": "ステータス"
+    },
+    "preferences": {
+      "title": "設定",
+      "subtitle": "ViralFX体験をカスタマイズ",
+      "theme": "テーマ",
+      "language": "言語",
+      "currency": "デフォルト通貨",
+      "darkTheme": "ダーク",
+      "lightTheme": "ライト"
+    }
+  },
+  "trading": {
+    "title": "取引",
+    "buy": "買い",
+    "sell": "売り",
+    "market": "市場",
+    "orderBook": "オーダーブック",
+    "priceChart": "価格チャート",
+    "openOrders": "未決済注文",
+    "balance": "残高",
+    "profit": "利益",
+    "loss": "損失",
+    "volume": "出来高",
+    "price": "価格",
+    "placeOrder": "注文"
+  },
+  "portfolio": {
+    "title": "ポートフォリオ",
+    "totalValue": "総額",
+    "totalReturn": "総リターン",
+    "assetAllocation": "資産配分",
+    "holdings": "保有資産",
+    "performance": "パフォーマンス",
+    "profitLoss": "損益"
+  },
+  "auth": {
+    "login": "ログイン",
+    "register": "登録",
+    "logout": "ログアウト",
+    "email": "メール",
+    "password": "パスワード",
+    "confirmPassword": "パスワードを確認",
+    "forgotPassword": "パスワードを忘れましたか？",
+    "rememberMe": "ログイン状態を保持"
+  },
+  "errors": {
+    "generic": "問題が発生しました。もう一度お試しください。",
+    "networkError": "ネットワークエラー。接続を確認してください。",
+    "validationError": "入力を確認してもう一度お試しください。",
+    "unauthorized": "この操作を実行する権限がありません。",
+    "requiredField": "この項目は必須です。"
+  },
+  "success": {
+    "profileUpdated": "プロフィールが正常に更新されました！",
+    "passwordChanged": "パスワードが正常に変更されました！",
+    "loginSuccess": "ログインに成功しました"
+  },
+  "currency": {
+    "ZAR": "南アフリカランド",
+    "USD": "米ドル",
+    "EUR": "ユーロ",
+    "BTC": "ビットコイン"
+  }
+}
