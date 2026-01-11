@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, IsArray, IsUUID, IsDateString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { OpportunityStage } from '../entities/opportunity.entity';
+import { OpportunityStage } from '../enums/crm.enum';
 
 export class CreateOpportunityDto {
   @ApiPropertyOptional({ description: 'Lead ID if created from a lead' })

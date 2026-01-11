@@ -1,12 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
-import { RedisService } from '../../redis/redis.service';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { BrokerDocument } from '../entities/broker-document.entity';
-import { Broker } from '../../brokers/entities/broker.entity';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { RedisService } from "../../redis/redis.service";
+import { PrismaService } from "../../../prisma/prisma.service";
 
 @Injectable()
 export class CrmScheduler {
@@ -26,11 +23,7 @@ export class CrmScheduler {
     @InjectQueue('crm-onboarding')
     private readonly crmOnboardingQueue: Queue,
     private redisService: RedisService,
-    @InjectRepository(BrokerDocument)
-    private brokerDocumentRepository: Repository<BrokerDocument>,
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-  ) {}
+    private prisma: PrismaService) {}
 
   @Cron('0 9 * * *') // Every day at 9 AM
   async dailyLeadScoring() {
@@ -41,8 +34,8 @@ export class CrmScheduler {
         attempts: 3,
         backoff: {
           type: 'exponential',
-          delay: 2000,
-        },
+          delay: 2000
+        }
       });
 
       this.logger.log('Daily lead scoring job queued');
@@ -60,8 +53,8 @@ export class CrmScheduler {
         attempts: 3,
         backoff: {
           type: 'exponential',
-          delay: 2000,
-        },
+          delay: 2000
+        }
       });
 
       this.logger.log('Follow-up reminders job queued');
@@ -79,8 +72,8 @@ export class CrmScheduler {
         attempts: 3,
         backoff: {
           type: 'exponential',
-          delay: 2000,
-        },
+          delay: 2000
+        }
       });
 
       this.logger.log('Contract renewal check job queued');
@@ -98,8 +91,8 @@ export class CrmScheduler {
         attempts: 3,
         backoff: {
           type: 'exponential',
-          delay: 2000,
-        },
+          delay: 2000
+        }
       });
 
       this.logger.log('Opportunity probability update job queued');
@@ -128,8 +121,8 @@ export class CrmScheduler {
         attempts: 3,
         backoff: {
           type: 'exponential',
-          delay: 5000,
-        },
+          delay: 5000
+        }
       });
 
       this.logger.log('Daily billing automation job queued');
@@ -155,8 +148,8 @@ export class CrmScheduler {
         attempts: 2,
         backoff: {
           type: 'exponential',
-          delay: 1000,
-        },
+          delay: 1000
+        }
       });
 
       this.logger.log(`SLA breach check queued for ${activeTickets.length} tickets`);
@@ -179,8 +172,8 @@ export class CrmScheduler {
         attempts: 3,
         backoff: {
           type: 'exponential',
-          delay: 2000,
-        },
+          delay: 2000
+        }
       });
 
       this.logger.log(`Document scan queued for ${pendingDocs.length} pending documents`);
@@ -203,8 +196,8 @@ export class CrmScheduler {
         attempts: 2,
         backoff: {
           type: 'exponential',
-          delay: 3000,
-        },
+          delay: 3000
+        }
       });
 
       this.logger.log(`Weekly review queued for ${pendingBrokers.length} stalled onboardings`);
@@ -225,8 +218,8 @@ export class CrmScheduler {
         attempts: 3,
         backoff: {
           type: 'exponential',
-          delay: 2000,
-        },
+          delay: 2000
+        }
       });
 
       this.logger.log('Daily digest notification job queued');
@@ -247,8 +240,8 @@ export class CrmScheduler {
         attempts: 3,
         backoff: {
           type: 'exponential',
-          delay: 2000,
-        },
+          delay: 2000
+        }
       });
 
       this.logger.log('Weekly digest notification job queued');
@@ -267,8 +260,8 @@ export class CrmScheduler {
         attempts: 2,
         backoff: {
           type: 'exponential',
-          delay: 1000,
-        },
+          delay: 1000
+        }
       });
 
       this.logger.log('Payment reconciliation job queued');
@@ -285,9 +278,9 @@ export class CrmScheduler {
   }
 
   private async getPendingDocuments(): Promise<string[]> {
-    const pendingDocs = await this.brokerDocumentRepository.find({
+    const pendingDocs = await this.prisma.brokerDocument.findMany({
       where: { status: 'PENDING' },
-      select: ['id'],
+      select: { id: true }
     });
 
     return pendingDocs.map(doc => doc.id);
@@ -297,15 +290,15 @@ export class CrmScheduler {
     // Find brokers with onboarding status that haven't been updated in 7+ days
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    const stalledBrokers = await this.brokerRepository
-      .createQueryBuilder('broker')
-      .leftJoin('broker.brokerAccount', 'account')
-      .where('account.status IN (:...statuses)', {
-        statuses: ['ONBOARDING', 'ONBOARDING_FAILED']
-      })
-      .andWhere('account.onboardingStartedAt < :date', { date: sevenDaysAgo })
-      .select(['broker.id'])
-      .getMany();
+    const stalledBrokers = await this.prisma.broker.findMany({
+      where: {
+        brokerAccount: {
+          status: { in: ['ONBOARDING', 'ONBOARDING_FAILED'] },
+          onboardingStartedAt: { lt: sevenDaysAgo }
+        }
+      },
+      select: { id: true }
+    });
 
     return stalledBrokers.map(broker => broker.id);
   }

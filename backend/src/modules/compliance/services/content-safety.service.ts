@@ -1,16 +1,15 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Job, Queue } from 'bull';
-import { InjectQueue } from '@nestjs/bull';
+import { Job, Queue } from 'bullmq';
+import { InjectQueue } from '@nestjs/bullmq';
+import { PrismaService } from "../../../prisma/prisma.service";
 
-import { ViralAsset, ContentSafetyLevel, ModerationStatus } from '../../assets/entities/viral-asset.entity';
-import { SocialContent } from '../../assets/interfaces/social-content.interface';
+// COMMENTED OUT (cross-module entity import): import { ViralAsset, ContentSafetyLevel, ModerationStatus } from "../../assets/entities/viral-asset.entity";
+import { SocialContent } from "../../assets/interfaces/social-content.interface";
 import { SafetyCheck, ComplianceResult, ContentRisk } from '../interfaces/safety.interface';
-import { NLPService } from '../../nlp/services/nlp.service';
-import { VisionService } from '../../vision/services/vision.service';
-import { NotificationService } from '../../notifications/services/notification.service';
+import { NLPService } from "../../nlp/services/nlp.service";
+import { VisionService } from "../../vision/services/vision.service";
+import { NotificationService } from "../../notifications/services/notification.service";
 import { AuditService } from '../services/audit.service';
 
 @Injectable()
@@ -19,8 +18,7 @@ export class ContentSafetyService {
 
   constructor(
     private config: ConfigService,
-    @InjectRepository(ViralAsset)
-    private assetRepository: Repository<ViralAsset>,
+    private prisma: PrismaService,
     private nlpService: NLPService,
     private visionService: VisionService,
     private notificationService: NotificationService,
@@ -305,13 +303,16 @@ export class ContentSafetyService {
       this.logger.log('Starting asset safety monitoring');
 
       // Get active assets that need monitoring
-      const assetsToMonitor = await this.assetRepository
-        .createQueryBuilder('asset')
-        .where('asset.status = :status', { status: 'ACTIVE' })
-        .andWhere('asset.last_safety_check < :threshold', {
-          threshold: new Date(Date.now() - 15 * 60 * 1000) // 15 minutes ago
-        })
-        .getMany();
+      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+      const assetsToMonitor = await this.prisma.viralAsset.findMany({
+        where: {
+          status: 'ACTIVE',
+          OR: [
+            { last_safety_check: null },
+            { last_safety_check: { lt: fifteenMinutesAgo } }
+          ]
+        }
+      });
 
       for (const asset of assetsToMonitor) {
         await this.checkAssetSafety(asset);
@@ -332,11 +333,14 @@ export class ContentSafetyService {
       const safetyCheck = await this.performAssetSafetyCheck(asset);
 
       // Update asset safety status
-      await this.assetRepository.update(asset.id, {
-        content_safety: safetyCheck.safetyLevel,
-        content_risk_score: safetyCheck.riskScore,
-        last_safety_check: new Date(),
-        updated_at: new Date()
+      await this.prisma.viralAsset.update({
+        where: { id: asset.id },
+        data: {
+          content_safety: safetyCheck.safetyLevel,
+          content_risk_score: safetyCheck.riskScore,
+          last_safety_check: new Date(),
+          updated_at: new Date()
+        }
       });
 
       // Take appropriate action based on safety level
@@ -362,7 +366,7 @@ export class ContentSafetyService {
   /**
    * Perform safety check on an existing asset
    */
-  private async performAssetSafetyCheck(asset: ViralAsset): Promise<SafetyCheck> {
+  private async performAssetSafetyCheck(asset: any): Promise<SafetyCheck> {
     // Analyze current sentiment trends
     const sentimentAnalysis = await this.analyzeSentimentTrends(asset);
 
@@ -401,12 +405,15 @@ export class ContentSafetyService {
   /**
    * Handle assets that have been blocked
    */
-  private async handleBlockedAsset(asset: ViralAsset, safetyCheck: SafetyCheck): Promise<void> {
+  private async handleBlockedAsset(asset: any, safetyCheck: SafetyCheck): Promise<void> {
     // Immediately suspend trading
-    await this.assetRepository.update(asset.id, {
-      status: 'SUSPENDED',
-      moderation_status: ModerationStatus.REJECTED,
-      updated_at: new Date()
+    await this.prisma.viralAsset.update({
+      where: { id: asset.id },
+      data: {
+        status: 'SUSPENDED',
+        moderation_status: 'REJECTED',
+        updated_at: new Date()
+      }
     });
 
     // Notify compliance team
@@ -432,11 +439,14 @@ export class ContentSafetyService {
   /**
    * Handle assets that have been flagged for review
    */
-  private async handleFlaggedAsset(asset: ViralAsset, safetyCheck: SafetyCheck): Promise<void> {
+  private async handleFlaggedAsset(asset: any, safetyCheck: SafetyCheck): Promise<void> {
     // Update moderation status
-    await this.assetRepository.update(asset.id, {
-      moderation_status: ModerationStatus.PENDING,
-      updated_at: new Date()
+    await this.prisma.viralAsset.update({
+      where: { id: asset.id },
+      data: {
+        moderation_status: 'PENDING',
+        updated_at: new Date()
+      }
     });
 
     // Queue for human review
@@ -621,22 +631,22 @@ export class ContentSafetyService {
     return { overallRisk: 0.2, violations: [], averageConfidence: 0.8 }; // Placeholder
   }
 
-  private async analyzeSentimentTrends(asset: ViralAsset): Promise<number> {
+  private async analyzeSentimentTrends(asset: any): Promise<number> {
     // Implementation for sentiment trend analysis
     return 0.1; // Placeholder
   }
 
-  private async analyzeContentDrift(asset: ViralAsset): Promise<number> {
+  private async analyzeContentDrift(asset: any): Promise<number> {
     // Implementation for content drift analysis
     return 0.05; // Placeholder
   }
 
-  private async getCommunityReports(asset: ViralAsset): Promise<number> {
+  private async getCommunityReports(asset: any): Promise<number> {
     // Implementation for community reports analysis
     return 0.02; // Placeholder
   }
 
-  private async checkComplianceStatus(asset: ViralAsset): Promise<number> {
+  private async checkComplianceStatus(asset: any): Promise<number> {
     // Implementation for compliance status check
     return 0.01; // Placeholder
   }

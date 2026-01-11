@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsObject, IsOptional, IsUrl, IsArray, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { IntegrationType } from '../entities/broker-integration.entity';
+import { IntegrationType } from '../enums/broker.enum';
 
 class RestApiConfigDto {
   @ApiProperty()
@@ -95,8 +95,8 @@ export class CreateIntegrationDto {
         { value: WebSocketConfigDto, name: IntegrationType.WEBSOCKET },
         { value: WebhookConfigDto, name: IntegrationType.WEBHOOK },
         { value: SdkConfigDto, name: IntegrationType.SDK },
-      ],
-    },
+      ]
+    }
   })
   configuration: RestApiConfigDto | WebSocketConfigDto | WebhookConfigDto | SdkConfigDto;
 

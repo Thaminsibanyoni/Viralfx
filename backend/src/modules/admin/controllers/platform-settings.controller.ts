@@ -8,15 +8,12 @@ import {
   Query,
   UseGuards,
   Request,
-  Logger,
-} from '@nestjs/common';
+  Logger, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../guards/admin-auth.guard';
 import { Permissions } from '../decorators/permissions.decorator';
 import { PlatformSettingsService } from '../services/platform-settings.service';
-import { AdminAuditLog, AuditAction, AuditSeverity } from '../entities/admin-audit-log.entity';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { PrismaService } from '../../../prisma/prisma.service';
 
 @ApiTags('Platform Settings')
 @Controller('admin/platform')
@@ -27,9 +24,7 @@ export class PlatformSettingsController {
 
   constructor(
     private readonly platformSettingsService: PlatformSettingsService,
-    @InjectRepository(AdminAuditLog)
-    private readonly auditLogRepository: Repository<AdminAuditLog>,
-  ) {}
+        private prisma: PrismaService) {}
 
   @Get('settings')
   @Permissions('platform:read')
@@ -46,23 +41,21 @@ export class PlatformSettingsController {
   async updateSetting(
     @Param('key') key: string,
     @Body('value') value: any,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.platformSettingsService.updateSetting(
       key,
       value,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.MEDIUM,
       targetType: 'PlatformSetting',
       targetId: key,
       metadata: { key, value },
-      description: `Updated platform setting: ${key}`,
+      description: `Updated platform setting: ${key}`
     });
 
     this.logger.log(`Setting ${key} updated by admin ${req.admin.id}`);
@@ -75,22 +68,20 @@ export class PlatformSettingsController {
   @ApiResponse({ status: 200, description: 'Settings updated successfully' })
   async bulkUpdateSettings(
     @Body('settings') settings: Record<string, any>,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.platformSettingsService.bulkUpdateSettings(
       settings,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.HIGH,
       targetType: 'PlatformSettings',
       targetId: 'bulk_update',
       metadata: { settings },
-      description: `Bulk updated ${Object.keys(settings).length} platform settings`,
+      description: `Bulk updated ${Object.keys(settings).length} platform settings`
     });
 
     this.logger.log(`Bulk settings update by admin ${req.admin.id}`);
@@ -112,23 +103,21 @@ export class PlatformSettingsController {
   async toggleFeature(
     @Param('feature') feature: string,
     @Body('enabled') enabled: boolean,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.platformSettingsService.toggleFeature(
       feature,
       enabled,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.HIGH,
       targetType: 'FeatureFlag',
       targetId: feature,
       metadata: { feature, enabled },
-      description: `${enabled ? 'Enabled' : 'Disabled'} feature: ${feature}`,
+      description: `${enabled ? 'Enabled' : 'Disabled'} feature: ${feature}`
     });
 
     this.logger.log(`Feature ${feature} ${enabled ? 'enabled' : 'disabled'} by admin ${req.admin.id}`);
@@ -142,23 +131,21 @@ export class PlatformSettingsController {
   async setMaintenanceMode(
     @Body('enabled') enabled: boolean,
     @Body('message') message?: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.platformSettingsService.setMaintenanceMode(
       enabled,
       message,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.CRITICAL,
       targetType: 'MaintenanceMode',
       targetId: 'system',
       metadata: { enabled, message },
-      description: `${enabled ? 'Enabled' : 'Disabled'} maintenance mode`,
+      description: `${enabled ? 'Enabled' : 'Disabled'} maintenance mode`
     });
 
     this.logger.log(`Maintenance mode ${enabled ? 'enabled' : 'disabled'} by admin ${req.admin.id}`);
@@ -179,22 +166,20 @@ export class PlatformSettingsController {
   @ApiResponse({ status: 200, description: 'Branding settings updated successfully' })
   async updateBranding(
     @Body() brandingData: any,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.platformSettingsService.updateBranding(
       brandingData,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.MEDIUM,
       targetType: 'Branding',
       targetId: 'platform',
       metadata: brandingData,
-      description: 'Updated platform branding',
+      description: 'Updated platform branding'
     });
 
     this.logger.log(`Branding updated by admin ${req.admin.id}`);
@@ -215,22 +200,20 @@ export class PlatformSettingsController {
   @ApiResponse({ status: 200, description: 'Trading rules updated successfully' })
   async updateTradingRules(
     @Body() tradingRules: any,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.platformSettingsService.updateTradingRules(
       tradingRules,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.HIGH,
       targetType: 'TradingRules',
       targetId: 'platform',
       metadata: tradingRules,
-      description: 'Updated trading rules',
+      description: 'Updated trading rules'
     });
 
     this.logger.log(`Trading rules updated by admin ${req.admin.id}`);
@@ -252,23 +235,21 @@ export class PlatformSettingsController {
   async updateNotificationTemplate(
     @Param('type') type: string,
     @Body('template') template: any,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.platformSettingsService.updateNotificationTemplate(
       type,
       template,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.LOW,
       targetType: 'NotificationTemplate',
       targetId: type,
       metadata: { type, template },
-      description: `Updated notification template: ${type}`,
+      description: `Updated notification template: ${type}`
     });
 
     this.logger.log(`Notification template ${type} updated by admin ${req.admin.id}`);
@@ -289,22 +270,20 @@ export class PlatformSettingsController {
   @ApiResponse({ status: 200, description: 'Rate limit configuration updated successfully' })
   async updateRateLimits(
     @Body() rateLimits: any,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.platformSettingsService.updateRateLimits(
       rateLimits,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.MEDIUM,
       targetType: 'RateLimits',
       targetId: 'platform',
       metadata: rateLimits,
-      description: 'Updated rate limit configuration',
+      description: 'Updated rate limit configuration'
     });
 
     this.logger.log(`Rate limits updated by admin ${req.admin.id}`);
@@ -325,22 +304,20 @@ export class PlatformSettingsController {
   @ApiResponse({ status: 200, description: 'Backup configuration updated successfully' })
   async updateBackupConfiguration(
     @Body() backupConfig: any,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.platformSettingsService.updateBackupConfiguration(
       backupConfig,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.HIGH,
       targetType: 'BackupConfiguration',
       targetId: 'platform',
       metadata: backupConfig,
-      description: 'Updated backup configuration',
+      description: 'Updated backup configuration'
     });
 
     this.logger.log(`Backup configuration updated by admin ${req.admin.id}`);

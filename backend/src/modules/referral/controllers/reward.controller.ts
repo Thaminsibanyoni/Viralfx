@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Post,
@@ -10,19 +10,18 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  ValidationPipe,
-} from '@nestjs/common';
+  ValidationPipe, Req } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
   ApiQuery,
-  ApiParam,
+  ApiParam
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { RewardService } from '../services/reward.service';
 import {
@@ -30,7 +29,7 @@ import {
   RewardClaimDto,
   ClaimRewardDto,
   CreateRewardDto,
-  UpdateRewardDto,
+  UpdateRewardDto
 } from '../dto/referral.dto';
 import { RewardStatus, RewardType } from '../types/referral.types';
 
@@ -49,26 +48,25 @@ export class RewardController {
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of rewards to return' })
   @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Number of rewards to skip' })
   async getMyRewards(
-    @Request() req,
+    @Req() req,
     @Query('status') status?: RewardStatus,
     @Query('type') type?: RewardType,
     @Query('limit') limit = 50,
-    @Query('offset') offset = 0,
-  ): Promise<{ rewards: RewardDto[]; total: number }> {
+    @Query('offset') offset = 0): Promise<{ rewards: RewardDto[]; total: number }> {
     return this.rewardService.getUserRewards(req.user.id, {
       status,
       type,
       limit,
-      offset,
+      offset
     });
   }
 
   @Get('pending')
   @ApiOperation({ summary: 'Get pending (claimable) rewards for current user' })
   @ApiResponse({ status: 200, description: 'Pending rewards retrieved successfully', type: [RewardDto] })
-  async getPendingRewards(@Request() req): Promise<RewardDto[]> {
+  async getPendingRewards(@Req() req): Promise<RewardDto[]> {
     const result = await this.rewardService.getUserRewards(req.user.id, {
-      status: RewardStatus.PENDING,
+      status: RewardStatus.PENDING
     });
     return result.rewards;
   }
@@ -76,7 +74,7 @@ export class RewardController {
   @Get('available')
   @ApiOperation({ summary: 'Get available rewards that can be claimed' })
   @ApiResponse({ status: 200, description: 'Available rewards retrieved successfully', type: [RewardDto] })
-  async getAvailableRewards(@Request() req): Promise<RewardDto[]> {
+  async getAvailableRewards(@Req() req): Promise<RewardDto[]> {
     return this.rewardService.getAvailableRewards(req.user.id);
   }
 
@@ -86,13 +84,12 @@ export class RewardController {
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of rewards to return' })
   @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Number of rewards to skip' })
   async getRewardHistory(
-    @Request() req,
+    @Req() req,
     @Query('limit') limit = 20,
-    @Query('offset') offset = 0,
-  ): Promise<{ rewards: RewardDto[]; total: number }> {
+    @Query('offset') offset = 0): Promise<{ rewards: RewardDto[]; total: number }> {
     return this.rewardService.getUserRewards(req.user.id, {
       limit,
-      offset,
+      offset
     });
   }
 
@@ -102,8 +99,7 @@ export class RewardController {
   @ApiParam({ name: 'id', description: 'Reward ID' })
   async getRewardById(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req,
-  ): Promise<RewardDto> {
+    @Req() req): Promise<RewardDto> {
     // Check if user owns this reward or is admin
     const reward = await this.rewardService.getRewardById(id);
 
@@ -122,15 +118,13 @@ export class RewardController {
   @ApiParam({ name: 'id', description: 'Reward ID' })
   async claimReward(
     @Param('id', ParseUUIDPipe) rewardId: string,
-    @Request() req,
-    @Body() claimData?: ClaimRewardDto,
-  ): Promise<RewardClaimDto> {
+    @Req() req,
+    @Body() claimData?: ClaimRewardDto): Promise<RewardClaimDto> {
     return this.rewardService.distributeReward(
       rewardId,
       req.user.id,
       undefined,
-      claimData?.metadata,
-    );
+      claimData?.metadata);
   }
 
   @Get('types/available')
@@ -149,8 +143,7 @@ export class RewardController {
   async calculateRewardAmount(
     @Param('tier') tier: string,
     @Param('activity') activity: string,
-    @Query('multiplier') multiplier = 1.0,
-  ): Promise<{ amount: number; tier: string; activity: string; multiplier: number }> {
+    @Query('multiplier') multiplier = 1.0): Promise<{ amount: number; tier: string; activity: string; multiplier: number }> {
     const amount = await this.rewardService.calculateRewardAmount(tier, activity, multiplier);
     return { amount, tier, activity, multiplier };
   }
@@ -158,7 +151,7 @@ export class RewardController {
   @Get('tier/multiplier')
   @ApiOperation({ summary: 'Get tier multiplier for current user' })
   @ApiResponse({ status: 200, description: 'Tier multiplier retrieved successfully' })
-  async getMyTierMultiplier(@Request() req): Promise<{ multiplier: number; tier: string }> {
+  async getMyTierMultiplier(@Req() req): Promise<{ multiplier: number; tier: string }> {
     const multiplier = await this.rewardService.getTierMultiplier(req.user.id);
 
     // Determine tier based on multiplier
@@ -187,8 +180,7 @@ export class RewardController {
   @Roles('ADMIN')
   async approveReward(
     @Param('id', ParseUUIDPipe) rewardId: string,
-    @Request() req,
-  ): Promise<RewardDto> {
+    @Req() req): Promise<RewardDto> {
     return this.rewardService.approveReward(rewardId, req.user.id);
   }
 
@@ -199,8 +191,7 @@ export class RewardController {
   @Roles('ADMIN')
   async expireReward(
     @Param('id', ParseUUIDPipe) rewardId: string,
-    @Body() body: { reason?: string },
-  ): Promise<RewardDto> {
+    @Body() body: { reason?: string }): Promise<RewardDto> {
     return this.rewardService.expireReward(rewardId, body.reason);
   }
 
@@ -211,14 +202,12 @@ export class RewardController {
   @Roles('ADMIN')
   async distributeReward(
     @Param('id', ParseUUIDPipe) rewardId: string,
-    @Body() body: { userId: string; referralId?: string; metadata?: any },
-  ): Promise<RewardClaimDto> {
+    @Body() body: { userId: string; referralId?: string; metadata?: any }): Promise<RewardClaimDto> {
     return this.rewardService.distributeReward(
       rewardId,
       body.userId,
       body.referralId,
-      body.metadata,
-    );
+      body.metadata);
   }
 
   @Get('admin/all')
@@ -235,14 +224,13 @@ export class RewardController {
     @Query('type') type?: RewardType,
     @Query('tier') tier?: string,
     @Query('limit') limit = 50,
-    @Query('offset') offset = 0,
-  ): Promise<{ rewards: RewardDto[]; total: number }> {
+    @Query('offset') offset = 0): Promise<{ rewards: RewardDto[]; total: number }> {
     return this.rewardService.getAllRewards({
       isActive,
       type,
       tier,
       limit,
-      offset,
+      offset
     });
   }
 
@@ -253,8 +241,7 @@ export class RewardController {
   @Roles('ADMIN')
   async updateReward(
     @Param('id', ParseUUIDPipe) rewardId: string,
-    @Body() updateData: UpdateRewardDto,
-  ): Promise<RewardDto> {
+    @Body() updateData: UpdateRewardDto): Promise<RewardDto> {
     return this.rewardService.updateReward(rewardId, updateData);
   }
 

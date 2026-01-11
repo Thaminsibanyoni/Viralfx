@@ -3,7 +3,7 @@ export enum MessageStatus {
   DELIVERED = 'DELIVERED',
   READ = 'READ',
   DELETED = 'DELETED',
-  FAILED = 'FAILED',
+  FAILED = 'FAILED'
 }
 
 export enum MessageType {
@@ -14,7 +14,7 @@ export enum MessageType {
   AUDIO = 'AUDIO',
   SYSTEM = 'SYSTEM',
   POLL = 'POLL',
-  EMBED = 'EMBED',
+  EMBED = 'EMBED'
 }
 
 export enum ChatRoomType {
@@ -22,14 +22,14 @@ export enum ChatRoomType {
   PRIVATE = 'PRIVATE',
   DIRECT_MESSAGE = 'DIRECT_MESSAGE',
   GROUP = 'GROUP',
-  TOPIC_BASED = 'TOPIC_BASED',
+  TOPIC_BASED = 'TOPIC_BASED'
 }
 
 export enum UserRole {
   OWNER = 'OWNER',
   ADMIN = 'ADMIN',
   MODERATOR = 'MODERATOR',
-  MEMBER = 'MEMBER',
+  MEMBER = 'MEMBER'
 }
 
 export enum ChatEventType {
@@ -44,7 +44,7 @@ export enum ChatEventType {
   USER_STOPPED_TYPING = 'USER_ONLINE',
   ROOM_UPDATED = 'ROOM_UPDATED',
   ROOM_CREATED = 'ROOM_CREATED',
-  ROOM_ARCHIVED = 'ROOM_ARCHIVED',
+  ROOM_ARCHIVED = 'ROOM_ARCHIVED'
 }
 
 export interface ChatEvent {

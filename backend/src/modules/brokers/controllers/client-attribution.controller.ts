@@ -14,16 +14,16 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ClientAttributionService } from '../services/client-attribution.service';
 import { AttributeClientDto, UpdateClientStatusDto, GetBrokerClientsDto, ReferralCodeDto, ClientRevenuePeriodDto } from '../dto/client-attribution.dto';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { BrokerGuard } from '../guards/broker.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { GetUser } from '../../auth/decorators/get-user.decorator';
-import { User } from '../../users/entities/user.entity';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { BrokerAuthGuard } from '../guards/broker-auth.guard';
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
+import { CurrentUser } from "../../auth/decorators/current-user.decorator";
+import { User } from "../../../common/enums/user-role.enum";
 
 @ApiTags('Client Attribution')
 @Controller('brokers/client-attribution')
-@UseGuards(JwtAuthGuard, BrokerGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, BrokerAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class ClientAttributionController {
   constructor(private readonly clientAttributionService: ClientAttributionService) {}
@@ -35,7 +35,7 @@ export class ClientAttributionController {
   @ApiResponse({ status: 200, description: 'Client attributed successfully' })
   async attributeClient(
     @Body(ValidationPipe) attributeClientDto: AttributeClientDto,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     const result = await this.clientAttributionService.attributeClientToBroker(
       attributeClientDto.clientId,
@@ -47,7 +47,7 @@ export class ClientAttributionController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Client attributed successfully',
-      data: result,
+      data: result
     };
   }
 
@@ -58,13 +58,13 @@ export class ClientAttributionController {
   async getBrokerClients(
     @Param('brokerId') brokerId: string,
     @Query(ValidationPipe) query: GetBrokerClientsDto,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     // Brokers can only view their own clients
     if (user.role === 'BROKER' && user.brokerId !== brokerId) {
       return {
         statusCode: HttpStatus.FORBIDDEN,
-        message: 'You can only view your own clients',
+        message: 'You can only view your own clients'
       };
     }
 
@@ -72,7 +72,7 @@ export class ClientAttributionController {
       status: query.status,
       attributionType: query.attributionType,
       startDate: query.startDate,
-      endDate: query.endDate,
+      endDate: query.endDate
     });
 
     // Apply search filter if provided
@@ -130,9 +130,9 @@ export class ClientAttributionController {
           page: query.page,
           limit: query.limit,
           total: filteredClients.length,
-          totalPages: Math.ceil(filteredClients.length / query.limit),
-        },
-      },
+          totalPages: Math.ceil(filteredClients.length / query.limit)
+        }
+      }
     };
   }
 
@@ -142,13 +142,13 @@ export class ClientAttributionController {
   @ApiResponse({ status: 200, description: 'Broker client statistics retrieved successfully' })
   async getBrokerClientStats(
     @Param('brokerId') brokerId: string,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     // Brokers can only view their own stats
     if (user.role === 'BROKER' && user.brokerId !== brokerId) {
       return {
         statusCode: HttpStatus.FORBIDDEN,
-        message: 'You can only view your own statistics',
+        message: 'You can only view your own statistics'
       };
     }
 
@@ -157,7 +157,7 @@ export class ClientAttributionController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Broker client statistics retrieved successfully',
-      data: stats,
+      data: stats
     };
   }
 
@@ -167,14 +167,14 @@ export class ClientAttributionController {
   @ApiResponse({ status: 200, description: 'Client attribution history retrieved successfully' })
   async getClientAttributionHistory(
     @Param('clientId') clientId: string,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     const history = await this.clientAttributionService.getClientAttributionHistory(clientId);
 
     return {
       statusCode: HttpStatus.OK,
       message: 'Client attribution history retrieved successfully',
-      data: history,
+      data: history
     };
   }
 
@@ -186,13 +186,13 @@ export class ClientAttributionController {
     @Param('brokerId') brokerId: string,
     @Param('clientId') clientId: string,
     @Body(ValidationPipe) updateStatusDto: UpdateClientStatusDto,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     // Brokers can only update their own clients
     if (user.role === 'BROKER' && user.brokerId !== brokerId) {
       return {
         statusCode: HttpStatus.FORBIDDEN,
-        message: 'You can only update your own clients',
+        message: 'You can only update your own clients'
       };
     }
 
@@ -206,7 +206,7 @@ export class ClientAttributionController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Client status updated successfully',
-      data: result,
+      data: result
     };
   }
 
@@ -216,13 +216,13 @@ export class ClientAttributionController {
   @ApiResponse({ status: 200, description: 'Referral code generated successfully' })
   async generateReferralCode(
     @Param('brokerId') brokerId: string,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     // Brokers can only generate their own referral codes
     if (user.role === 'BROKER' && user.brokerId !== brokerId) {
       return {
         statusCode: HttpStatus.FORBIDDEN,
-        message: 'You can only generate your own referral codes',
+        message: 'You can only generate your own referral codes'
       };
     }
 
@@ -231,7 +231,7 @@ export class ClientAttributionController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Referral code generated successfully',
-      data: { referralCode },
+      data: { referralCode }
     };
   }
 
@@ -252,9 +252,9 @@ export class ClientAttributionController {
           id: broker.id,
           companyName: broker.companyName,
           tier: broker.tier,
-          trustScore: broker.trustScore,
-        } : null,
-      },
+          trustScore: broker.trustScore
+        } : null
+      }
     };
   }
 
@@ -265,13 +265,13 @@ export class ClientAttributionController {
   async getClientRevenueByPeriod(
     @Param('brokerId') brokerId: string,
     @Query(ValidationPipe) periodDto: ClientRevenuePeriodDto,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     // Brokers can only view their own revenue
     if (user.role === 'BROKER' && user.brokerId !== brokerId) {
       return {
         statusCode: HttpStatus.FORBIDDEN,
-        message: 'You can only view your own revenue data',
+        message: 'You can only view your own revenue data'
       };
     }
 
@@ -284,7 +284,7 @@ export class ClientAttributionController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Client revenue data retrieved successfully',
-      data: revenue,
+      data: revenue
     };
   }
 
@@ -293,13 +293,13 @@ export class ClientAttributionController {
   @ApiOperation({ summary: 'Get current broker\'s clients' })
   @ApiResponse({ status: 200, description: 'Broker\'s clients retrieved successfully' })
   async getMyClients(
-    @GetUser() user: User,
+    @CurrentUser() user: User,
     @Query(ValidationPipe) query: GetBrokerClientsDto
   ) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -311,12 +311,12 @@ export class ClientAttributionController {
   @ApiOperation({ summary: 'Get current broker\'s client statistics' })
   @ApiResponse({ status: 200, description: 'Broker\'s client statistics retrieved successfully' })
   async getMyStats(
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -328,13 +328,13 @@ export class ClientAttributionController {
   @ApiOperation({ summary: 'Get current broker\'s revenue data' })
   @ApiResponse({ status: 200, description: 'Broker\'s revenue data retrieved successfully' })
   async getMyRevenue(
-    @GetUser() user: User,
+    @CurrentUser() user: User,
     @Query(ValidationPipe) periodDto: ClientRevenuePeriodDto
   ) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 

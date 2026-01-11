@@ -92,7 +92,7 @@ export class SymbolNormalizerService {
       .toUpperCase()
       .replace(/[^A-Z0-9\s]/g, '') // Remove special characters except spaces
       .replace(/\s+/g, '_') // Replace spaces with underscores
-      .replace(/_{2,}/g, '_') // Remove multiple underscores
+      .replace(/_{2}/g, '_') // Remove multiple underscores
       .replace(/^_+|_+$/g, '') // Remove leading/trailing underscores
       .substring(0, 20); // Limit length
   }

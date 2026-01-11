@@ -1,34 +1,31 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Contract, ContractStatus, ContractType } from '../entities/contract.entity';
-import { Opportunity } from '../entities/opportunity.entity';
-import { StorageService } from '../../storage/services/storage.service';
-import { NotificationService } from '../../notifications/services/notification.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+// COMMENTED OUT (TypeORM entity deleted): import { Contract, ContractStatus, ContractType } from '../entities/contract.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Opportunity } from '../entities/opportunity.entity';
+import { StorageService } from "../../storage/services/storage.service";
+import { NotificationService } from "../../notifications/services/notification.service";
 import { CreateContractDto } from '../dto/create-contract.dto';
 import { UpdateContractDto } from '../dto/update-contract.dto';
 
 @Injectable()
 export class ContractService {
   constructor(
-    @InjectRepository(Contract)
-    private readonly contractRepository: Repository<Contract>,
+        private prisma: PrismaService,
     private readonly storageService: StorageService,
-    private readonly notificationService: NotificationService,
-  ) {}
+    private readonly notificationService: NotificationService) {}
 
   async createContract(opportunityId: string, createContractDto: CreateContractDto) {
     // Generate unique contract number
     const contractNumber = await this.generateContractNumber();
 
-    const contract = this.contractRepository.create({
+    const contract = this.prisma.contract.create({
       opportunityId,
       brokerId: createContractDto.brokerId,
       contractNumber,
-      ...createContractDto,
+      ...createContractDto
     });
 
-    const savedContract = await this.contractRepository.save(contract);
+    const savedContract = await this.prisma.contract.upsert(contract);
 
     // Send notification for contract creation
     await this.notificationService.sendNotification({
@@ -38,9 +35,9 @@ export class ContractService {
       data: {
         category: 'crm',
         contractType: createContractDto.type,
-        contractValue: createContractDto.value,
+        contractValue: createContractDto.value
       },
-      priority: 'HIGH',
+      priority: 'HIGH'
     });
 
     return savedContract;
@@ -53,7 +50,7 @@ export class ContractService {
       throw new BadRequestException('Cannot update a signed or active contract');
     }
 
-    await this.contractRepository.update(id, updateContractDto);
+    await this.prisma.contract.update(id, updateContractDto);
     return await this.getContractById(id);
   }
 
@@ -70,12 +67,12 @@ export class ContractService {
 
     const signedData = {
       ...signatureData,
-      signedAt: new Date(),
+      signedAt: new Date()
     };
 
-    await this.contractRepository.update(id, {
+    await this.prisma.contract.update(id, {
       status: ContractStatus.SIGNED,
-      signedBy: signedData,
+      signedBy: signedData
     });
 
     // Send notification for contract signing
@@ -86,9 +83,9 @@ export class ContractService {
       data: {
         category: 'crm',
         contractId: contract.id,
-        contractType: contract.type,
+        contractType: contract.type
       },
-      priority: 'HIGH',
+      priority: 'HIGH'
     });
 
     return await this.getContractById(id);
@@ -102,12 +99,12 @@ export class ContractService {
       file.buffer,
       `contracts/${contract.contractNumber}/${file.originalname}`,
       {
-        contentType: file.mimetype,
+        contentType: file.mimetype
       }
     );
 
-    await this.contractRepository.update(id, {
-      documentUrl,
+    await this.prisma.contract.update(id, {
+      documentUrl
     });
 
     return { documentUrl };
@@ -127,7 +124,7 @@ export class ContractService {
       startDate: new Date(data.contractData.startDate),
       endDate: new Date(data.contractData.endDate),
       terms: data.contractData.terms || '',
-      templateId,
+      templateId
     });
 
     return contract;
@@ -145,7 +142,7 @@ export class ContractService {
     }
 
     const renewalDate = new Date();
-    const newContract = this.contractRepository.create({
+    const newContract = this.prisma.contract.create({
       opportunityId: contract.opportunityId,
       brokerId: contract.brokerId,
       contractNumber: await this.generateContractNumber('RENEWAL'),
@@ -158,14 +155,14 @@ export class ContractService {
       renewalDate,
       autoRenew: contract.autoRenew,
       terms: renewalData.newTerms || contract.terms,
-      templateId: contract.templateId,
+      templateId: contract.templateId
     });
 
-    await this.contractRepository.save(newContract);
+    await this.prisma.contract.upsert(newContract);
 
     // Update original contract
-    await this.contractRepository.update(id, {
-      renewalDate,
+    await this.prisma.contract.update(id, {
+      renewalDate
     });
 
     return newContract;
@@ -178,13 +175,13 @@ export class ContractService {
       throw new BadRequestException('Only active contracts can be terminated');
     }
 
-    await this.contractRepository.update(id, {
+    await this.prisma.contract.update(id, {
       status: ContractStatus.TERMINATED,
       metadata: {
         ...contract.metadata,
         terminationReason: reason,
-        terminatedAt: new Date(),
-      },
+        terminatedAt: new Date()
+      }
     });
 
     // Send notification for contract termination
@@ -195,9 +192,9 @@ export class ContractService {
       data: {
         category: 'crm',
         contractId: contract.id,
-        terminationReason: reason,
+        terminationReason: reason
       },
-      priority: 'CRITICAL',
+      priority: 'CRITICAL'
     });
 
     return await this.getContractById(id);
@@ -217,7 +214,7 @@ export class ContractService {
       status,
       type,
       brokerId,
-      dateRange,
+      dateRange
     } = filters;
 
     const queryBuilder = this.contractRepository
@@ -256,14 +253,14 @@ export class ContractService {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit)
     };
   }
 
   async getContractById(id: string) {
-    const contract = await this.contractRepository.findOne({
+    const contract = await this.prisma.contract.findFirst({
       where: { id },
-      relations: ['broker', 'opportunity'],
+      relations: ['broker', 'opportunity']
     });
 
     if (!contract) {
@@ -277,12 +274,12 @@ export class ContractService {
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + days);
 
-    return await this.contractRepository.find({
+    return await this.prisma.contract.findMany({
       where: {
         status: ContractStatus.ACTIVE,
-        endDate: futureDate,
+        endDate: futureDate
       },
-      relations: ['broker'],
+      relations: ['broker']
     });
   }
 
@@ -294,8 +291,8 @@ export class ContractService {
     const signatureUrl = `${process.env.FRONTEND_URL || 'https://app.viralfx.com'}/contracts/${contract.id}/sign`;
 
     // Update status to pending signature
-    await this.contractRepository.update(id, {
-      status: ContractStatus.PENDING_SIGNATURE,
+    await this.prisma.contract.update(id, {
+      status: ContractStatus.PENDING_SIGNATURE
     });
 
     // Send notification to broker
@@ -307,9 +304,9 @@ export class ContractService {
         category: 'crm',
         contractId: contract.id,
         contractNumber: contract.contractNumber,
-        signatureUrl: signatureUrl,
+        signatureUrl: signatureUrl
       },
-      priority: 'HIGH',
+      priority: 'HIGH'
     });
 
     return { success: true, signatureUrl };

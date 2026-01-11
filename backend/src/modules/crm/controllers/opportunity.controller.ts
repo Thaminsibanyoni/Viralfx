@@ -12,12 +12,12 @@ import {
   HttpStatus,
   ValidationPipe
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { OpportunityService } from '../services/opportunity.service';
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from "../../../common/enums/user-role.enum";
 import { CreateOpportunityDto } from '../dto/create-opportunity.dto';
 import { UpdateOpportunityDto } from '../dto/update-opportunity.dto';
 import { OpportunityFiltersDto } from '../dto/opportunity-filters.dto';
@@ -45,7 +45,7 @@ export class OpportunityController {
       success: true,
       data: result.opportunities,
       pagination: result.pagination,
-      filters: result.filters,
+      filters: result.filters
     };
   }
 
@@ -59,7 +59,7 @@ export class OpportunityController {
 
     return {
       success: true,
-      data: opportunity,
+      data: opportunity
     };
   }
 
@@ -73,7 +73,7 @@ export class OpportunityController {
     return {
       success: true,
       message: 'Opportunity created successfully',
-      data: opportunity,
+      data: opportunity
     };
   }
 
@@ -91,7 +91,7 @@ export class OpportunityController {
     return {
       success: true,
       message: 'Opportunity updated successfully',
-      data: opportunity,
+      data: opportunity
     };
   }
 
@@ -105,7 +105,7 @@ export class OpportunityController {
 
     return {
       success: true,
-      message: 'Opportunity deleted successfully',
+      message: 'Opportunity deleted successfully'
     };
   }
 
@@ -123,7 +123,7 @@ export class OpportunityController {
     return {
       success: true,
       message: 'Opportunity stage updated successfully',
-      data: opportunity,
+      data: opportunity
     };
   }
 
@@ -141,7 +141,7 @@ export class OpportunityController {
     return {
       success: true,
       message: 'Opportunity marked as won successfully',
-      data: opportunity,
+      data: opportunity
     };
   }
 
@@ -159,7 +159,7 @@ export class OpportunityController {
     return {
       success: true,
       message: 'Opportunity marked as lost successfully',
-      data: opportunity,
+      data: opportunity
     };
   }
 
@@ -177,7 +177,7 @@ export class OpportunityController {
     return {
       success: true,
       message: 'Opportunity assigned successfully',
-      data: opportunity,
+      data: opportunity
     };
   }
 
@@ -194,14 +194,14 @@ export class OpportunityController {
       ...(query.stage && { stage: query.stage }),
       ...(query.assignedTo && { assignedTo: query.assignedTo }),
       ...(query.brokerId && { brokerId: query.brokerId }),
-      ...(query.dateRange && { dateRange: JSON.parse(query.dateRange) }),
+      ...(query.dateRange && { dateRange: JSON.parse(query.dateRange) })
     };
 
     const csvData = await this.opportunityService.exportOpportunities(filters);
 
     return {
       success: true,
-      data: csvData,
+      data: csvData
     };
   }
 
@@ -215,7 +215,7 @@ export class OpportunityController {
 
     return {
       success: true,
-      data: stats,
+      data: stats
     };
   }
 
@@ -228,7 +228,7 @@ export class OpportunityController {
 
     return {
       success: true,
-      data: pipelineValue,
+      data: pipelineValue
     };
   }
 }

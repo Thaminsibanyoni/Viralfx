@@ -1,16 +1,16 @@
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { Injectable, Logger, InternalServerErrorException, Inject } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 import { ConfigService } from '@nestjs/config';
 import {
   ReferralAnalyticsDto,
   ReferralFunnelDto,
   ReferralEventDto,
-  LeaderboardEntryDto,
+  LeaderboardEntryDto
 } from '../dto/referral.dto';
 import {
   ReferralEventType,
-  ReferralStatus,
+  ReferralStatus
 } from '../types/referral.types';
 
 @Injectable()
@@ -22,8 +22,7 @@ export class ReferralTrackingService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
-    private readonly configService: ConfigService,
-  ) {}
+    private readonly configService: ConfigService) {}
 
   /**
    * Track referral click
@@ -50,7 +49,7 @@ export class ReferralTrackingService {
         id: clickId,
         referralCode,
         timestamp: new Date().toISOString(),
-        ...clickData,
+        ...clickData
       }));
 
       // Set TTL on the hash key
@@ -104,9 +103,9 @@ export class ReferralTrackingService {
           userId,
           metadata: {
             referralCode,
-            ...signupData,
-          },
-        },
+            ...signupData
+          }
+        }
       });
 
       // Track daily signups for analytics
@@ -117,8 +116,8 @@ export class ReferralTrackingService {
       const referral = await this.prisma.referral.findFirst({
         where: {
           referralCode: { code: referralCode },
-          referredUserId: userId,
-        },
+          referredUserId: userId
+        }
       });
 
       if (referral) {
@@ -129,9 +128,9 @@ export class ReferralTrackingService {
             registeredAt: new Date(),
             metadata: {
               ...referral.metadata,
-              ...signupData,
-            },
-          },
+              ...signupData
+            }
+          }
         });
 
         // Create proper event with referral ID
@@ -140,8 +139,8 @@ export class ReferralTrackingService {
             referralId: referral.id,
             eventType: ReferralEventType.REGISTERED,
             userId,
-            metadata: signupData,
-          },
+            metadata: signupData
+          }
         });
       }
 
@@ -168,7 +167,7 @@ export class ReferralTrackingService {
     try {
       const referral = await this.prisma.referral.findUnique({
         where: { id: referralId },
-        include: { referralCode: true },
+        include: { referralCode: true }
       });
 
       if (!referral) {
@@ -203,9 +202,9 @@ export class ReferralTrackingService {
               ...updateData,
               metadata: {
                 ...referral.metadata,
-                ...conversionData.metadata,
-              },
-            },
+                ...conversionData.metadata
+              }
+            }
           });
 
           // Create event
@@ -214,8 +213,8 @@ export class ReferralTrackingService {
               referralId,
               eventType: conversionData.eventType,
               userId: referral.referredUserId,
-              metadata: conversionData.metadata || {},
-            },
+              metadata: conversionData.metadata || {}
+            }
           });
         });
 
@@ -273,7 +272,7 @@ export class ReferralTrackingService {
         conversionRates,
         topReferrers,
         channelPerformance,
-        generatedAt: new Date(),
+        generatedAt: new Date()
       };
 
       // Cache the result
@@ -300,14 +299,14 @@ export class ReferralTrackingService {
         this.prisma.referralEvent.count({
           where: {
             eventType: ReferralEventType.REGISTERED,
-            createdAt: { gte: startDate, lte: endDate },
-          },
+            createdAt: { gte: startDate, lte: endDate }
+          }
         }),
         this.prisma.referralEvent.count({
           where: {
             eventType: { in: [ReferralEventType.FIRST_TRADE, ReferralEventType.FIRST_BET] },
-            createdAt: { gte: startDate, lte: endDate },
-          },
+            createdAt: { gte: startDate, lte: endDate }
+          }
         }),
       ]);
 
@@ -334,19 +333,19 @@ export class ReferralTrackingService {
         by: ['referrerId'],
         where: {
           status: ReferralStatus.COMPLETED,
-          completedAt: { gte: startDate, lte: endDate },
+          completedAt: { gte: startDate, lte: endDate }
         },
         _count: {
-          referrerId: true,
+          referrerId: true
         },
         _sum: {
           rewardAmount: true,
-          conversionAmount: true,
+          conversionAmount: true
         },
         orderBy: {
-          _count: { referrerId: 'desc' },
+          _count: { referrerId: 'desc' }
         },
-        take: limit,
+        take: limit
       });
 
       // Get user details
@@ -360,10 +359,10 @@ export class ReferralTrackingService {
             select: {
               firstName: true,
               lastName: true,
-              avatar: true,
-            },
-          },
-        },
+              avatar: true
+            }
+          }
+        }
       });
 
       const userMap = users.reduce((map, user) => {
@@ -379,7 +378,7 @@ export class ReferralTrackingService {
         totalConversionAmount: entry._sum.conversionAmount || 0,
         averageConversionValue: entry._count.referrerId > 0
           ? (entry._sum.conversionAmount || 0) / entry._count.referrerId
-          : 0,
+          : 0
       }));
     } catch (error) {
       this.logger.error('Failed to get top referrers:', error);
@@ -394,7 +393,7 @@ export class ReferralTrackingService {
     try {
       const events = await this.prisma.referralEvent.findMany({
         where: { referralId },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'asc' }
       });
 
       return events.map(event => ({
@@ -403,7 +402,7 @@ export class ReferralTrackingService {
         eventType: event.eventType,
         userId: event.userId,
         timestamp: event.createdAt,
-        metadata: event.metadata,
+        metadata: event.metadata
       }));
     } catch (error) {
       this.logger.error('Failed to get referral events:', error);
@@ -440,13 +439,13 @@ export class ReferralTrackingService {
         this.redis.get(`referral:daily:conversions:${today}`),
         // Pending referrals from database
         this.prisma.referral.count({
-          where: { status: ReferralStatus.PENDING },
+          where: { status: ReferralStatus.PENDING }
         }),
         // Total referrals
         this.prisma.referral.count(),
         // Completed referrals
         this.prisma.referral.count({
-          where: { status: ReferralStatus.COMPLETED },
+          where: { status: ReferralStatus.COMPLETED }
         }),
       ]);
 
@@ -459,7 +458,7 @@ export class ReferralTrackingService {
         todaySignups: parseInt(todaySignups || '0'),
         todayConversions: parseInt(todayConversions || '0'),
         pendingReferrals,
-        completionRate: Math.round(completionRate * 100) / 100,
+        completionRate: Math.round(completionRate * 100) / 100
       };
     } catch (error) {
       this.logger.error('Failed to get real-time metrics:', error);
@@ -478,20 +477,20 @@ export class ReferralTrackingService {
       this.prisma.referralEvent.count({
         where: {
           eventType: ReferralEventType.REGISTERED,
-          createdAt: { gte: startDate },
-        },
+          createdAt: { gte: startDate }
+        }
       }),
       this.prisma.referralEvent.count({
         where: {
           eventType: ReferralEventType.KYC_COMPLETED,
-          createdAt: { gte: startDate },
-        },
+          createdAt: { gte: startDate }
+        }
       }),
       this.prisma.referralEvent.count({
         where: {
           eventType: { in: [ReferralEventType.FIRST_TRADE, ReferralEventType.FIRST_BET] },
-          createdAt: { gte: startDate },
-        },
+          createdAt: { gte: startDate }
+        }
       }),
     ]);
 
@@ -500,7 +499,7 @@ export class ReferralTrackingService {
       clicks,
       signups,
       kycCompleted,
-      conversions,
+      conversions
     }];
   }
 
@@ -515,7 +514,7 @@ export class ReferralTrackingService {
       if (count) {
         performance.push({
           source,
-          count: parseInt(count),
+          count: parseInt(count)
         });
       }
     }
@@ -607,7 +606,7 @@ export class ReferralTrackingService {
       d: 1,           // day
       w: 7,           // week
       m: 30,          // month
-      y: 365,         // year
+      y: 365         // year
     };
 
     return value * (multipliers[unit as keyof typeof multipliers] || 1);

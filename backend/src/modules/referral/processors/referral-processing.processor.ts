@@ -1,7 +1,7 @@
-import { Processor, Process } from '@nestjs/bullmq';
+import {Processor, WorkerHost} from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ReferralService } from '../services/referral.service';
 import { ReferralTrackingService } from '../services/referral-tracking.service';
 import { ReferralEventType, ReferralStatus } from '../types/referral.types';
@@ -28,17 +28,33 @@ interface ReferralCompletionJob {
 }
 
 @Processor('referral-processing')
-export class ReferralProcessingProcessor {
+export class ReferralProcessingProcessor extends WorkerHost {
   private readonly logger = new Logger(ReferralProcessingProcessor.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly referralService: ReferralService,
-    private readonly referralTrackingService: ReferralTrackingService,
-  ) {}
+    private readonly referralTrackingService: ReferralTrackingService) {
+    super();
+}
 
-  @Process('process-referral-signup')
-  async processReferralSignup(job: Job<ReferralProcessingJob>): Promise<void> {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'process-referral-signup':
+        return this.processReferralSignup(job);
+      case 'check-referral-completion':
+        return this.checkReferralCompletion(job);
+      case 'expire-referrals':
+        return this.expireReferrals(job);
+      case 'validate-referral-chain':
+        return this.validateReferralChain(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async processReferralSignup(job: Job<ReferralProcessingJob>): Promise<void> {
     this.logger.log(`Processing referral signup job: ${job.id} for referral: ${job.data.referralId}`);
 
     try {
@@ -50,8 +66,8 @@ export class ReferralProcessingProcessor {
         include: {
           referralCode: true,
           referrer: true,
-          referredUser: true,
-        },
+          referredUser: true
+        }
       });
 
       if (!referral) {
@@ -68,8 +84,7 @@ export class ReferralProcessingProcessor {
       await this.referralTrackingService.trackReferralSignup(
         referral.referralCode.code,
         userId,
-        metadata || {},
-      );
+        metadata || {});
 
       // Update referral status
       await this.prisma.referral.update({
@@ -80,9 +95,9 @@ export class ReferralProcessingProcessor {
           metadata: {
             ...referral.metadata,
             ...metadata,
-            processedAt: new Date().toISOString(),
-          },
-        },
+            processedAt: new Date().toISOString()
+          }
+        }
       });
 
       // Create event record
@@ -91,8 +106,8 @@ export class ReferralProcessingProcessor {
           referralId,
           eventType: ReferralEventType.REGISTERED,
           userId,
-          metadata: metadata || {},
-        },
+          metadata: metadata || {}
+        }
       });
 
       // Queue completion check if needed
@@ -105,8 +120,7 @@ export class ReferralProcessingProcessor {
     }
   }
 
-  @Process('check-referral-completion')
-  async checkReferralCompletion(job: Job<ReferralCompletionJob>): Promise<void> {
+  private async checkReferralCompletion(job: Job<ReferralCompletionJob>): Promise<void> {
     this.logger.log(`Checking referral completion: ${job.data.referralId}`);
 
     try {
@@ -119,10 +133,10 @@ export class ReferralProcessingProcessor {
             select: {
               id: true,
               kycStatus: true,
-              profile: true,
-            },
-          },
-        },
+              profile: true
+            }
+          }
+        }
       });
 
       if (!referral || referral.status === ReferralStatus.COMPLETED) {
@@ -167,9 +181,9 @@ export class ReferralProcessingProcessor {
               metadata: {
                 ...referral.metadata,
                 lastCheckedAt: new Date().toISOString(),
-                completionCheckId: job.id,
-              },
-            },
+                completionCheckId: job.id
+              }
+            }
           });
 
           if (completionEvent) {
@@ -180,9 +194,9 @@ export class ReferralProcessingProcessor {
                 userId: referral.referredUserId,
                 metadata: {
                   jobId: job.id,
-                  checkCriteria,
-                },
-              },
+                  checkCriteria
+                }
+              }
             });
           }
         });
@@ -192,7 +206,7 @@ export class ReferralProcessingProcessor {
           await this.referralTrackingService.trackReferralConversion(referralId, {
             eventType: ReferralEventType.FIRST_TRADE,
             metadata: { jobId: job.id },
-            amount: updateData.conversionAmount,
+            amount: updateData.conversionAmount
           });
 
           // Queue reward processing
@@ -207,15 +221,14 @@ export class ReferralProcessingProcessor {
     }
   }
 
-  @Process('expire-referrals')
-  async expireReferrals(job: Job<ReferralExpirationJob>): Promise<void> {
+  private async expireReferrals(job: Job<ReferralExpirationJob>): Promise<void> {
     this.logger.log(`Processing referral expiration job: ${job.id}`);
 
     try {
       const { referralId, daysOld = 30 } = job.data;
 
       let whereClause: any = {
-        status: { in: [ReferralStatus.PENDING, ReferralStatus.REGISTERED] },
+        status: { in: [ReferralStatus.PENDING, ReferralStatus.REGISTERED] }
       };
 
       if (referralId) {
@@ -232,8 +245,8 @@ export class ReferralProcessingProcessor {
         include: {
           referralCode: true,
           referrer: true,
-          referredUser: true,
-        },
+          referredUser: true
+        }
       });
 
       for (const referral of referralsToExpire) {
@@ -247,9 +260,9 @@ export class ReferralProcessingProcessor {
                 ...referral.metadata,
                 expiredAt: new Date().toISOString(),
                 expirationJobId: job.id,
-                expirationReason: daysOld ? `Older than ${daysOld} days` : 'Manual expiration',
-              },
-            },
+                expirationReason: daysOld ? `Older than ${daysOld} days` : 'Manual expiration'
+              }
+            }
           });
 
           // Create expiration event
@@ -260,9 +273,9 @@ export class ReferralProcessingProcessor {
               userId: referral.referredUserId,
               metadata: {
                 jobId: job.id,
-                expiredAt: new Date().toISOString(),
-              },
-            },
+                expiredAt: new Date().toISOString()
+              }
+            }
           });
         });
 
@@ -276,8 +289,7 @@ export class ReferralProcessingProcessor {
     }
   }
 
-  @Process('validate-referral-chain')
-  async validateReferralChain(job: Job<{ referralId: string }>): Promise<void> {
+  private async validateReferralChain(job: Job<{ referralId: string }>): Promise<void> {
     this.logger.log(`Validating referral chain: ${job.data.referralId}`);
 
     try {
@@ -291,12 +303,12 @@ export class ReferralProcessingProcessor {
             include: {
               referredByReferrals: {
                 where: { status: ReferralStatus.COMPLETED },
-                take: 1,
-              },
-            },
+                take: 1
+              }
+            }
           },
-          referredUser: true,
-        },
+          referredUser: true
+        }
       });
 
       if (!referral) {
@@ -317,9 +329,9 @@ export class ReferralProcessingProcessor {
               ...referral.metadata,
               invalidReason: 'Circular referral detected',
               invalidatedAt: new Date().toISOString(),
-              validationJobId: job.id,
-            },
-          },
+              validationJobId: job.id
+            }
+          }
         });
 
         return;
@@ -341,9 +353,9 @@ export class ReferralProcessingProcessor {
               invalidReason: `Referral chain exceeds maximum depth of ${maxChainDepth}`,
               invalidatedAt: new Date().toISOString(),
               validationJobId: job.id,
-              chainDepth,
-            },
-          },
+              chainDepth
+            }
+          }
         });
 
         return;
@@ -357,9 +369,9 @@ export class ReferralProcessingProcessor {
             ...referral.metadata,
             validatedAt: new Date().toISOString(),
             validationJobId: job.id,
-            chainDepth,
-          },
-        },
+            chainDepth
+          }
+        }
       });
 
       this.logger.log(`Referral chain validated successfully: ${referralId}, depth: ${chainDepth}`);
@@ -379,10 +391,10 @@ export class ReferralProcessingProcessor {
         where: {
           userId,
           type: 'TRADE',
-          status: 'COMPLETED',
+          status: 'COMPLETED'
         },
         orderBy: { createdAt: 'asc' },
-        take: 1,
+        take: 1
       });
 
       if (trades.length === 0) {
@@ -397,7 +409,7 @@ export class ReferralProcessingProcessor {
 
       return {
         amount: firstTrade.amount,
-        type: firstTrade.metadata?.tradeType || 'UNKNOWN',
+        type: firstTrade.metadata?.tradeType || 'UNKNOWN'
       };
     } catch (error) {
       this.logger.error('Failed to check first trade:', error);
@@ -432,7 +444,7 @@ export class ReferralProcessingProcessor {
 
     const referral = await this.prisma.referral.findFirst({
       where: { referredUserId: userId, status: ReferralStatus.COMPLETED },
-      include: { referralCode: true },
+      include: { referralCode: true }
     });
 
     if (!referral) {

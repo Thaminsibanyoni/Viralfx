@@ -1,26 +1,36 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { InjectQueue } from '@nestjs/bull';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Queue } from 'bull';
-import { Repository, Not, IsNull } from 'typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ComplianceService } from '../services/compliance.service';
 import { FSCAService } from '../services/fsca.service';
-import { ComplianceCheckType } from '../entities/broker-compliance-check.entity';
-import { Broker, BrokerStatus } from '../entities/broker.entity';
+
+// Types from Prisma schema
+type BrokerStatus = 'PENDING' | 'VERIFIED' | 'REJECTED' | 'SUSPENDED';
+
+interface Broker {
+  id: string;
+  companyName: string;
+  fscaLicenseNumber?: string;
+  fscaLicenseExpiry?: Date;
+  status: BrokerStatus;
+  isActive: boolean;
+  riskAssessment?: {
+    riskScore?: number;
+  };
+}
 
 @Injectable()
 export class ComplianceScheduler {
   private readonly logger = new Logger(ComplianceScheduler.name);
 
   constructor(
-    @InjectRepository(Broker)
-    private readonly brokerRepository: Repository<Broker>,
+    private prisma: PrismaService,
     private readonly complianceService: ComplianceService,
     private readonly fscsService: FSCAService,
     @InjectQueue('broker-compliance') private complianceQueue: Queue,
-    @InjectQueue('broker-verification') private verificationQueue: Queue,
-  ) {}
+    @InjectQueue('broker-verification') private verificationQueue: Queue) {}
 
   @Cron('0 2 * * *') // Daily at 2 AM
   async handleDailyComplianceChecks() {
@@ -37,18 +47,18 @@ export class ComplianceScheduler {
         try {
           // Queue daily compliance check for each broker
           const job = await this.complianceQueue.add('daily-compliance-check', {
-            brokerId,
+            brokerId
           }, {
             attempts: 3,
             backoff: 'exponential',
-            delay: Math.random() * 60000, // Random delay to prevent overload
+            delay: Math.random() * 60000 // Random delay to prevent overload
           });
 
           results.push({ brokerId, jobId: job.id, success: true });
           this.logger.log(`Queued daily compliance check for broker ${brokerId}, job ${job.id}`);
         } catch (error) {
           this.logger.error(`Failed to queue daily compliance check for broker ${brokerId}:`, error);
-          results.push({ brokerId, error: error.message, success: false });
+          results.push({ brokerId, error: (error as Error).message, success: false });
         }
       }
 
@@ -62,7 +72,7 @@ export class ComplianceScheduler {
         totalBrokers: brokerIds.length,
         successful,
         failed,
-        results,
+        results
       };
     } catch (error) {
       this.logger.error('Failed to start daily compliance checks:', error);
@@ -103,17 +113,17 @@ export class ComplianceScheduler {
                     'Consider temporary suspension',
                   ],
                   createdAt: new Date(),
-                  status: 'OPEN',
+                  status: 'OPEN'
                 },
-                escalationLevel: 2,
-              },
+                escalationLevel: 2
+              }
             });
           }
 
           results.push({ brokerId: broker.id, licenseStatus: licenseStatus.licenseStatus, success: true });
         } catch (error) {
           this.logger.error(`Failed to check FSCA license for broker ${broker.id}:`, error);
-          results.push({ brokerId: broker.id, error: error.message, success: false });
+          results.push({ brokerId: broker.id, error: (error as Error).message, success: false });
         }
       }
 
@@ -127,7 +137,7 @@ export class ComplianceScheduler {
         totalChecked: brokersWithLicenses.length,
         successful,
         failed,
-        results,
+        results
       };
     } catch (error) {
       this.logger.error('Failed to complete FSCA license status checks:', error);
@@ -152,44 +162,44 @@ export class ComplianceScheduler {
       const reportData = {
         period: {
           start: weekStart.toISOString(),
-          end: weekEnd.toISOString(),
+          end: weekEnd.toISOString()
         },
         summary: {
           totalChecks: 245,
           passedChecks: 232,
           failedChecks: 13,
-          averageComplianceScore: 0.92,
+          averageComplianceScore: 0.92
         },
         issues: [
           {
             type: 'FSCA_LICENSE',
             count: 3,
-            severity: 'HIGH',
+            severity: 'HIGH'
           },
           {
             type: 'SANCTIONS_LIST',
             count: 2,
-            severity: 'MEDIUM',
+            severity: 'MEDIUM'
           },
         ],
         trends: {
           complianceScoreChange: 0.03,
-          issueCountChange: -2,
-        },
+          issueCountChange: -2
+        }
       };
 
       // Queue report generation
       await this.complianceQueue.add('generate-compliance-report', {
         reportType: 'WEEKLY',
         period: { start: weekStart, end: weekEnd },
-        data: reportData,
+        data: reportData
       });
 
       this.logger.log('Weekly compliance report generation initiated');
       return {
         success: true,
         message: 'Weekly compliance report generated',
-        data: reportData,
+        data: reportData
       };
     } catch (error) {
       this.logger.error('Failed to generate weekly compliance report:', error);
@@ -221,15 +231,15 @@ export class ComplianceScheduler {
                 details: reminder,
                 recommendations: this.getReminderRecommendations(reminder.type),
                 createdAt: new Date(),
-                status: 'OPEN',
-              },
-            },
+                status: 'OPEN'
+              }
+            }
           });
 
           results.push({ brokerId: reminder.brokerId, type: reminder.type, success: true });
         } catch (error) {
           this.logger.error(`Failed to send compliance reminder for broker ${reminder.brokerId}:`, error);
-          results.push({ brokerId: reminder.brokerId, type: reminder.type, error: error.message, success: false });
+          results.push({ brokerId: reminder.brokerId, type: reminder.type, error: (error as Error).message, success: false });
         }
       }
 
@@ -243,7 +253,7 @@ export class ComplianceScheduler {
         totalReminders: reminders.length,
         sent,
         failed,
-        results,
+        results
       };
     } catch (error) {
       this.logger.error('Failed to send compliance reminders:', error);
@@ -281,13 +291,13 @@ export class ComplianceScheduler {
           // Queue each review task
           await this.complianceQueue.add('monthly-review-task', {
             task,
-            period: { start: monthStart, end: monthEnd },
+            period: { start: monthStart, end: monthEnd }
           });
 
           results.push({ task, success: true });
         } catch (error) {
           this.logger.error(`Failed to queue monthly review task: ${task}:`, error);
-          results.push({ task, error: error.message, success: false });
+          results.push({ task, error: (error as Error).message, success: false });
         }
       }
 
@@ -302,7 +312,7 @@ export class ComplianceScheduler {
         totalTasks: reviewTasks.length,
         completed,
         failed,
-        results,
+        results
       };
     } catch (error) {
       this.logger.error('Failed to start monthly compliance review:', error);
@@ -321,18 +331,18 @@ export class ComplianceScheduler {
 
       for (const brokerId of brokerIds) {
         await this.complianceQueue.add('security-assessment', {
-          brokerId,
+          brokerId
         }, {
           attempts: 2,
           backoff: 'fixed',
-          delay: Math.random() * 30000, // Random delay to distribute load
+          delay: Math.random() * 30000 // Random delay to distribute load
         });
       }
 
       this.logger.log(`Security assessments queued for ${brokerIds.length} brokers`);
       return {
         success: true,
-        totalAssessments: brokerIds.length,
+        totalAssessments: brokerIds.length
       };
     } catch (error) {
       this.logger.error('Failed to queue security assessments:', error);
@@ -351,18 +361,28 @@ export class ComplianceScheduler {
       const ninetyDaysFromNow = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
 
       // Find brokers with FSCA licenses expiring soon
-      const brokersWithExpiringLicenses = await this.brokerRepository
-        .createQueryBuilder('broker')
-        .where('broker.isActive = :isActive', { isActive: true })
-        .andWhere('broker.status = :status', { status: BrokerStatus.VERIFIED })
-        .andWhere('broker.fscaLicenseExpiry IS NOT NULL')
-        .andWhere('broker.fscaLicenseExpiry <= :ninetyDays', { ninetyDays: ninetyDaysFromNow })
-        .select(['broker.id', 'broker.companyName', 'broker.fscaLicenseExpiry', 'broker.fscaLicenseNumber'])
-        .getMany();
+      const brokersWithExpiringLicenses = await this.prisma.broker.findMany({
+        where: {
+          isActive: true,
+          status: 'VERIFIED',
+          fscaLicenseExpiry: {
+            not: null,
+            lte: ninetyDaysFromNow
+          }
+        },
+        select: {
+          id: true,
+          companyName: true,
+          fscaLicenseExpiry: true,
+          fscaLicenseNumber: true
+        }
+      });
 
       const results = [];
 
       for (const broker of brokersWithExpiringLicenses) {
+        if (!broker.fscaLicenseExpiry) continue;
+
         const daysUntilExpiry = Math.ceil(
           (broker.fscaLicenseExpiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
         );
@@ -410,14 +430,14 @@ export class ComplianceScheduler {
                   licenseNumber: broker.fscaLicenseNumber,
                   expiryDate: broker.fscaLicenseExpiry,
                   daysUntilExpiry,
-                  licenseType: 'FSCA_LICENSE',
+                  licenseType: 'FSCA_LICENSE'
                 },
                 recommendations,
                 createdAt: new Date(),
-                status: 'OPEN',
+                status: 'OPEN'
               },
-              escalationLevel: severity === 'CRITICAL' ? 3 : severity === 'HIGH' ? 2 : 1,
-            },
+              escalationLevel: severity === 'CRITICAL' ? 3 : severity === 'HIGH' ? 2 : 1
+            }
           });
 
           results.push({
@@ -431,7 +451,7 @@ export class ComplianceScheduler {
           this.logger.log(`FSCA expiry reminder sent for broker ${broker.companyName} (${daysUntilExpiry} days remaining)`);
         } catch (error) {
           this.logger.error(`Failed to send FSCA expiry reminder for broker ${broker.id}:`, error);
-          results.push({ brokerId: broker.id, error: error.message, success: false });
+          results.push({ brokerId: broker.id, error: (error as Error).message, success: false });
         }
       }
 
@@ -445,7 +465,7 @@ export class ComplianceScheduler {
         totalReminders: brokersWithExpiringLicenses.length,
         sent,
         failed,
-        results,
+        results
       };
     } catch (error) {
       this.logger.error('Failed to send FSCA expiry reminders:', error);
@@ -460,13 +480,13 @@ export class ComplianceScheduler {
     try {
       // Queue batch compliance score recalculation
       await this.complianceQueue.add('batch-compliance-check', {
-        brokerId: 'SYSTEM', // Special case for system-wide batch operation
+        brokerId: 'SYSTEM' // Special case for system-wide batch operation
       });
 
       this.logger.log('Compliance score recalculation queued');
       return {
         success: true,
-        message: 'Compliance score recalculation initiated',
+        message: 'Compliance score recalculation initiated'
       };
     } catch (error) {
       this.logger.error('Failed to queue compliance score recalculation:', error);
@@ -475,7 +495,7 @@ export class ComplianceScheduler {
   }
 
   private getReminderRecommendations(type: string): string[] {
-    const recommendations = {
+    const recommendations: Record<string, string[]> = {
       DOCUMENT_EXPIRY: [
         'Upload renewed documents',
         'Check expiration dates',
@@ -490,7 +510,7 @@ export class ComplianceScheduler {
         'Renew FSCA license',
         'Update license details',
         'Submit renewal documentation',
-      ],
+      ]
     };
 
     return recommendations[type] || ['Contact compliance team for assistance'];
@@ -498,13 +518,15 @@ export class ComplianceScheduler {
 
   private async getActiveBrokers(): Promise<Broker[]> {
     try {
-      return await this.brokerRepository.find({
+      return await this.prisma.broker.findMany({
         where: {
           isActive: true,
-          status: BrokerStatus.VERIFIED,
+          status: 'VERIFIED'
         },
-        select: ['id'],
-      });
+        select: {
+          id: true
+        }
+      }) as Broker[];
     } catch (error) {
       this.logger.error('Failed to get active brokers:', error);
       return [];
@@ -513,17 +535,22 @@ export class ComplianceScheduler {
 
   private async getBrokersWithFSCALicenses(): Promise<Array<{ id: string; fscaLicenseNumber: string }>> {
     try {
-      const brokers = await this.brokerRepository.find({
+      const brokers = await this.prisma.broker.findMany({
         where: {
           isActive: true,
-          status: BrokerStatus.VERIFIED,
-          fscaLicenseNumber: Not(IsNull()),
+          status: 'VERIFIED',
+          fscaLicenseNumber: {
+            not: null
+          }
         },
-        select: ['id', 'fscaLicenseNumber'],
+        select: {
+          id: true,
+          fscaLicenseNumber: true
+        }
       });
       return brokers.map(broker => ({
         id: broker.id,
-        fscaLicenseNumber: broker.fscaLicenseNumber,
+        fscaLicenseNumber: broker.fscaLicenseNumber!
       }));
     } catch (error) {
       this.logger.error('Failed to get brokers with FSCA licenses:', error);
@@ -540,27 +567,34 @@ export class ComplianceScheduler {
   }>> {
     try {
       const reminders = [];
-      const brokers = await this.brokerRepository.find({
+      const brokers = await this.prisma.broker.findMany({
         where: {
           isActive: true,
-          status: BrokerStatus.VERIFIED,
+          status: 'VERIFIED'
         },
-        select: ['id', 'companyName', 'riskAssessment'],
+        select: {
+          id: true,
+          companyName: true,
+          riskAssessment: true
+        }
       });
 
       // Check for low compliance scores based on risk assessment
       for (const broker of brokers) {
-        if (broker.riskAssessment && broker.riskAssessment.riskScore) {
-          const riskScore = broker.riskAssessment.riskScore;
+        if (broker.riskAssessment && typeof broker.riskAssessment === 'object') {
+          const riskAssessment = broker.riskAssessment as { riskScore?: number };
+          if (riskAssessment.riskScore) {
+            const riskScore = riskAssessment.riskScore;
 
-          // If risk score is above 70 (high risk), add a compliance reminder
-          if (riskScore > 70) {
-            reminders.push({
-              brokerId: broker.id,
-              type: 'COMPLIANCE_SCORE',
-              message: `High compliance risk score: ${riskScore}`,
-              score: riskScore,
-            });
+            // If risk score is above 70 (high risk), add a compliance reminder
+            if (riskScore > 70) {
+              reminders.push({
+                brokerId: broker.id,
+                type: 'COMPLIANCE_SCORE',
+                message: `High compliance risk score: ${riskScore}`,
+                score: riskScore
+              });
+            }
           }
         }
       }

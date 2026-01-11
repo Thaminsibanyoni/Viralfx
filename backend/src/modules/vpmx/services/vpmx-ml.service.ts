@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
-import { VPMXCoreService } from './vpmx-core.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
+import { VPMXCoreService } from "./vpmx-core.service";
 
 @Injectable()
 export class VPMXMLService {
@@ -11,8 +11,7 @@ export class VPMXMLService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-    private readonly vpmxCoreService: VPMXCoreService,
-  ) {}
+    private readonly vpmxCoreService: VPMXCoreService) {}
 
   /**
    * Deep learning VPMX forecasting
@@ -20,8 +19,7 @@ export class VPMXMLService {
   async predictVPMXWithAI(
     vtsSymbol: string,
     horizon: string,
-    modelType: string = 'LSTM',
-  ): Promise<any> {
+    modelType: string = 'LSTM'): Promise<any> {
     try {
       this.logger.log(`AI prediction for ${vtsSymbol} using ${modelType} model`);
 
@@ -69,7 +67,7 @@ export class VPMXMLService {
         confidence: prediction.confidence,
         upperBound: confidenceIntervals.upper,
         lowerBound: confidenceIntervals.lower,
-        features: prediction.features,
+        features: prediction.features
       });
 
       const result = {
@@ -82,7 +80,7 @@ export class VPMXMLService {
         features: prediction.features,
         modelMetrics: prediction.metrics,
         timestamp: savedPrediction.timestamp,
-        predictionId: savedPrediction.id,
+        predictionId: savedPrediction.id
       };
 
       await this.redis.setex(cacheKey, this.MODEL_CACHE_TTL, JSON.stringify(result));
@@ -133,7 +131,7 @@ export class VPMXMLService {
         anomalies: aggregatedAnomalies,
         anomalyScore: this.calculateOverallAnomalyScore(aggregatedAnomalies),
         timestamp: new Date(),
-        modelVersion: 'v2.1.0',
+        modelVersion: 'v2.1.0'
       };
     } catch (error) {
       this.logger.error(`Anomaly detection failed for ${vtsSymbol}`, error);
@@ -159,7 +157,7 @@ export class VPMXMLService {
       const narrativeAnalysis = await this.performNLPAnalysis({
         social: socialData,
         news: newsData,
-        forums: forumData,
+        forums: forumData
       });
 
       // Extract key themes and sentiments
@@ -173,20 +171,20 @@ export class VPMXMLService {
           dominantThemes: themes,
           sentimentEvolution,
           narrativeStrength: this.calculateNarrativeStrength(narrativeAnalysis),
-          coherenceScore: this.calculateCoherenceScore(narrativeAnalysis),
+          coherenceScore: this.calculateCoherenceScore(narrativeAnalysis)
         },
         influencers,
         predictions: {
           nextThemes: this.predictNextThemes(themes),
           sentimentTrajectory: this.predictSentimentTrajectory(sentimentEvolution),
-          viralityPotential: this.calculateViralityPotential(narrativeAnalysis),
+          viralityPotential: this.calculateViralityPotential(narrativeAnalysis)
         },
         timestamp: new Date(),
         dataSourceCount: {
           social: socialData.length,
           news: newsData.length,
-          forums: forumData.length,
-        },
+          forums: forumData.length
+        }
       };
     } catch (error) {
       this.logger.error(`Trend narrative analysis failed for ${vtsSymbol}`, error);
@@ -225,7 +223,7 @@ export class VPMXMLService {
         spreadSimulation,
         networkVulnerabilities: this.identifyNetworkVulnerabilities(networkGraph),
         recommendations: this.generateNetworkRecommendations(networkMetrics, keyInfluencers),
-        timestamp: new Date(),
+        timestamp: new Date()
       };
     } catch (error) {
       this.logger.error(`Network analysis failed for ${vtsSymbol}`, error);
@@ -238,8 +236,7 @@ export class VPMXMLService {
    */
   async optimizeMarketStrategy(
     vtsSymbol: string,
-    objectives: Array<{ type: string; weight: number }>,
-  ): Promise<any> {
+    objectives: Array<{ type: string; weight: number }>): Promise<any> {
     try {
       this.logger.log(`Optimizing strategy for ${vtsSymbol} with ${objectives.length} objectives`);
 
@@ -250,15 +247,14 @@ export class VPMXMLService {
       // Define objective functions
       const objectiveFunctions = objectives.map(obj => ({
         ...obj,
-        function: this.getObjectiveFunction(obj.type),
+        function: this.getObjectiveFunction(obj.type)
       }));
 
       // Run multi-objective optimization
       const paretoFront = await this.runMultiObjectiveOptimization(
         objectiveFunctions,
         marketData,
-        constraints,
-      );
+        constraints);
 
       // Select optimal strategy
       const optimalStrategy = this.selectOptimalStrategy(paretoFront, objectives);
@@ -274,7 +270,7 @@ export class VPMXMLService {
         validation,
         performanceMetrics: this.calculateStrategyPerformance(optimalStrategy, marketData),
         riskMetrics: await this.calculateStrategyRisk(optimalStrategy),
-        timestamp: new Date(),
+        timestamp: new Date()
       };
     } catch (error) {
       this.logger.error(`Strategy optimization failed for ${vtsSymbol}`, error);
@@ -301,7 +297,7 @@ export class VPMXMLService {
         maxSteps: 500,
         learningRate: 0.001,
         discountFactor: 0.99,
-        explorationRate: 0.1,
+        explorationRate: 0.1
       };
 
       // Train agent
@@ -322,9 +318,9 @@ export class VPMXMLService {
         performanceMetrics: {
           finalReward: trainingHistory.rewards[trainingHistory.rewards.length - 1],
           averageReward: trainingHistory.rewards.reduce((sum, r) => sum + r, 0) / trainingHistory.rewards.length,
-          convergenceEpisode: this.findConvergenceEpisode(trainingHistory.rewards),
+          convergenceEpisode: this.findConvergenceEpisode(trainingHistory.rewards)
         },
-        timestamp: new Date(),
+        timestamp: new Date()
       };
     } catch (error) {
       this.logger.error(`RL training failed for ${vtsSymbol}`, error);
@@ -359,7 +355,7 @@ export class VPMXMLService {
       statisticalFeatures: this.calculateStatisticalFeatures(values),
       temporalFeatures: this.calculateTemporalFeatures(timestamps),
       momentumFeatures: this.calculateMomentumFeatures(values),
-      volatilityFeatures: this.calculateVolatilityFeatures(values),
+      volatilityFeatures: this.calculateVolatilityFeatures(values)
     };
   }
 
@@ -381,13 +377,13 @@ export class VPMXMLService {
       features: {
         attentionWeights: this.generateMockAttentionWeights(sequenceLength),
         hiddenStates: this.generateMockHiddenStates(4),
-        cellStates: this.generateMockCellStates(4),
+        cellStates: this.generateMockCellStates(4)
       },
       metrics: {
         loss: 0.025 + Math.random() * 0.01,
         accuracy: 0.82 + Math.random() * 0.1,
-        validationLoss: 0.028 + Math.random() * 0.01,
-      },
+        validationLoss: 0.028 + Math.random() * 0.01
+      }
     };
   }
 
@@ -410,12 +406,12 @@ export class VPMXMLService {
       features: {
         multiHeadAttention: attentionWeights,
         positionalEncoding: this.generatePositionalEncoding(contextLength),
-        layerNormalization: this.generateMockLayerNorms(6),
+        layerNormalization: this.generateMockLayerNorms(6)
       },
       metrics: {
         perplexity: 1.2 + Math.random() * 0.3,
-        bertScore: 0.85 + Math.random() * 0.1,
-      },
+        bertScore: 0.85 + Math.random() * 0.1
+      }
     };
   }
 
@@ -435,12 +431,12 @@ export class VPMXMLService {
       features: {
         patternTypes: patterns.map(p => p.type),
         convolutionFilters: convolutionFeatures,
-        maxPoolIndices: this.generateMockMaxPoolIndices(),
+        maxPoolIndices: this.generateMockMaxPoolIndices()
       },
       metrics: {
         patternAccuracy: 0.75 + Math.random() * 0.15,
-        featureMapActivation: 0.65 + Math.random() * 0.2,
-      },
+        featureMapActivation: 0.65 + Math.random() * 0.2
+      }
     };
   }
 
@@ -474,15 +470,15 @@ export class VPMXMLService {
           model: models[i],
           weight: weights[i],
           prediction: p.value,
-          confidence: p.confidence,
+          confidence: p.confidence
         })),
         modelAgreement: this.calculateModelAgreement(predictions),
-        variance: this.calculatePredictionVariance(predictions),
+        variance: this.calculatePredictionVariance(predictions)
       },
       metrics: {
         ensembleVariance: this.calculateVariance(predictions.map(p => p.value)),
-        modelConsensus: this.calculateConsensus(predictions),
-      },
+        modelConsensus: this.calculateConsensus(predictions)
+      }
     };
   }
 
@@ -554,7 +550,7 @@ export class VPMXMLService {
       ema26: this.calculateEMA(values, 26),
       rsi: this.calculateRSI(values),
       macd: this.calculateMACD(values),
-      bollinger: this.calculateBollingerBands(values),
+      bollinger: this.calculateBollingerBands(values)
     };
   }
 
@@ -565,7 +561,7 @@ export class VPMXMLService {
       variance: this.calculateVariance(values),
       skewness: this.calculateSkewness(values),
       kurtosis: this.calculateKurtosis(values),
-      autocorrelation: this.calculateAutocorrelation(returns),
+      autocorrelation: this.calculateAutocorrelation(returns)
     };
   }
 
@@ -574,7 +570,7 @@ export class VPMXMLService {
       momentum1: this.calculateMomentum(values, 1),
       momentum5: this.calculateMomentum(values, 5),
       momentum10: this.calculateMomentum(values, 10),
-      acceleration: this.calculateAcceleration(values),
+      acceleration: this.calculateAcceleration(values)
     };
   }
 
@@ -584,7 +580,7 @@ export class VPMXMLService {
       rollingVolatility20: this.calculateRollingVolatility(returns, 20),
       rollingVolatility50: this.calculateRollingVolatility(returns, 50),
       volatilityRatio: this.calculateVolatilityRatio(returns),
-      garchVolatility: this.calculateGARCHVolatility(returns),
+      garchVolatility: this.calculateGARCHVolatility(returns)
     };
   }
 
@@ -593,7 +589,7 @@ export class VPMXMLService {
       hourOfDay: timestamps.map(t => t.getHours()),
       dayOfWeek: timestamps.map(t => t.getDay()),
       isWeekend: timestamps.map(t => t.getDay() === 0 || t.getDay() === 6),
-      timeOfDayCategory: timestamps.map(t => this.categorizeTimeOfDay(t.getHours())),
+      timeOfDayCategory: timestamps.map(t => this.categorizeTimeOfDay(t.getHours()))
     };
   }
 
@@ -650,7 +646,7 @@ export class VPMXMLService {
       '6h': 72,
       '24h': 288,
       '7d': 2016,
-      '30d': 8640,
+      '30d': 8640
     };
     return steps[horizon] || 288;
   }
@@ -699,8 +695,8 @@ export class VPMXMLService {
         upperBound: predictionData.upperBound,
         lowerBound: predictionData.lowerBound,
         features: predictionData.features,
-        status: 'ACTIVE',
-      },
+        status: 'ACTIVE'
+      }
     });
   }
 
@@ -711,7 +707,7 @@ export class VPMXMLService {
     const margin = (1 - prediction.confidence) * 100;
     return {
       upper: prediction.value + margin,
-      lower: Math.max(0, prediction.value - margin),
+      lower: Math.max(0, prediction.value - margin)
     };
   }
 

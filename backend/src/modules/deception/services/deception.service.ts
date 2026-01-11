@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -37,15 +37,13 @@ export class DeceptionService {
     @InjectQueue('deception-analysis')
     private readonly deceptionQueue: Queue,
     @InjectQueue('high-risk-content')
-    private readonly highRiskQueue: Queue,
-  ) {}
+    private readonly highRiskQueue: Queue) {}
 
   async analyzeDeception(
     content: string,
     topicId: string,
     source?: string,
-    metadata?: any,
-  ): Promise<DeceptionAnalysis> {
+    metadata?: any): Promise<DeceptionAnalysis> {
     try {
       const analysis = await this.performDeceptionAnalysis(content);
 
@@ -61,10 +59,10 @@ export class DeceptionService {
             ...analysis,
             content: content.substring(0, 1000),
             source,
-            ...metadata,
+            ...metadata
           },
-          timestamp: new Date(),
-        },
+          timestamp: new Date()
+        }
       });
 
       // Cache recent analysis
@@ -77,7 +75,7 @@ export class DeceptionService {
           snapshotId: snapshot.id,
           topicId,
           analysis,
-          content,
+          content
         });
       }
 
@@ -85,12 +83,11 @@ export class DeceptionService {
       await this.deceptionQueue.add('process-deception-update', {
         topicId,
         snapshotId: snapshot.id,
-        analysis,
+        analysis
       });
 
       this.logger.log(
-        `Deception analysis completed for topic ${topicId}: ${analysis.deceptionScore.toFixed(3)} (${analysis.riskLevel})`,
-      );
+        `Deception analysis completed for topic ${topicId}: ${analysis.deceptionScore.toFixed(3)} (${analysis.riskLevel})`);
 
       return analysis;
     } catch (error) {
@@ -101,8 +98,7 @@ export class DeceptionService {
 
   async getDeceptionSnapshot(
     topicId: string,
-    timestamp?: Date,
-  ): Promise<DeceptionSnapshot | null> {
+    timestamp?: Date): Promise<DeceptionSnapshot | null> {
     const cacheKey = `deception:${topicId}:${timestamp ? timestamp.getTime() : 'latest'}`;
     const cached = await this.redis.get(cacheKey);
     if (cached) {
@@ -112,9 +108,9 @@ export class DeceptionService {
     const snapshot = await this.prisma.deceptionSnapshot.findFirst({
       where: {
         topicId,
-        ...(timestamp && { timestamp: { lte: timestamp } }),
+        ...(timestamp && { timestamp: { lte: timestamp } })
       },
-      orderBy: { timestamp: 'desc' },
+      orderBy: { timestamp: 'desc' }
     });
 
     if (snapshot) {
@@ -141,10 +137,10 @@ export class DeceptionService {
         topicId,
         timestamp: {
           gte: startTime,
-          lte: endTime,
-        },
+          lte: endTime
+        }
       },
-      orderBy: { timestamp: 'asc' },
+      orderBy: { timestamp: 'asc' }
     });
 
     // Group snapshots by intervals
@@ -172,7 +168,7 @@ export class DeceptionService {
         timestamp: new Date(parseInt(timestamp)),
         deceptionScore: Math.round(avgDeception * 1000) / 1000,
         riskLevel: highestRisk,
-        confidence: Math.round(avgConfidence * 1000) / 1000,
+        confidence: Math.round(avgConfidence * 1000) / 1000
       };
     });
 
@@ -193,13 +189,13 @@ export class DeceptionService {
     return this.prisma.deceptionSnapshot.findMany({
       where: {
         timestamp: { gte: timeAgo },
-        riskLevel: { in: riskLevels },
+        riskLevel: { in: riskLevels }
       },
       orderBy: [
         { deceptionScore: 'desc' },
         { timestamp: 'desc' },
       ],
-      take: limit,
+      take: limit
     });
   }
 
@@ -219,21 +215,21 @@ export class DeceptionService {
       this.prisma.deceptionSnapshot.findMany({
         where: {
           topicId,
-          timestamp: { gte: timeAgo },
+          timestamp: { gte: timeAgo }
         },
-        orderBy: { timestamp: 'asc' },
+        orderBy: { timestamp: 'asc' }
       }),
       this.prisma.deceptionSnapshot.aggregate({
         where: {
           topicId,
-          timestamp: { gte: timeAgo },
+          timestamp: { gte: timeAgo }
         },
         _avg: {
-          deceptionScore: true,
+          deceptionScore: true
         },
         _count: {
-          id: true,
-        },
+          id: true
+        }
       }),
     ]);
 
@@ -256,7 +252,7 @@ export class DeceptionService {
       averageDeceptionScore: stats._avg.deceptionScore || 0,
       riskDistribution,
       trendDirection,
-      highRiskCount,
+      highRiskCount
     };
   }
 
@@ -264,8 +260,7 @@ export class DeceptionService {
     snapshotId: string,
     status: 'REVIEWED' | 'FALSE_POSITIVE' | 'CONFIRMED',
     reviewerId: string,
-    notes?: string,
-  ): Promise<DeceptionSnapshot> {
+    notes?: string): Promise<DeceptionSnapshot> {
     const updatedSnapshot = await this.prisma.deceptionSnapshot.update({
       where: { id: snapshotId },
       data: {
@@ -273,9 +268,9 @@ export class DeceptionService {
           reviewStatus: status,
           reviewerId,
           reviewedAt: new Date(),
-          reviewNotes: notes,
-        },
-      },
+          reviewNotes: notes
+        }
+      }
     });
 
     this.logger.log(`Updated deception status for snapshot ${snapshotId} to ${status}`);
@@ -291,7 +286,7 @@ export class DeceptionService {
   }) {
     await this.deceptionQueue.add('analyze-deception', {
       type: 'single',
-      data,
+      data
     });
 
     return { message: 'Deception analysis job queued', jobId: data.content.substring(0, 50) };
@@ -305,7 +300,7 @@ export class DeceptionService {
   }>) {
     await this.deceptionQueue.add('analyze-deception', {
       type: 'batch',
-      data: { contents },
+      data: { contents }
     });
 
     return { message: 'Batch deception analysis job queued', contentCount: contents.length };
@@ -317,12 +312,12 @@ export class DeceptionService {
     const deletedCount = await this.prisma.deceptionSnapshot.deleteMany({
       where: {
         timestamp: {
-          lt: cutoffDate,
+          lt: cutoffDate
         },
         riskLevel: {
-          not: 'CRITICAL', // Keep critical content longer
-        },
-      },
+          not: 'CRITICAL' // Keep critical content longer
+        }
+      }
     });
 
     this.logger.log(`Cleaned up ${deletedCount.count} old deception snapshots older than ${olderThanDays} days`);
@@ -413,9 +408,9 @@ export class DeceptionService {
         analysisBreakdown: {
           phraseScore,
           indicatorScore,
-          emotionalScore,
-        },
-      },
+          emotionalScore
+        }
+      }
     };
   }
 

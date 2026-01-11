@@ -1,10 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from '../../../database/entities/user.entity';
-import { FilesService } from '../files/files.service';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { User, UserProfile } from '@prisma/client';
+import { FilesService } from "../../files/services/files.service";
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { WebSocketGateway } from '@nestjs/websockets';
 
 interface ProfileCompletion {
@@ -15,15 +14,13 @@ interface ProfileCompletion {
 @Injectable()
 export class UserProfileService {
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private readonly prisma: PrismaService,
     private readonly filesService: FilesService,
     @InjectQueue('user-profile-update')
-    private readonly profileUpdateQueue: Queue,
-  ) {}
+    private readonly profileUpdateQueue: Queue) {}
 
   async updateAvatar(userId: string, file: Express.Multer.File): Promise<{ avatarUrl: string }> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -32,13 +29,15 @@ export class UserProfileService {
     const uploadedFile = await this.filesService.uploadFile(file, userId, 'avatar');
 
     // Update user avatar URL
-    user.avatarUrl = uploadedFile.url;
-    await this.userRepository.save(user);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatar: uploadedFile.url }
+    });
 
     // Queue profile verification job
     await this.profileUpdateQueue.add('verify-avatar', {
       userId,
-      avatarUrl: uploadedFile.url,
+      avatarUrl: uploadedFile.url
     });
 
     // Emit WebSocket event for real-time update
@@ -55,7 +54,7 @@ export class UserProfileService {
     country?: string;
     bio?: string;
   }): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -69,16 +68,19 @@ export class UserProfileService {
     }
 
     // Update personal information
-    Object.assign(user, personalInfo);
-    user.profileUpdatedAt = new Date();
-
-    const updatedUser = await this.userRepository.save(user);
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...personalInfo,
+        updatedAt: new Date()
+      }
+    });
 
     // Queue profile verification for sensitive changes
     if (personalInfo.phoneNumber || personalInfo.dateOfBirth) {
       await this.profileUpdateQueue.add('verify-personal-info', {
         userId,
-        updatedFields: Object.keys(personalInfo),
+        updatedFields: Object.keys(personalInfo)
       });
     }
 
@@ -86,7 +88,7 @@ export class UserProfileService {
   }
 
   async calculateProfileCompletion(userId: string): Promise<ProfileCompletion> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -110,7 +112,7 @@ export class UserProfileService {
 
     return {
       percentage,
-      missing: missingFields,
+      missing: missingFields
     };
   }
 
@@ -166,7 +168,7 @@ export class UserProfileService {
       winRate?: number;
     };
   }> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -176,7 +178,7 @@ export class UserProfileService {
     const stats = {
       totalBets: 0, // Would be calculated from Bet table
       totalMarkets: 0, // Would be calculated from Market table
-      winRate: undefined, // Would be calculated from bet history
+      winRate: undefined // Would be calculated from bet history
     };
 
     return {
@@ -186,7 +188,7 @@ export class UserProfileService {
       bio: user.bio,
       joinDate: user.createdAt,
       isVerified: user.isVerified,
-      stats,
+      stats
     };
   }
 

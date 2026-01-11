@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
-import { VPMXCoreService } from './vpmx-core.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
+import { VPMXCoreService } from "./vpmx-core.service";
 
 @Injectable()
 export class VPMXPredictionService {
@@ -11,8 +11,7 @@ export class VPMXPredictionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-    private readonly vpmxCoreService: VPMXCoreService,
-  ) {}
+    private readonly vpmxCoreService: VPMXCoreService) {}
 
   /**
    * Generate VPMX prediction using specified model
@@ -21,8 +20,7 @@ export class VPMXPredictionService {
     vtsSymbol: string,
     horizon: string,
     modelType: string,
-    parameters?: any,
-  ): Promise<any> {
+    parameters?: any): Promise<any> {
     try {
       this.logger.log(`Generating ${horizon} prediction for ${vtsSymbol} using ${modelType}`);
 
@@ -71,7 +69,7 @@ export class VPMXPredictionService {
         confidence,
         upperBound: bounds.upper,
         lowerBound: bounds.lower,
-        features: prediction.features,
+        features: prediction.features
       });
 
       return {
@@ -83,7 +81,7 @@ export class VPMXPredictionService {
         confidence,
         bounds,
         features: prediction.features,
-        timestamp: savedPrediction.timestamp,
+        timestamp: savedPrediction.timestamp
       };
     } catch (error) {
       this.logger.error(`Failed to generate prediction for ${vtsSymbol}`, error);
@@ -98,8 +96,7 @@ export class VPMXPredictionService {
     vtsSymbol: string,
     horizon?: string,
     modelType?: string,
-    limit = 50,
-  ): Promise<any[]> {
+    limit = 50): Promise<any[]> {
     const where: any = { vtsSymbol };
     if (horizon) where.horizon = horizon;
     if (modelType) where.modelType = modelType;
@@ -107,7 +104,7 @@ export class VPMXPredictionService {
     return await this.prisma.vpmxPrediction.findMany({
       where,
       orderBy: { timestamp: 'desc' },
-      take: limit,
+      take: limit
     });
   }
 
@@ -117,8 +114,7 @@ export class VPMXPredictionService {
   async evaluatePredictionAccuracy(
     vtsSymbol: string,
     modelType?: string,
-    daysBack = 30,
-  ): Promise<any> {
+    daysBack = 30): Promise<any> {
     const cutoffDate = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
 
     const predictions = await this.prisma.vpmxPrediction.findMany({
@@ -126,8 +122,8 @@ export class VPMXPredictionService {
         vtsSymbol,
         ...(modelType && { modelType }),
         timestamp: { gte: cutoffDate },
-        actualValue: { not: null },
-      },
+        actualValue: { not: null }
+      }
     });
 
     if (predictions.length === 0) {
@@ -135,7 +131,7 @@ export class VPMXPredictionService {
         totalPredictions: 0,
         accuracy: 0,
         mae: 0,
-        rmse: 0,
+        rmse: 0
       };
     }
 
@@ -152,7 +148,7 @@ export class VPMXPredictionService {
       mae,
       rmse,
       modelType,
-      daysBack,
+      daysBack
     };
   }
 
@@ -162,8 +158,7 @@ export class VPMXPredictionService {
     vtsSymbol: string,
     historicalData: any[],
     horizon: string,
-    parameters?: any,
-  ): Promise<any> {
+    parameters?: any): Promise<any> {
     // LSTM implementation - sequence-based prediction
     const sequenceLength = parameters?.sequenceLength || 24;
     const values = historicalData.map(d => d.value).reverse();
@@ -188,7 +183,7 @@ export class VPMXPredictionService {
       trend: Math.abs(trend),
       volatility,
       momentum: this.calculateMomentum(recentSequence),
-      recentMean: recentSequence.reduce((sum, val) => sum + val, 0) / recentSequence.length,
+      recentMean: recentSequence.reduce((sum, val) => sum + val, 0) / recentSequence.length
     };
 
     return {
@@ -196,8 +191,8 @@ export class VPMXPredictionService {
       features: {
         ...features,
         sequenceLength,
-        trendDirection: trend > 0 ? 'BULLISH' : 'BEARISH',
-      },
+        trendDirection: trend > 0 ? 'BULLISH' : 'BEARISH'
+      }
     };
   }
 
@@ -205,8 +200,7 @@ export class VPMXPredictionService {
     vtsSymbol: string,
     historicalData: any[],
     horizon: string,
-    parameters?: any,
-  ): Promise<any> {
+    parameters?: any): Promise<any> {
     // CNN implementation - pattern recognition
     const windowSize = parameters?.windowSize || 12;
     const values = historicalData.map(d => d.value);
@@ -222,8 +216,8 @@ export class VPMXPredictionService {
       features: {
         patternType: dominantPattern.type,
         patternStrength: dominantPattern.strength,
-        windowSize,
-      },
+        windowSize
+      }
     };
   }
 
@@ -231,8 +225,7 @@ export class VPMXPredictionService {
     vtsSymbol: string,
     historicalData: any[],
     horizon: string,
-    parameters?: any,
-  ): Promise<any> {
+    parameters?: any): Promise<any> {
     // Transformer implementation - attention-based prediction
     const contextLength = parameters?.contextLength || 48;
     const values = historicalData.map(d => d.value).slice(-contextLength);
@@ -248,8 +241,8 @@ export class VPMXPredictionService {
       features: {
         attentionWeights,
         contextInfluence,
-        contextLength,
-      },
+        contextLength
+      }
     };
   }
 
@@ -257,8 +250,7 @@ export class VPMXPredictionService {
     vtsSymbol: string,
     historicalData: any[],
     horizon: string,
-    parameters?: any,
-  ): Promise<any> {
+    parameters?: any): Promise<any> {
     // Ensemble of multiple models
     const models = ['LSTM', 'CNN', 'LINEAR'];
     const weights = parameters?.weights || [0.4, 0.3, 0.3];
@@ -276,7 +268,7 @@ export class VPMXPredictionService {
         predictions.push({
           value: modelPrediction.prediction,
           weight: weights[i],
-          confidence: modelPrediction.confidence,
+          confidence: modelPrediction.confidence
         });
       } catch (error) {
         this.logger.warn(`Ensemble model ${models[i]} failed`, error);
@@ -302,16 +294,15 @@ export class VPMXPredictionService {
       features: {
         ensembleModels: predictions.map(p => p.model),
         weights,
-        modelAgreement: this.calculateModelAgreement(predictions),
-      },
+        modelAgreement: this.calculateModelAgreement(predictions)
+      }
     };
   }
 
   private async predictWithLinearRegression(
     vtsSymbol: string,
     historicalData: any[],
-    horizon: string,
-  ): Promise<any> {
+    horizon: string): Promise<any> {
     // Simple linear regression as baseline
     const values = historicalData.map(d => d.value);
     const n = values.length;
@@ -334,8 +325,8 @@ export class VPMXPredictionService {
       features: {
         slope,
         intercept,
-        rSquared: this.calculateRSquared(values, slope, intercept),
-      },
+        rSquared: this.calculateRSquared(values, slope, intercept)
+      }
     };
   }
 
@@ -377,7 +368,7 @@ export class VPMXPredictionService {
       '6h': 24,
       '24h': 96,
       '7d': 672,
-      '30d': 2880,
+      '30d': 2880
     };
     return multipliers[horizon] || 24;
   }
@@ -429,7 +420,7 @@ export class VPMXPredictionService {
 
     return {
       type: dominantType,
-      strength: frequency[dominantType].totalStrength / frequency[dominantType].count,
+      strength: frequency[dominantType].totalStrength / frequency[dominantType].count
     };
   }
 
@@ -501,13 +492,13 @@ export class VPMXPredictionService {
     const margin = (1 - confidence) * 200; // 200 as max margin
     return {
       upper: Math.min(1000, prediction + margin),
-      lower: Math.max(0, prediction - margin),
+      lower: Math.max(0, prediction - margin)
     };
   }
 
   private async savePrediction(predictionData: any): Promise<any> {
     return await this.prisma.vpmxPrediction.create({
-      data: predictionData,
+      data: predictionData
     });
   }
 }

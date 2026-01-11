@@ -1,11 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from '../../../database/entities/user.entity';
-import { FilesService } from '../files/files.service';
-import { NotificationsService } from '../notifications/services/notification.service';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { FilesService } from "../../files/services/files.service";
+import { NotificationService } from "../../notifications/services/notification.service";
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 interface KYCDocument {
   type: 'IDENTITY' | 'PROOF_OF_ADDRESS' | 'SELFIE' | 'BUSINESS_REGISTRATION';
@@ -27,13 +25,11 @@ interface KYCSubmission {
 @Injectable()
 export class KYCService {
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private readonly prisma: PrismaService,
     private readonly filesService: FilesService,
-    private readonly notificationsService: NotificationsService,
+    private readonly notificationService: NotificationService,
     @InjectQueue('user-kyc')
-    private readonly kycQueue: Queue,
-  ) {}
+    private readonly kycQueue: Queue) {}
 
   async submitKYCDocuments(
     userId: string,
@@ -42,9 +38,8 @@ export class KYCService {
       proofOfAddress?: Express.Multer.File;
       selfie?: Express.Multer.File;
       businessRegistration?: Express.Multer.File;
-    },
-  ): Promise<KYCSubmission> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    }): Promise<KYCSubmission> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -92,29 +87,31 @@ export class KYCService {
     const submission: KYCSubmission = {
       documents,
       submittedAt: new Date(),
-      status: 'PENDING',
+      status: 'PENDING'
     };
 
     // Update user KYC status
-    user.kycStatus = 'PENDING';
-    user.kycDocuments = submission;
-    user.kycSubmittedAt = new Date();
-
-    await this.userRepository.save(user);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        kycStatus: 'PENDING',
+        kycSubmittedAt: new Date()
+      }
+    });
 
     // Queue verification job
     await this.kycQueue.add('verify-kyc', {
       userId,
-      submission,
+      submission
     });
 
     // Send notification
-    await this.notificationsService.sendNotification({
+    await this.notificationService.sendNotification({
       userId,
       type: 'KYC_SUBMITTED',
       title: 'KYC Documents Submitted',
       message: 'Your KYC documents have been submitted for review. We will notify you once the verification is complete.',
-      data: { submissionId: user.id },
+      data: { submissionId: user.id }
     });
 
     return submission;
@@ -124,7 +121,7 @@ export class KYCService {
     // This would integrate with FSCA-compliant identity verification service
     // For now, we'll simulate the verification process
 
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -132,14 +129,14 @@ export class KYCService {
     // Queue comprehensive identity verification
     await this.kycQueue.add('comprehensive-identity-check', {
       userId,
-      verificationData,
+      verificationData
     });
 
     return { message: 'Identity verification initiated' };
   }
 
   async approveKYC(userId: string, reviewerId: string, notes?: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -149,26 +146,22 @@ export class KYCService {
     }
 
     // Update user KYC status
-    user.kycStatus = 'APPROVED';
-    user.kycReviewedAt = new Date();
-    user.kycReviewedBy = reviewerId;
-
-    if (user.kycDocuments) {
-      user.kycDocuments.status = 'APPROVED';
-      user.kycDocuments.reviewedBy = reviewerId;
-      user.kycDocuments.reviewedAt = new Date();
-      user.kycDocuments.notes = notes;
-    }
-
-    const updatedUser = await this.userRepository.save(user);
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        kycStatus: 'APPROVED',
+        kycReviewedAt: new Date(),
+        kycReviewedBy: reviewerId
+      }
+    });
 
     // Send approval notification
-    await this.notificationsService.sendNotification({
+    await this.notificationService.sendNotification({
       userId,
       type: 'KYC_APPROVED',
       title: 'KYC Verification Approved',
       message: 'Congratulations! Your KYC verification has been approved. You now have full access to all features.',
-      data: { approvedAt: new Date() },
+      data: { approvedAt: new Date() }
     });
 
     return updatedUser;
@@ -178,9 +171,8 @@ export class KYCService {
     userId: string,
     reviewerId: string,
     rejectionReason: string,
-    notes?: string,
-  ): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    notes?: string): Promise<User> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -190,33 +182,23 @@ export class KYCService {
     }
 
     // Update user KYC status
-    user.kycStatus = 'REJECTED';
-    user.kycReviewedAt = new Date();
-    user.kycReviewedBy = reviewerId;
-    user.kycRejectionReason = rejectionReason;
-
-    if (user.kycDocuments) {
-      user.kycDocuments.status = 'REJECTED';
-      user.kycDocuments.reviewedBy = reviewerId;
-      user.kycDocuments.reviewedAt = new Date();
-      user.kycDocuments.notes = notes;
-
-      // Mark all documents as rejected
-      user.kycDocuments.documents.forEach(doc => {
-        doc.status = 'REJECTED';
-        doc.rejectionReason = rejectionReason;
-      });
-    }
-
-    const updatedUser = await this.userRepository.save(user);
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        kycStatus: 'REJECTED',
+        kycReviewedAt: new Date(),
+        kycReviewedBy: reviewerId,
+        kycRejectionReason: rejectionReason
+      }
+    });
 
     // Send rejection notification
-    await this.notificationsService.sendNotification({
+    await this.notificationService.sendNotification({
       userId,
       type: 'KYC_REJECTED',
       title: 'KYC Verification Rejected',
       message: `Your KYC verification has been rejected. Reason: ${rejectionReason}. Please resubmit with correct documents.`,
-      data: { rejectionReason, rejectedAt: new Date() },
+      data: { rejectionReason, rejectedAt: new Date() }
     });
 
     return updatedUser;
@@ -229,7 +211,7 @@ export class KYCService {
     rejectionReason?: string;
     documents?: KYCDocument[];
   }> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -239,49 +221,47 @@ export class KYCService {
       submittedAt: user.kycSubmittedAt,
       reviewedAt: user.kycReviewedAt,
       rejectionReason: user.kycRejectionReason,
-      documents: user.kycDocuments?.documents,
+      documents: user.kycDocuments?.documents
     };
   }
 
   async requestAdditionalDocuments(
     userId: string,
     requestedDocuments: string[],
-    reason: string,
-  ): Promise<void> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    reason: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
     // Send notification for additional documents
-    await this.notificationsService.sendNotification({
+    await this.notificationService.sendNotification({
       userId,
       type: 'KYC_ADDITIONAL_DOCS',
       title: 'Additional KYC Documents Required',
       message: `We need additional documents to complete your KYC verification. ${reason}`,
-      data: { requestedDocuments, reason },
+      data: { requestedDocuments, reason }
     });
 
     // Queue follow-up reminder
     await this.kycQueue.add('send-kyc-reminder', {
       userId,
       requestedDocuments,
-      reminderDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days later
+      reminderDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days later
     });
   }
 
   private async uploadDocument(
     file: Express.Multer.File,
     userId: string,
-    type: KYCDocument['type'],
-  ): Promise<KYCDocument> {
+    type: KYCDocument['type']): Promise<KYCDocument> {
     const uploadedFile = await this.filesService.uploadFile(file, userId, `kyc-${type.toLowerCase()}`);
 
     return {
       type,
       url: uploadedFile.url,
       uploadedAt: new Date(),
-      status: 'PENDING',
+      status: 'PENDING'
     };
   }
 }

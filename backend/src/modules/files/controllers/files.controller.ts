@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Post,
@@ -18,8 +18,7 @@ import {
   ParseFilePipe,
   MaxFileSizeValidator,
   FileTypeValidator,
-  Request,
-} from '@nestjs/common';
+  Request, Req } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -27,12 +26,12 @@ import {
   ApiParam,
   ApiQuery,
   ApiBearerAuth,
-  ApiConsumes,
+  ApiConsumes
 } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { FilesService } from '../services/files.service';
 import {
   UploadFileDto,
@@ -47,7 +46,7 @@ import {
   FileActivityDto,
   FileAnalyticsDto,
   FileExportDto,
-  FileQuotaDto,
+  FileQuotaDto
 } from '../dto/files.dto';
 import { AnyFilesInterceptor, FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -67,12 +66,12 @@ export class FilesController {
       filename: (req, file, cb) => {
         const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
         cb(null, `${randomName}${extname(file.originalname)}`);
-      },
+      }
     }),
     limits: {
       fileSize: 100 * 1024 * 1024, // 100MB
-      files: 10, // Max 10 files at once
-    },
+      files: 10 // Max 10 files at once
+    }
   }))
   @ApiConsumes('multipart/form-data')
   @HttpCode(HttpStatus.CREATED)
@@ -83,8 +82,7 @@ export class FilesController {
   async uploadFiles(
     @UploadedFiles() files: Array<Express.Multer.File>,
     @Body() uploadData: UploadFileDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     if (!files || files.length === 0) {
       throw new BadRequestException('No files provided');
     }
@@ -102,7 +100,7 @@ export class FilesController {
           buffer,
           originalname: file.originalname,
           mimetype: file.mimetype,
-          size: file.size,
+          size: file.size
         };
       })
     );
@@ -113,8 +111,8 @@ export class FilesController {
   @Post('upload/single')
   @UseInterceptors(FileInterceptor('file', {
     limits: {
-      fileSize: 100 * 1024 * 1024, // 100MB
-    },
+      fileSize: 100 * 1024 * 1024 // 100MB
+    }
   }))
   @ApiConsumes('multipart/form-data')
   @HttpCode(HttpStatus.CREATED)
@@ -123,8 +121,7 @@ export class FilesController {
   async uploadSingleFile(
     @UploadedFile() file: Express.Multer.File,
     @Body() uploadData: UploadFileDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     if (!file) {
       throw new BadRequestException('No file provided');
     }
@@ -133,7 +130,7 @@ export class FilesController {
       buffer: file.buffer,
       originalname: file.originalname,
       mimetype: file.mimetype,
-      size: file.size,
+      size: file.size
     }], uploadData, req.user.userId);
   }
 
@@ -144,8 +141,7 @@ export class FilesController {
   @ApiResponse({ status: 400, description: 'Invalid upload request' })
   async getUploadUrl(
     @Body() uploadData: UploadFileDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.getUploadUrl(uploadData, req.user.userId);
   }
 
@@ -155,8 +151,7 @@ export class FilesController {
   @ApiResponse({ status: 200, description: 'Upload completed successfully' })
   async completeUpload(
     @Body() data: { fileId: string; size: number; hash?: string },
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.completeUpload(data.fileId, data.size, data.hash, req.user.userId);
   }
 
@@ -173,9 +168,8 @@ export class FilesController {
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'], description: 'Sort order' })
   @ApiResponse({ status: 200, description: 'Files retrieved successfully' })
   async getUserFiles(
-    @Request() req,
-    @Query() query: FileQueryDto,
-  ) {
+    @Req() req,
+    @Query() query: FileQueryDto) {
     return this.filesService.getUserFiles(req.user.userId, query);
   }
 
@@ -184,9 +178,8 @@ export class FilesController {
   @ApiQuery({ name: 'query', required: false, description: 'Search query' })
   @ApiResponse({ status: 200, description: 'Search results retrieved successfully' })
   async searchFiles(
-    @Request() req,
-    @Query() searchDto: FileSearchDto,
-  ) {
+    @Req() req,
+    @Query() searchDto: FileSearchDto) {
     return this.filesService.searchFiles(searchDto, req.user.userId);
   }
 
@@ -197,8 +190,7 @@ export class FilesController {
   @ApiResponse({ status: 404, description: 'File not found' })
   async getFile(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.getFile(id, req.user.userId);
   }
 
@@ -211,8 +203,7 @@ export class FilesController {
   async getDownloadUrl(
     @Param('id', ParseUUIDPipe) id: string,
     @Query('expiresIn') expiresIn: number = 3600,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.getFileDownloadUrl(id, req.user.userId, expiresIn);
   }
 
@@ -224,8 +215,7 @@ export class FilesController {
   async getThumbnails(
     @Param('id', ParseUUIDPipe) id: string,
     @Query('size') size: string = 'medium',
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.getThumbnails(id, size, req.user.userId);
   }
 
@@ -235,8 +225,7 @@ export class FilesController {
   @ApiResponse({ status: 200, description: 'File preview generated successfully' })
   async getPreview(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.getFilePreview(id, req.user.userId);
   }
 
@@ -250,8 +239,7 @@ export class FilesController {
   async updateFile(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateData: UpdateFileDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.updateFile(id, updateData, req.user.userId);
   }
 
@@ -264,8 +252,7 @@ export class FilesController {
   @ApiResponse({ status: 403, description: 'Insufficient permissions' })
   async deleteFile(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req,
-  ) {
+    @Req() req) {
     await this.filesService.deleteFile(id, req.user.userId);
     return { message: 'File deleted successfully' };
   }
@@ -276,8 +263,7 @@ export class FilesController {
   @ApiResponse({ status: 200, description: 'Batch operation completed successfully' })
   async batchOperation(
     @Body() batchData: FileBatchOperationDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.performBatchOperation(batchData, req.user.userId);
   }
 
@@ -289,8 +275,7 @@ export class FilesController {
   async createVersion(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() versionData: FileVersionDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.createFileVersion(id, versionData, req.user.userId);
   }
 
@@ -300,8 +285,7 @@ export class FilesController {
   @ApiResponse({ status: 200, description: 'File versions retrieved successfully' })
   async getVersions(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.getFileVersions(id, req.user.userId);
   }
 
@@ -314,8 +298,7 @@ export class FilesController {
   async restoreVersion(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('version') version: number,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.restoreFileVersion(id, version, req.user.userId);
   }
 
@@ -327,8 +310,7 @@ export class FilesController {
   async processFile(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() processingData: FileProcessingDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.processFile(id, processingData, req.user.userId);
   }
 
@@ -341,8 +323,7 @@ export class FilesController {
   async getFileActivity(
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: FileActivityDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.getFileActivity(id, query, req.user.userId);
   }
 
@@ -355,8 +336,7 @@ export class FilesController {
   async getFileAnalytics(
     @Param('id', ParseUUIDPipe) id: string,
     @Query() analyticsData: FileAnalyticsDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.getFileAnalytics(id, analyticsData, req.user.userId);
   }
 
@@ -366,8 +346,7 @@ export class FilesController {
   @ApiResponse({ status: 201, description: 'Share created successfully' })
   async createShare(
     @Body() shareData: CreateShareDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.createShare(shareData, req.user.userId);
   }
 
@@ -380,8 +359,7 @@ export class FilesController {
   @ApiResponse({ status: 401, description: 'Invalid password' })
   async getSharedFile(
     @Param('token') token: string,
-    @Query('password') password?: string,
-  ) {
+    @Query('password') password?: string) {
     return this.filesService.getSharedFile(token, password);
   }
 
@@ -392,8 +370,7 @@ export class FilesController {
   @ApiResponse({ status: 200, description: 'Download URL generated successfully' })
   async getSharedFileDownload(
     @Param('token') token: string,
-    @Query('password') password?: string,
-  ) {
+    @Query('password') password?: string) {
     return this.filesService.getSharedFileDownload(token, password);
   }
 
@@ -411,8 +388,7 @@ export class FilesController {
   @ApiResponse({ status: 200, description: 'Statistics retrieved successfully' })
   async getStats(
     @Query() statsData: FileStatsDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     const userId = req.user.role === 'ADMIN' ? statsData.userId : req.user.userId;
     return this.filesService.getFileStats(userId, statsData.timeWindow);
   }
@@ -423,8 +399,7 @@ export class FilesController {
   @ApiResponse({ status: 200, description: 'Storage quota retrieved successfully' })
   async getQuota(
     @Query() quotaData: FileQuotaDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     const userId = req.user.role === 'ADMIN' ? quotaData.userId : req.user.userId;
     return this.filesService.getUserQuota(userId);
   }
@@ -436,8 +411,7 @@ export class FilesController {
   @ApiResponse({ status: 202, description: 'Export job started' })
   async exportFiles(
     @Body() exportData: FileExportDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.exportFiles(exportData, req.user.userId);
   }
 
@@ -448,8 +422,7 @@ export class FilesController {
   @ApiResponse({ status: 202, description: 'Backup job started' })
   async createBackup(
     @Body() backupData: any, // Would define specific DTO
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.filesService.createBackup(backupData, req.user.userId);
   }
 
@@ -459,8 +432,7 @@ export class FilesController {
   @ApiParam({ name: 'id', description: 'File ID' })
   @ApiResponse({ status: 200, description: 'Virus scan results retrieved successfully' })
   async getVirusScanResults(
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+    @Param('id', ParseUUIDPipe) id: string) {
     return this.filesService.getVirusScanResults(id);
   }
 
@@ -471,8 +443,7 @@ export class FilesController {
   @ApiParam({ name: 'id', description: 'File ID' })
   @ApiResponse({ status: 202, description: 'Virus scan started' })
   async startVirusScan(
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+    @Param('id', ParseUUIDPipe) id: string) {
     return this.filesService.startVirusScan(id);
   }
 }

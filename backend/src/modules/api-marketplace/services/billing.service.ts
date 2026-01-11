@@ -1,11 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../prisma/prisma.service';
 import { PaymentGatewayService } from '../payment/payment-gateway.service';
-import { UsageService } from './usage.service';
-import { PlansService } from './plans.service';
-import { NotificationService } from '../../notifications/services/notification.service';
-import { StorageService } from '../../storage/services/storage.service';
+import { UsageService } from "./usage.service";
+import { PlansService } from "./plans.service";
+import { NotificationService } from "../../notifications/services/notification.service";
+import { StorageService } from "../../storage/services/storage.service";
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { API_CURRENCY_CONFIG } from '../interfaces/api-marketplace.interface';
 import { InvoiceWithDetails, InvoiceLineItem } from '../interfaces/api-marketplace.interface';
@@ -21,22 +21,20 @@ export class BillingService {
     private usageService: UsageService,
     private plansService: PlansService,
     private notificationService: NotificationService,
-    private storageService: StorageService,
-  ) {}
+    private storageService: StorageService) {}
 
   async generateInvoice(
     customerId: string,
     customerType: 'USER' | 'BROKER',
-    period: { start: Date; end: Date },
-  ): Promise<InvoiceWithDetails> {
+    period: { start: Date; end: Date }): Promise<InvoiceWithDetails> {
     // Check if invoice already exists for this period
     const existing = await this.prisma.apiInvoice.findFirst({
       where: {
         customerId,
         customerType,
         billingPeriodStart: period.start,
-        billingPeriodEnd: period.end,
-      },
+        billingPeriodEnd: period.end
+      }
     });
 
     if (existing) {
@@ -52,9 +50,9 @@ export class BillingService {
       where,
       include: {
         plan: {
-          include: { product: true },
-        },
-      },
+          include: { product: true }
+        }
+      }
     });
 
     if (apiKeys.length === 0) {
@@ -82,7 +80,7 @@ export class BillingService {
         quantity: keyCount,
         unitPrice: Number(plan.monthlyFee),
         amount: monthlyFee,
-        currency: API_CURRENCY_CONFIG.DEFAULT_CURRENCY,
+        currency: API_CURRENCY_CONFIG.DEFAULT_CURRENCY
       });
 
       subtotal += monthlyFee;
@@ -95,15 +93,14 @@ export class BillingService {
         if (overage > 0) {
           const overageFee = await this.plansService.calculateOverageFees(
             key.planId,
-            overage,
-          );
+            overage);
 
           lineItems.push({
             description: `Overage fees - ${key.plan.product.name} (${overage} calls beyond quota)`,
             quantity: overage,
             unitPrice: Number(key.plan.perCallFee),
             amount: overageFee,
-            currency: API_CURRENCY_CONFIG.DEFAULT_CURRENCY,
+            currency: API_CURRENCY_CONFIG.DEFAULT_CURRENCY
           });
 
           subtotal += overageFee;
@@ -130,9 +127,9 @@ export class BillingService {
           lineItems,
           subtotal,
           vatAmount,
-          vatRate: API_CURRENCY_CONFIG.VAT_RATE,
-        },
-      },
+          vatRate: API_CURRENCY_CONFIG.VAT_RATE
+        }
+      }
     });
 
     // Generate PDF invoice
@@ -141,14 +138,14 @@ export class BillingService {
     // Update invoice with PDF URL
     const updatedInvoice = await this.prisma.apiInvoice.update({
       where: { id: invoice.id },
-      data: { invoicePdfUrl: pdfUrl },
+      data: { invoicePdfUrl: pdfUrl }
     });
 
     // Prepare invoice with details for email
     const invoiceWithDetails: InvoiceWithDetails = {
       ...updatedInvoice,
       lineItems,
-      customer: await this.getCustomerDetails(customerId, customerType),
+      customer: await this.getCustomerDetails(customerId, customerType)
     };
 
     // Send invoice email notification
@@ -170,7 +167,7 @@ export class BillingService {
       where: { id: invoiceId },
       include: {
         // We don't have direct relations to User/Broker, so we'll need to fetch separately
-      },
+      }
     });
 
     if (!invoice) {
@@ -183,8 +180,7 @@ export class BillingService {
 
     const customer = await this.getCustomerDetails(
       invoice.customerId!,
-      invoice.customerType as 'USER' | 'BROKER',
-    );
+      invoice.customerType as 'USER' | 'BROKER');
 
     // Create payment via gateway
     const payment = await this.paymentGateway.createPayment({
@@ -197,8 +193,8 @@ export class BillingService {
         invoiceId,
         type: 'api-marketplace',
         customerId: invoice.customerId,
-        customerType: invoice.customerType,
-      },
+        customerType: invoice.customerType
+      }
     });
 
     // Update invoice with payment reference
@@ -208,21 +204,20 @@ export class BillingService {
         metadata: {
           ...invoice.metadata,
           paymentReference: payment.reference,
-          gateway,
-        },
-      },
+          gateway
+        }
+      }
     });
 
     return {
       paymentUrl: payment.paymentUrl,
-      reference: payment.reference,
+      reference: payment.reference
     };
   }
 
   async handlePaymentWebhook(
     gateway: string,
-    webhookData: any,
-  ): Promise<void> {
+    webhookData: any): Promise<void> {
     // Verify webhook signature
     const isValid = await this.paymentGateway.verifyWebhook(gateway, webhookData);
     if (!isValid) {
@@ -235,7 +230,7 @@ export class BillingService {
     }
 
     const invoice = await this.prisma.apiInvoice.findUnique({
-      where: { id: invoiceId },
+      where: { id: invoiceId }
     });
 
     if (!invoice) {
@@ -252,9 +247,9 @@ export class BillingService {
           metadata: {
             ...invoice.metadata,
             paymentCompletedAt: new Date(),
-            transactionId: webhookData.transaction_id || webhookData.reference,
-          },
-        },
+            transactionId: webhookData.transaction_id || webhookData.reference
+          }
+        }
       });
 
       // Trigger webhook to customer
@@ -267,9 +262,9 @@ export class BillingService {
           metadata: {
             ...invoice.metadata,
             paymentFailedAt: new Date(),
-            failureReason: webhookData.reason || webhookData.message,
-          },
-        },
+            failureReason: webhookData.reason || webhookData.message
+          }
+        }
       });
     }
   }
@@ -283,11 +278,10 @@ export class BillingService {
       endDate?: Date;
       page?: number;
       limit?: number;
-    } = {},
-  ) {
+    } = {}) {
     const where: any = {
       customerId,
-      customerType,
+      customerType
     };
 
     if (filters.status) where.status = filters.status;
@@ -306,7 +300,7 @@ export class BillingService {
         where,
         orderBy: { createdAt: 'desc' },
         skip,
-        take: limit,
+        take: limit
       }),
       this.prisma.apiInvoice.count({ where }),
     ]);
@@ -317,14 +311,14 @@ export class BillingService {
         page,
         limit,
         total,
-        pages: Math.ceil(total / limit),
-      },
+        pages: Math.ceil(total / limit)
+      }
     };
   }
 
   async getInvoice(id: string): Promise<InvoiceWithDetails | null> {
     const invoice = await this.prisma.apiInvoice.findUnique({
-      where: { id },
+      where: { id }
     });
 
     if (!invoice) {
@@ -338,7 +332,7 @@ export class BillingService {
       lineItems,
       customer: invoice.customerId
         ? await this.getCustomerDetails(invoice.customerId, invoice.customerType as 'USER' | 'BROKER')
-        : undefined,
+        : undefined
     };
   }
 
@@ -347,7 +341,7 @@ export class BillingService {
     reference: string;
   }> {
     const invoice = await this.prisma.apiInvoice.findUnique({
-      where: { id: invoiceId },
+      where: { id: invoiceId }
     });
 
     if (!invoice) {
@@ -361,7 +355,7 @@ export class BillingService {
     // Reset status to pending
     await this.prisma.apiInvoice.update({
       where: { id: invoiceId },
-      data: { status: 'PENDING' },
+      data: { status: 'PENDING' }
     });
 
     // Retry with the original gateway
@@ -375,12 +369,11 @@ export class BillingService {
 
   private async generateInvoicePdf(
     invoiceId: string,
-    lineItems: InvoiceLineItem[],
-  ): Promise<string> {
+    lineItems: InvoiceLineItem[]): Promise<string> {
     try {
       // Fetch complete invoice details
       const invoice = await this.prisma.apiInvoice.findUnique({
-        where: { id: invoiceId },
+        where: { id: invoiceId }
       });
 
       if (!invoice) {
@@ -390,8 +383,7 @@ export class BillingService {
       // Get customer details
       const customer = await this.getCustomerDetails(
         invoice.customerId!,
-        invoice.customerType as 'USER' | 'BROKER',
-      );
+        invoice.customerType as 'USER' | 'BROKER');
 
       // Create PDF document
       const pdfDoc = await PDFDocument.create();
@@ -411,7 +403,7 @@ export class BillingService {
         y: yPosition,
         size: 24,
         font: helveticaBoldFont,
-        color: rgb(0.294, 0, 0.51), // Purple #4B0082
+        color: rgb(0.294, 0, 0.51) // Purple #4B0082
       });
       yPosition -= 40;
 
@@ -420,7 +412,7 @@ export class BillingService {
         x: margin,
         y: yPosition,
         size: 12,
-        font: helveticaFont,
+        font: helveticaFont
       });
       yPosition -= 20;
 
@@ -428,7 +420,7 @@ export class BillingService {
         x: margin,
         y: yPosition,
         size: 12,
-        font: helveticaFont,
+        font: helveticaFont
       });
       yPosition -= 20;
 
@@ -436,7 +428,7 @@ export class BillingService {
         x: margin,
         y: yPosition,
         size: 12,
-        font: helveticaFont,
+        font: helveticaFont
       });
       yPosition -= 20;
 
@@ -446,7 +438,7 @@ export class BillingService {
           x: margin,
           y: yPosition,
           size: 14,
-          font: helveticaBoldFont,
+          font: helveticaBoldFont
         });
         yPosition -= 20;
 
@@ -454,7 +446,7 @@ export class BillingService {
           x: margin,
           y: yPosition,
           size: 12,
-          font: helveticaFont,
+          font: helveticaFont
         });
         yPosition -= 20;
 
@@ -462,7 +454,7 @@ export class BillingService {
           x: margin,
           y: yPosition,
           size: 12,
-          font: helveticaFont,
+          font: helveticaFont
         });
         yPosition -= 20;
       }
@@ -473,7 +465,7 @@ export class BillingService {
         x: margin,
         y: yPosition,
         size: 14,
-        font: helveticaBoldFont,
+        font: helveticaBoldFont
       });
       yPosition -= 20;
 
@@ -483,7 +475,7 @@ export class BillingService {
           x: margin,
           y: yPosition,
           size: 12,
-          font: helveticaFont,
+          font: helveticaFont
         }
       );
       yPosition -= 40;
@@ -493,28 +485,28 @@ export class BillingService {
         x: margin,
         y: yPosition,
         size: 12,
-        font: helveticaBoldFont,
+        font: helveticaBoldFont
       });
 
       page.drawText('Quantity', {
         x: margin + 300,
         y: yPosition,
         size: 12,
-        font: helveticaBoldFont,
+        font: helveticaBoldFont
       });
 
       page.drawText('Unit Price', {
         x: margin + 380,
         y: yPosition,
         size: 12,
-        font: helveticaBoldFont,
+        font: helveticaBoldFont
       });
 
       page.drawText('Amount', {
         x: margin + 480,
         y: yPosition,
         size: 12,
-        font: helveticaBoldFont,
+        font: helveticaBoldFont
       });
       yPosition -= 20;
 
@@ -523,7 +515,7 @@ export class BillingService {
         start: { x: margin, y: yPosition },
         end: { x: width - margin, y: yPosition },
         thickness: 1,
-        color: rgb(0.5, 0.5, 0.5),
+        color: rgb(0.5, 0.5, 0.5)
       });
       yPosition -= 20;
 
@@ -538,7 +530,7 @@ export class BillingService {
             x: margin,
             y: yPosition,
             size: 12,
-            font: helveticaFont,
+            font: helveticaFont
           });
 
           if (i === 0) {
@@ -546,21 +538,21 @@ export class BillingService {
               x: margin + 300,
               y: yPosition,
               size: 12,
-              font: helveticaFont,
+              font: helveticaFont
             });
 
             page.drawText(`${invoice.currency} ${item.unitPrice.toFixed(2)}`, {
               x: margin + 380,
               y: yPosition,
               size: 12,
-              font: helveticaFont,
+              font: helveticaFont
             });
 
             page.drawText(`${invoice.currency} ${item.amount.toFixed(2)}`, {
               x: margin + 480,
               y: yPosition,
               size: 12,
-              font: helveticaFont,
+              font: helveticaFont
             });
           }
 
@@ -581,7 +573,7 @@ export class BillingService {
         start: { x: margin + 350, y: yPosition },
         end: { x: width - margin, y: yPosition },
         thickness: 1,
-        color: rgb(0.5, 0.5, 0.5),
+        color: rgb(0.5, 0.5, 0.5)
       });
       yPosition -= 25;
 
@@ -589,14 +581,14 @@ export class BillingService {
         x: margin + 350,
         y: yPosition,
         size: 12,
-        font: helveticaFont,
+        font: helveticaFont
       });
 
       page.drawText(`${invoice.currency} ${subtotal.toFixed(2)}`, {
         x: margin + 480,
         y: yPosition,
         size: 12,
-        font: helveticaFont,
+        font: helveticaFont
       });
       yPosition -= 20;
 
@@ -604,14 +596,14 @@ export class BillingService {
         x: margin + 350,
         y: yPosition,
         size: 12,
-        font: helveticaFont,
+        font: helveticaFont
       });
 
       page.drawText(`${invoice.currency} ${vatAmount.toFixed(2)}`, {
         x: margin + 480,
         y: yPosition,
         size: 12,
-        font: helveticaFont,
+        font: helveticaFont
       });
       yPosition -= 20;
 
@@ -620,14 +612,14 @@ export class BillingService {
         x: margin + 350,
         y: yPosition,
         size: 14,
-        font: helveticaBoldFont,
+        font: helveticaBoldFont
       });
 
       page.drawText(`${invoice.currency} ${total.toFixed(2)}`, {
         x: margin + 480,
         y: yPosition,
         size: 14,
-        font: helveticaBoldFont,
+        font: helveticaBoldFont
       });
       yPosition -= 40;
 
@@ -637,7 +629,7 @@ export class BillingService {
         x: margin,
         y: yPosition,
         size: 14,
-        font: helveticaBoldFont,
+        font: helveticaBoldFont
       });
       yPosition -= 20;
 
@@ -645,7 +637,7 @@ export class BillingService {
         x: margin,
         y: yPosition,
         size: 11,
-        font: helveticaFont,
+        font: helveticaFont
       });
       yPosition -= 20;
 
@@ -653,7 +645,7 @@ export class BillingService {
         x: margin,
         y: yPosition,
         size: 11,
-        font: helveticaFont,
+        font: helveticaFont
       });
       yPosition -= 20;
 
@@ -661,7 +653,7 @@ export class BillingService {
         x: margin,
         y: yPosition,
         size: 11,
-        font: helveticaFont,
+        font: helveticaFont
       });
 
       // Company info at bottom
@@ -671,7 +663,7 @@ export class BillingService {
         y: yPosition,
         size: 10,
         font: helveticaFont,
-        color: rgb(0.5, 0.5, 0.5),
+        color: rgb(0.5, 0.5, 0.5)
       });
       yPosition -= 15;
 
@@ -680,7 +672,7 @@ export class BillingService {
         y: yPosition,
         size: 10,
         font: helveticaFont,
-        color: rgb(0.5, 0.5, 0.5),
+        color: rgb(0.5, 0.5, 0.5)
       });
 
       // Save PDF to buffer
@@ -695,8 +687,8 @@ export class BillingService {
         metadata: {
           invoiceId,
           customerId: invoice.customerId!,
-          customerType: invoice.customerType,
-        },
+          customerType: invoice.customerType
+        }
       });
 
       this.logger.log(`PDF invoice generated and uploaded: ${url}`);
@@ -764,14 +756,14 @@ export class BillingService {
         subtotal,
         vatAmount,
         vatRate: API_CURRENCY_CONFIG.VAT_RATE,
-        issueDate: new Date().toLocaleDateString(),
+        issueDate: new Date().toLocaleDateString()
       };
 
       await this.notificationService.sendEmail({
         to: invoice.customer.email,
         subject: `Your API Invoice from ViralFX - ${invoice.id}`,
         template: 'api-invoice',
-        data: templateData,
+        data: templateData
       });
 
       this.logger.log(`Invoice email sent for ${invoice.id} to ${invoice.customer.email}`);
@@ -783,8 +775,7 @@ export class BillingService {
 
   private async getCustomerDetails(
     customerId: string,
-    customerType: 'USER' | 'BROKER',
-  ): Promise<{ id: string; email: string; firstName?: string; lastName?: string; companyName?: string } | null> {
+    customerType: 'USER' | 'BROKER'): Promise<{ id: string; email: string; firstName?: string; lastName?: string; companyName?: string } | null> {
     if (customerType === 'USER') {
       const user = await this.prisma.user.findUnique({
         where: { id: customerId },
@@ -792,8 +783,8 @@ export class BillingService {
           id: true,
           email: true,
           firstName: true,
-          lastName: true,
-        },
+          lastName: true
+        }
       });
       return user;
     } else {
@@ -802,14 +793,14 @@ export class BillingService {
         select: {
           id: true,
           contactEmail: true,
-          companyName: true,
-        },
+          companyName: true
+        }
       });
       if (broker) {
         return {
           id: broker.id,
           email: broker.contactEmail,
-          companyName: broker.companyName,
+          companyName: broker.companyName
         };
       }
     }

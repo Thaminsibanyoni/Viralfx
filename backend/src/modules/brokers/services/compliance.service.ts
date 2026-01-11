@@ -1,16 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import { BrokerComplianceCheck, ComplianceCheckType, ComplianceResult } from '../entities/broker-compliance-check.entity';
-import { Broker } from '../entities/broker.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerComplianceCheck, ComplianceCheckType, ComplianceResult } from '../entities/broker-compliance-check.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Broker } from '../entities/broker.entity';
 import { ComplianceAlert, ComplianceMonitoring } from '../interfaces/broker.interface';
-import { NotificationService } from '../../../modules/notifications/services/notification.service';
-import { WebSocketGateway } from '../../websocket/gateways/websocket.gateway';
+import { NotificationService } from "../../../modules/notifications/services/notification.service";
+import { WebSocketGatewayHandler } from "../../websocket/gateways/websocket.gateway";
 
 @Injectable()
 export class ComplianceService {
@@ -20,16 +18,11 @@ export class ComplianceService {
   private readonly checkInterval: number;
 
   constructor(
-    @InjectRepository(BrokerComplianceCheck)
-    private complianceCheckRepository: Repository<BrokerComplianceCheck>,
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-    private configService: ConfigService,
+        private configService: ConfigService,
     private httpService: HttpService,
     private notificationService: NotificationService,
-    private webSocketGateway: WebSocketGateway,
-    @InjectQueue('broker-compliance') private complianceQueue: Queue,
-  ) {
+    private webSocketGateway: WebSocketGatewayHandler,
+    @InjectQueue('broker-compliance') private complianceQueue: Queue) {
     this.sanctionsApiUrl = this.configService.get<string>('SANCTIONS_API_URL');
     this.sanctionsApiKey = this.configService.get<string>('SANCTIONS_API_KEY');
     this.checkInterval = this.configService.get<number>('COMPLIANCE_CHECK_INTERVAL', 86400000); // 24 hours default
@@ -37,11 +30,10 @@ export class ComplianceService {
 
   async performComplianceCheck(
     brokerId: string,
-    checkType: ComplianceCheckType,
-  ): Promise<BrokerComplianceCheck> {
+    checkType: ComplianceCheckType): Promise<BrokerComplianceCheck> {
     this.logger.log(`Performing ${checkType} compliance check for broker ${brokerId}`);
 
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     if (!broker) {
       throw new Error(`Broker not found: ${brokerId}`);
     }
@@ -76,17 +68,17 @@ export class ComplianceService {
         throw new Error(`Unknown compliance check type: ${checkType}`);
     }
 
-    const complianceCheck = this.complianceCheckRepository.create({
+    const complianceCheck = this.prisma.compliancecheckrepository.create({
       brokerId,
       checkType,
       checkDate: new Date(),
       result,
       score,
       details,
-      recommendations,
+      recommendations
     });
 
-    const savedCheck = await this.complianceCheckRepository.save(complianceCheck);
+    const savedCheck = await this.prisma.compliancecheckrepository.upsert(complianceCheck);
 
     // Send alerts if check failed
     if (result === ComplianceResult.FAIL || result === ComplianceResult.WARNING) {
@@ -99,7 +91,7 @@ export class ComplianceService {
         details,
         recommendations,
         createdAt: savedCheck.createdAt,
-        status: 'OPEN',
+        status: 'OPEN'
       });
     }
 
@@ -110,10 +102,10 @@ export class ComplianceService {
   async calculateComplianceScore(brokerId: string): Promise<number> {
     this.logger.log(`Calculating compliance score for broker ${brokerId}`);
 
-    const recentChecks = await this.complianceCheckRepository.find({
+    const recentChecks = await this.prisma.compliancecheckrepository.findMany({
       where: { brokerId },
       order: { checkDate: 'DESC' },
-      take: 100, // Last 100 checks
+      take: 100 // Last 100 checks
     });
 
     if (recentChecks.length === 0) {
@@ -136,7 +128,7 @@ export class ComplianceService {
       [ComplianceCheckType.SANCTIONS_LIST]: 0.25, // 25% weight
       [ComplianceCheckType.ADVERSE_MEDIA]: 0.2, // 20% weight
       [ComplianceCheckType.FINANCIAL_HEALTH]: 0.15, // 15% weight
-      [ComplianceCheckType.SECURITY_ASSESSMENT]: 0.1, // 10% weight
+      [ComplianceCheckType.SECURITY_ASSESSMENT]: 0.1 // 10% weight
     };
 
     let totalWeightedScore = 0;
@@ -167,7 +159,7 @@ export class ComplianceService {
         result: ComplianceResult.FAIL,
         score: 0,
         details: { checkedValue: null, expectedValue: 'Valid FSCA License', flags: ['NO_LICENSE_PROVIDED'] },
-        recommendations: ['Submit FSCA license number for verification'],
+        recommendations: ['Submit FSCA license number for verification']
       };
     }
 
@@ -183,9 +175,9 @@ export class ComplianceService {
         details: {
           checkedValue: broker.fscaLicenseNumber,
           expectedValue: 'Valid FSCA License',
-          sources: ['FSCA Registry'],
+          sources: ['FSCA Registry']
         },
-        recommendations: [],
+        recommendations: []
       };
     } else {
       return {
@@ -194,9 +186,9 @@ export class ComplianceService {
         details: {
           checkedValue: broker.fscaLicenseNumber,
           expectedValue: 'Valid FSCA License',
-          flags: ['LICENSE_NOT_VERIFIED'],
+          flags: ['LICENSE_NOT_VERIFIED']
         },
-        recommendations: ['Complete FSCA license verification process'],
+        recommendations: ['Complete FSCA license verification process']
       };
     }
   }
@@ -218,13 +210,13 @@ export class ComplianceService {
           {
             name: brokerName,
             registrationNumber,
-            entityType: 'COMPANY',
+            entityType: 'COMPANY'
           },
           {
             headers: {
               'Authorization': `Bearer ${this.sanctionsApiKey}`,
-              'Content-Type': 'application/json',
-            },
+              'Content-Type': 'application/json'
+            }
           }
         )
       );
@@ -238,9 +230,9 @@ export class ComplianceService {
           details: {
             checkedValue: brokerName,
             expectedValue: 'No matches in sanctions lists',
-            sources: ['International Sanctions Databases'],
+            sources: ['International Sanctions Databases']
           },
-          recommendations: [],
+          recommendations: []
         };
       } else {
         return {
@@ -250,9 +242,9 @@ export class ComplianceService {
             checkedValue: brokerName,
             expectedValue: 'No matches in sanctions lists',
             flags: matches,
-            sources: ['International Sanctions Databases'],
+            sources: ['International Sanctions Databases']
           },
-          recommendations: ['Review potential matches', 'Submit documentation to verify identity'],
+          recommendations: ['Review potential matches', 'Submit documentation to verify identity']
         };
       }
     } catch (error) {
@@ -264,9 +256,9 @@ export class ComplianceService {
           checkedValue: brokerName,
           expectedValue: 'Sanctions list check completed',
           flags: ['SANCTIONS_CHECK_FAILED'],
-          sources: [],
+          sources: []
         },
-        recommendations: ['Retry sanctions check', 'Manual review required'],
+        recommendations: ['Retry sanctions check', 'Manual review required']
       };
     }
   }
@@ -291,9 +283,9 @@ export class ComplianceService {
           checkedValue: 'No adverse media found',
           expectedValue: 'Clean media profile',
           sources: ['Media Monitoring'],
-          metadata: { daysSinceCreation, status: 'NEW_BROKER_GRACE_PERIOD' },
+          metadata: { daysSinceCreation, status: 'NEW_BROKER_GRACE_PERIOD' }
         },
-        recommendations: ['Monitor media coverage regularly'],
+        recommendations: ['Monitor media coverage regularly']
       };
     }
 
@@ -307,9 +299,9 @@ export class ComplianceService {
         details: {
           checkedValue: 'No adverse media found',
           expectedValue: 'Clean media profile',
-          sources: ['Media Monitoring', 'News Archives'],
+          sources: ['Media Monitoring', 'News Archives']
         },
-        recommendations: ['Continue regular media monitoring'],
+        recommendations: ['Continue regular media monitoring']
       };
     } else {
       return {
@@ -319,9 +311,9 @@ export class ComplianceService {
           checkedValue: 'Adverse media detected',
           expectedValue: 'Clean media profile',
           flags: ['NEGATIVE_MEDIA_COVERAGE'],
-          sources: ['Media Monitoring'],
+          sources: ['Media Monitoring']
         },
-        recommendations: ['Review media coverage', 'Submit response or clarification', 'Enhanced monitoring'],
+        recommendations: ['Review media coverage', 'Submit response or clarification', 'Enhanced monitoring']
       };
     }
   }
@@ -341,9 +333,9 @@ export class ComplianceService {
         details: {
           checkedValue: { aum, clientCount },
           expectedValue: 'Valid financial metrics',
-          flags: ['MISSING_FINANCIAL_DATA'],
+          flags: ['MISSING_FINANCIAL_DATA']
         },
-        recommendations: ['Update AUM and client count information'],
+        recommendations: ['Update AUM and client count information']
       };
     }
 
@@ -360,9 +352,9 @@ export class ComplianceService {
           checkedValue: { aum, clientCount },
           expectedValue: 'Healthy financial metrics',
           threshold: 0.8,
-          actualValue: totalScore,
+          actualValue: totalScore
         },
-        recommendations: [],
+        recommendations: []
       };
     } else if (totalScore >= 0.5) {
       return {
@@ -373,9 +365,9 @@ export class ComplianceService {
           expectedValue: 'Healthy financial metrics',
           threshold: 0.8,
           actualValue: totalScore,
-          flags: ['BELOW_EXPECTED_METRICS'],
+          flags: ['BELOW_EXPECTED_METRICS']
         },
-        recommendations: ['Focus on client acquisition', 'Review business strategy'],
+        recommendations: ['Focus on client acquisition', 'Review business strategy']
       };
     } else {
       return {
@@ -386,9 +378,9 @@ export class ComplianceService {
           expectedValue: 'Healthy financial metrics',
           threshold: 0.5,
           actualValue: totalScore,
-          flags: ['FINANCIAL_CONCERNS'],
+          flags: ['FINANCIAL_CONCERNS']
         },
-        recommendations: ['Urgent review of business model', 'Consider financial support', 'Enhanced monitoring'],
+        recommendations: ['Urgent review of business model', 'Consider financial support', 'Enhanced monitoring']
       };
     }
   }
@@ -421,9 +413,9 @@ export class ComplianceService {
         details: {
           checkedValue: `${passedChecks}/${totalChecks} security measures`,
           expectedValue: 'All security measures configured',
-          flags: [],
+          flags: []
         },
-        recommendations: ['Regular security audits', 'Keep security measures updated'],
+        recommendations: ['Regular security audits', 'Keep security measures updated']
       };
     } else {
       const failedChecks = securityChecks.filter(check => !check.pass).map(check => check.name);
@@ -433,26 +425,26 @@ export class ComplianceService {
         details: {
           checkedValue: `${passedChecks}/${totalChecks} security measures`,
           expectedValue: 'All security measures configured',
-          flags: failedChecks,
+          flags: failedChecks
         },
         recommendations: [
           `Configure missing security measures: ${failedChecks.join(', ')}`,
           'Enable IP whitelisting',
           'Set appropriate rate limits',
-        ],
+        ]
       };
     }
   }
 
   private async updateBrokerTrustScore(brokerId: string, complianceScore: number): Promise<void> {
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     if (!broker) return;
 
     // Update trust score (30% weight to compliance score)
     const newTrustScore = Math.round(complianceScore * 30 + broker.trustScore * 70) / 100;
 
     broker.trustScore = Math.round(Math.min(Math.max(newTrustScore, 0), 100));
-    await this.brokerRepository.save(broker);
+    await this.prisma.broker.upsert(broker);
   }
 
   private async sendComplianceAlert(brokerId: string, alert: ComplianceAlert): Promise<void> {
@@ -467,7 +459,7 @@ export class ComplianceService {
       if (alert.severity === 'HIGH') {
         await this.complianceQueue.add('handle-critical-compliance-issue', {
           brokerId,
-          alert,
+          alert
         }, { delay: 60000 }); // Process after 1 minute
       }
 
@@ -480,12 +472,12 @@ export class ComplianceService {
   async generateComplianceReport(brokerId: string, period: { start: Date; end: Date }): Promise<Buffer> {
     this.logger.log(`Generating compliance report for broker ${brokerId}`);
 
-    const checks = await this.complianceCheckRepository.find({
+    const checks = await this.prisma.compliancecheckrepository.findMany({
       where: {
         brokerId,
-        checkDate: Between(period.start, period.end),
+        checkDate: Between(period.start, period.end)
       },
-      order: { checkDate: 'DESC' },
+      order: { checkDate: 'DESC' }
     });
 
     const overallScore = await this.calculateComplianceScore(brokerId);
@@ -513,7 +505,7 @@ ${checks.map(check => `
   }
 
   async getComplianceMonitoring(brokerId: string): Promise<ComplianceMonitoring> {
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
 
     // Default monitoring configuration
     // In a real implementation, this would be configurable per broker
@@ -521,13 +513,13 @@ ${checks.map(check => `
       realtimeChecks: true,
       periodicReviews: {
         frequency: 'WEEKLY',
-        enabled: true,
+        enabled: true
       },
       alertThresholds: {
         riskScore: 0.3,
         apiErrors: 50,
         volumeDrop: 0.25,
-        complianceScore: 0.7,
+        complianceScore: 0.7
       },
       requiredChecks: [
         ComplianceCheckType.FSCA_LICENSE,
@@ -535,7 +527,7 @@ ${checks.map(check => `
         ComplianceCheckType.ADVERSE_MEDIA,
         ComplianceCheckType.FINANCIAL_HEALTH,
         ComplianceCheckType.SECURITY_ASSESSMENT,
-      ],
+      ]
     };
   }
 }

@@ -1,7 +1,7 @@
 import { IsOptional, IsString, IsEnum, IsUUID, IsInt, Min, Max, IsDateString, IsArray } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ArticleStatus } from '../entities/knowledge-base-article.entity';
+import { ArticleStatus } from '../enums/support.enum';
 
 export class ArticleFilterDto {
   @ApiPropertyOptional({ description: 'Page number', example: 1, default: 1 })

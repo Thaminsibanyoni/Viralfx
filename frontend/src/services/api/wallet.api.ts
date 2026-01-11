@@ -136,6 +136,18 @@ export const _walletApi = {
     return response.data;
   },
 
+  // Initiate deposit with gateway selection
+  initiateDeposit: async (amount: number, currency: string, gateway: 'payfast' | 'paystack' | 'ozow') => {
+    const client = createApiClient();
+    const response = await client.post('/wallet/deposit', {
+      amount,
+      currency,
+      gateway,
+      callbackUrl: `${window.location.origin}/wallet/deposit/return`
+    });
+    return response.data;
+  },
+
   // Initiate withdrawal
   withdraw: async (data: WithdrawalRequest) => {
     const client = createApiClient();

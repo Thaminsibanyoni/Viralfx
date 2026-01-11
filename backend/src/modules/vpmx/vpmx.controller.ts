@@ -8,29 +8,28 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
-  Logger,
+  Logger
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AdminGuard } from '../admin/guards/admin-auth.guard';
-import { VPMXService } from './vpmx.service';
-import { VPMXComputationService } from './vpmx-computation.service';
-import { VPMXAnalyticsService } from './vpmx-analytics.service';
-import { VPMXEnrichmentService } from './vpmx-enrichment.service';
-import { VPMXAIService } from './vpmx-ai.service';
-import { ComputeVPMXDto, VPMXIndexQueryDto, VPMXWeightUpdateDto } from './dto/compute-vpmx.dto';
-import { VPMXInterval } from './dto/compute-vpmx.dto';
+import { AdminAuthGuard as AdminGuard } from '../admin/guards/admin-auth.guard';
+import { VPMXService } from "./vpmx.service";
+// import { VPMXComputationService } from "./vpmx-computation.service";
+import { VPMXAnalyticsService } from "./services/vpmx-analytics.service";
+import { VPMXEnrichmentService } from "./services/vpmx-enrichment.service";
+import { VPMXMLService } from "./services/vpmx-ml.service";
+import { ComputeVPMXDto, VPMXIndexQueryDto, VPMXWeightUpdateDto } from "./dto/compute-vpmx.dto";
+import { VPMXInterval } from "./dto/compute-vpmx.dto";
 
 @ApiTags('VPMX - Viral Popularity Market Index')
 @Controller('vpmx')
 export class VPMXController {
   constructor(
     private readonly vpmxService: VPMXService,
-    private readonly vpmxComputationService: VPMXComputationService,
+    // private readonly vpmxComputationService: VPMXComputationService,
     private readonly vpmxAnalyticsService: VPMXAnalyticsService,
     private readonly vpmxEnrichmentService: VPMXEnrichmentService,
-    private readonly vpmxAIService: VPMXAIService,
-  ) {}
+    private readonly vpmxmlService: VPMXMLService) {}
 
   private readonly logger = new Logger(VPMXController.name);
 
@@ -46,7 +45,7 @@ export class VPMXController {
       return {
         vtsSymbol,
         value: null,
-        message: 'No VPMX data available for this symbol',
+        message: 'No VPMX data available for this symbol'
       };
     }
 
@@ -55,7 +54,7 @@ export class VPMXController {
       value: result.value,
       timestamp: result.timestamp,
       components: result.components,
-      metadata: result.metadata,
+      metadata: result.metadata
     };
   }
 
@@ -68,7 +67,7 @@ export class VPMXController {
 
     return {
       results,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -83,9 +82,9 @@ export class VPMXController {
       trending: trending.map(entry => ({
         vtsSymbol: entry.vtsSymbol,
         value: entry.value,
-        timestamp: entry.timestamp,
+        timestamp: entry.timestamp
       })),
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -98,16 +97,14 @@ export class VPMXController {
   @ApiResponse({ status: 200, description: 'Historical data returned successfully' })
   async getVPMXHistory(
     @Param('vtsSymbol') vtsSymbol: string,
-    @Query() query: VPMXIndexQueryDto,
-  ) {
+    @Query() query: VPMXIndexQueryDto) {
     const { data, total } = await this.vpmxService.getVPMXHistory(
       vtsSymbol,
       query.interval || VPMXInterval.ONE_HOUR,
       query.startDate ? new Date(query.startDate) : undefined,
       query.endDate ? new Date(query.endDate) : undefined,
       query.limit || 100,
-      query.page || 1,
-    );
+      query.page || 1);
 
     return {
       vtsSymbol,
@@ -117,8 +114,8 @@ export class VPMXController {
         total,
         page: query.page || 1,
         limit: query.limit || 100,
-        totalPages: Math.ceil(total / (query.limit || 100)),
-      },
+        totalPages: Math.ceil(total / (query.limit || 100))
+      }
     };
   }
 
@@ -133,7 +130,7 @@ export class VPMXController {
     return {
       region: region || 'global',
       data: regionalData,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -147,7 +144,7 @@ export class VPMXController {
 
     return {
       weighting,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -161,15 +158,14 @@ export class VPMXController {
     const jobId = await this.vpmxComputationService.queueVPMXComputation(
       body.vtsSymbol,
       body.timestamp ? new Date(body.timestamp) : undefined,
-      body.force,
-    );
+      body.force);
 
     this.logger.log(`VPMX computation queued for ${body.vtsSymbol}, job ID: ${jobId}`);
 
     return {
       message: 'VPMX computation queued successfully',
       jobId,
-      vtsSymbol: body.vtsSymbol,
+      vtsSymbol: body.vtsSymbol
     };
   }
 
@@ -182,15 +178,14 @@ export class VPMXController {
   async queueBatchComputation(@Body() body: { vtsSymbols: string[]; timestamp?: string }) {
     const results = await this.vpmxComputationService.batchComputeVPMX(
       body.vtsSymbols,
-      body.timestamp ? new Date(body.timestamp) : undefined,
-    );
+      body.timestamp ? new Date(body.timestamp) : undefined);
 
     this.logger.log(`Batch VPMX computation queued for ${body.vtsSymbols.length} symbols`);
 
     return {
       message: 'Batch VPMX computation queued successfully',
       results,
-      count: body.vtsSymbols.length,
+      count: body.vtsSymbols.length
     };
   }
 
@@ -209,7 +204,7 @@ export class VPMXController {
 
     return {
       message: 'VPMX recompute initiated for all active symbols',
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -227,7 +222,7 @@ export class VPMXController {
     return {
       message: 'VPMX weighting configuration updated successfully',
       weighting: body,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -247,7 +242,7 @@ export class VPMXController {
       message: 'VPMX aggregate refresh initiated',
       interval: body.interval,
       regions: body.regions || ['all'],
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -265,14 +260,14 @@ export class VPMXController {
         database: 'healthy',
         redis: 'healthy',
         computation: 'healthy',
-        websocket: 'healthy',
+        websocket: 'healthy'
       },
       metrics: {
         computationsPerHour: 1250,
         averageResponseTime: 145, // ms
         cacheHitRate: 0.87,
-        errorRate: 0.001,
-      },
+        errorRate: 0.001
+      }
     };
 
     return healthStatus;
@@ -300,18 +295,18 @@ export class VPMXController {
       dataPoints: {
         last24Hours: recentDataCount,
         totalSymbols: totalSymbols,
-        regionalBreakdowns: regionalDataCount,
+        regionalBreakdowns: regionalDataCount
       },
       performance: {
         averageComputeTime: 1250, // ms
         cacheHitRate: 0.87,
-        throughput: 35, // computations per minute
+        throughput: 35 // computations per minute
       },
       system: {
         uptime: '15d 7h 32m',
         memoryUsage: '2.1GB',
-        queueSize: 12,
-      },
+        queueSize: 12
+      }
     };
   }
 
@@ -333,9 +328,9 @@ export class VPMXController {
         change: {
           oneHour: 'percentage',
           twentyFourHours: 'percentage',
-          sevenDays: 'percentage',
-        },
-      },
+          sevenDays: 'percentage'
+        }
+      }
     };
   }
 
@@ -352,7 +347,7 @@ export class VPMXController {
       vtsSymbol,
       timeWindow,
       result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -370,7 +365,7 @@ export class VPMXController {
       vtsSymbol,
       predictionHorizon,
       result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -384,7 +379,7 @@ export class VPMXController {
     return {
       vtsSymbol,
       result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -397,7 +392,7 @@ export class VPMXController {
     const result = await this.vpmxAnalyticsService.detectArbitrageOpportunities();
     return {
       opportunities: result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -413,7 +408,7 @@ export class VPMXController {
     return {
       vtsSymbol,
       result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -427,7 +422,7 @@ export class VPMXController {
     return {
       vtsSymbol,
       result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -441,7 +436,7 @@ export class VPMXController {
     return {
       vtsSymbol,
       result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -455,7 +450,7 @@ export class VPMXController {
     return {
       vtsSymbol,
       result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -469,7 +464,7 @@ export class VPMXController {
     return {
       symbols: body.vtsSymbols,
       result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -484,7 +479,7 @@ export class VPMXController {
     @Param('vtsSymbol') vtsSymbol: string,
     @Body() body: { predictionHorizon?: string; modelType?: string }
   ) {
-    const result = await this.vpmxAIService.predictVPMXWithAI(
+    const result = await this.vpmxmlService.predictVPMXWithAI(
       vtsSymbol,
       body.predictionHorizon || '24h',
       body.modelType || 'LSTM'
@@ -494,7 +489,7 @@ export class VPMXController {
       predictionHorizon: body.predictionHorizon || '24h',
       modelType: body.modelType || 'LSTM',
       result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -504,11 +499,11 @@ export class VPMXController {
   @ApiOperation({ summary: 'AI-powered anomaly detection' })
   @ApiResponse({ status: 200, description: 'Anomaly detection completed' })
   async detectAnomaliesWithAI(@Param('vtsSymbol') vtsSymbol: string) {
-    const result = await this.vpmxAIService.detectAnomalies(vtsSymbol);
+    const result = await this.vpmxmlService.detectAnomalies(vtsSymbol);
     return {
       vtsSymbol,
       result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -518,11 +513,11 @@ export class VPMXController {
   @ApiOperation({ summary: 'NLP-powered trend narrative analysis' })
   @ApiResponse({ status: 200, description: 'Narrative analysis completed' })
   async analyzeTrendNarrative(@Param('vtsSymbol') vtsSymbol: string) {
-    const result = await this.vpmxAIService.analyzeTrendNarrative(vtsSymbol);
+    const result = await this.vpmxmlService.analyzeTrendNarrative(vtsSymbol);
     return {
       vtsSymbol,
       result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -532,11 +527,11 @@ export class VPMXController {
   @ApiOperation({ summary: 'Network analysis for influence propagation' })
   @ApiResponse({ status: 200, description: 'Network analysis completed' })
   async analyzeInfluenceNetwork(@Param('vtsSymbol') vtsSymbol: string) {
-    const result = await this.vpmxAIService.analyzeInfluenceNetwork(vtsSymbol);
+    const result = await this.vpmxmlService.analyzeInfluenceNetwork(vtsSymbol);
     return {
       vtsSymbol,
       result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -549,12 +544,12 @@ export class VPMXController {
     @Param('vtsSymbol') vtsSymbol: string,
     @Body() body: { objectives: Array<{ type: string; weight: number }> }
   ) {
-    const result = await this.vpmxAIService.optimizeMarketStrategy(vtsSymbol, body.objectives);
+    const result = await this.vpmxmlService.optimizeMarketStrategy(vtsSymbol, body.objectives);
     return {
       vtsSymbol,
       objectives: body.objectives,
       result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -564,11 +559,11 @@ export class VPMXController {
   @ApiOperation({ summary: 'Train reinforcement learning agent' })
   @ApiResponse({ status: 200, description: 'Agent training initiated' })
   async trainReinforcementAgent(@Param('vtsSymbol') vtsSymbol: string) {
-    const result = await this.vpmxAIService.trainReinforcementAgent(vtsSymbol);
+    const result = await this.vpmxmlService.trainReinforcementAgent(vtsSymbol);
     return {
       vtsSymbol,
       result,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 }

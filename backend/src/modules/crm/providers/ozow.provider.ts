@@ -17,11 +17,9 @@ export class OzowProvider implements PaymentProvider {
     this.privateKey = this.configService.get('OZOW_PRIVATE_KEY');
     this.apiKey = this.configService.get('OZOW_API_KEY');
     this.isTestMode = this.configService.get('OZOW_TEST_MODE', 'true') === 'true';
-
     if (!this.siteCode || !this.privateKey || !this.apiKey) {
       throw new Error('OZOW_SITE_CODE, OZOW_PRIVATE_KEY, and OZOW_API_KEY environment variables are required');
     }
-
     this.baseUrl = this.isTestMode
       ? 'https://secure.ozow.com/postpaymentrequest'
       : 'https://secure.ozow.com/postpaymentrequest';
@@ -29,7 +27,7 @@ export class OzowProvider implements PaymentProvider {
 
   async createPayment(paymentRequest: PaymentRequest): Promise<PaymentResponse> {
     try {
-      const payload = {
+      const payload: any = {
         SiteCode: this.siteCode,
         CountryCode: 'ZA',
         CurrencyCode: paymentRequest.currency || 'ZAR',
@@ -52,7 +50,7 @@ export class OzowProvider implements PaymentProvider {
         IsDebit: false,
         CancelUrlIsBack: true,
         SuccessUrlIsBack: true,
-        VerifyHash: false, // We'll generate our own hash
+        VerifyHash: false // We'll generate our own hash
       };
 
       // Generate secure hash
@@ -66,8 +64,8 @@ export class OzowProvider implements PaymentProvider {
         new URLSearchParams(payload).toString(),
         {
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
         }
       );
 
@@ -76,13 +74,12 @@ export class OzowProvider implements PaymentProvider {
         // Extract redirect URL from HTML form
         const redirectUrlMatch = response.data.match(/action="([^"]+)"/);
         const redirectUrl = redirectUrlMatch ? redirectUrlMatch[1] : this.baseUrl;
-
         return {
           success: true,
           reference: paymentRequest.reference,
           authorizationUrl: redirectUrl,
           provider: 'ozow',
-          metadata: { checkSum, inputString },
+          metadata: { checkSum, inputString }
         };
       } else {
         return {
@@ -91,14 +88,14 @@ export class OzowProvider implements PaymentProvider {
           authorizationUrl: response.data.RedirectUrl || this.baseUrl,
           transactionId: response.data.TransactionId,
           provider: 'ozow',
-          metadata: response.data,
+          metadata: response.data
         };
       }
     } catch (error) {
       return {
         success: false,
         error: error.response?.data?.message || error.message,
-        provider: 'ozow',
+        provider: 'ozow'
       };
     }
   }
@@ -107,27 +104,23 @@ export class OzowProvider implements PaymentProvider {
     try {
       // Ozow payment verification is typically done through webhooks
       // This method would query Ozow's API for transaction status
-      const payload = {
+      const payload: any = {
         SiteCode: this.siteCode,
-        TransactionReference: reference,
+        TransactionReference: reference
       };
-
       const inputString = this.generateInputString(payload);
       const checkSum = this.generateCheckSum(inputString);
       payload.CheckSum = checkSum;
-
       const response: AxiosResponse = await axios.post(
         `${this.isTestMode ? 'https://api.ozow.com/PostPaymentRequest' : 'https://api.ozow.com/PostPaymentRequest'}`,
         new URLSearchParams(payload).toString(),
         {
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
         }
       );
-
       const data = response.data;
-
       if (data.Status && data.Status.toLowerCase() === 'completed') {
         return {
           success: true,
@@ -138,7 +131,7 @@ export class OzowProvider implements PaymentProvider {
           paidAt: new Date(data.CompletedDate || data.TransactionDate),
           bankReference: data.BankReference,
           provider: 'ozow',
-          metadata: data,
+          metadata: data
         };
       } else {
         return {
@@ -147,14 +140,14 @@ export class OzowProvider implements PaymentProvider {
           status: data.Status?.toLowerCase() || 'pending',
           message: data.StatusDescription,
           provider: 'ozow',
-          metadata: data,
+          metadata: data
         };
       }
     } catch (error) {
       return {
         success: false,
         error: error.response?.data?.message || error.message,
-        provider: 'ozow',
+        provider: 'ozow'
       };
     }
   }
@@ -164,24 +157,19 @@ export class OzowProvider implements PaymentProvider {
       // Parse URL-encoded form data from Ozow
       const parsedData = new URLSearchParams(rawBody);
       const eventData: any = {};
-
-      for (const [key, value] of parsedData.entries()) {
+      parsedData.forEach((value, key) => {
         eventData[key] = value;
-      }
+      });
 
       // Verify webhook signature using the CheckSum
       const receivedCheckSum = eventData.CheckSum;
       delete eventData.CheckSum;
-
       const inputString = this.generateInputString(eventData);
       const expectedCheckSum = this.generateCheckSum(inputString);
-
       if (receivedCheckSum !== expectedCheckSum) {
         throw new Error('Invalid webhook signature');
       }
-
       const status = eventData.Status?.toLowerCase();
-
       return {
         provider: 'ozow',
         eventType: `payment.${status}`,
@@ -193,7 +181,7 @@ export class OzowProvider implements PaymentProvider {
         customerEmail: eventData.CustomerEmail,
         bankReference: eventData.BankReference,
         transactionId: eventData.TransactionId,
-        metadata: eventData,
+        metadata: eventData
       };
     } catch (error) {
       throw new Error(`Invalid webhook payload: ${error.message}`);
@@ -202,27 +190,24 @@ export class OzowProvider implements PaymentProvider {
 
   async refundPayment(reference: string, amount?: number): Promise<PaymentResponse> {
     try {
-      const payload = {
+      const payload: any = {
         SiteCode: this.siteCode,
         TransactionReference: reference,
         RefundAmount: amount ? amount.toFixed(2) : undefined,
-        RefundReason: 'Customer requested refund',
+        RefundReason: 'Customer requested refund'
       };
-
       const inputString = this.generateInputString(payload);
       const checkSum = this.generateCheckSum(inputString);
       payload.CheckSum = checkSum;
-
       const response: AxiosResponse = await axios.post(
         `${this.isTestMode ? 'https://api.ozow.com/RefundRequest' : 'https://api.ozow.com/RefundRequest'}`,
         new URLSearchParams(payload).toString(),
         {
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
         }
       );
-
       return {
         success: true,
         reference,
@@ -230,13 +215,13 @@ export class OzowProvider implements PaymentProvider {
         amount: amount || parseFloat(response.data.OriginalAmount),
         status: 'processing',
         provider: 'ozow',
-        metadata: response.data,
+        metadata: response.data
       };
     } catch (error) {
       return {
         success: false,
         error: error.response?.data?.message || error.message,
-        provider: 'ozow',
+        provider: 'ozow'
       };
     }
   }
@@ -290,25 +275,22 @@ export class OzowProvider implements PaymentProvider {
   }
 
   async getPaymentStatus(transactionReference: string): Promise<any> {
-    const payload = {
+    const payload: any = {
       SiteCode: this.siteCode,
-      TransactionReference: transactionReference,
+      TransactionReference: transactionReference
     };
-
     const inputString = this.generateInputString(payload);
     const checkSum = this.generateCheckSum(inputString);
     payload.CheckSum = checkSum;
-
     const response: AxiosResponse = await axios.post(
       `${this.isTestMode ? 'https://api.ozow.com/GetTransactionStatus' : 'https://api.ozow.com/GetTransactionStatus'}`,
       new URLSearchParams(payload).toString(),
       {
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
       }
     );
-
     return response.data;
   }
 }

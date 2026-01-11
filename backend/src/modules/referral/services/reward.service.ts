@@ -1,5 +1,5 @@
 import { Injectable, Logger, BadRequestException, NotFoundException, InternalServerErrorException, Inject } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -10,7 +10,7 @@ import {
   UpdateRewardDto,
   RewardClaimDto,
   RewardStatus,
-  RewardType,
+  RewardType
 } from '../dto/referral.dto';
 
 @Injectable()
@@ -22,8 +22,7 @@ export class RewardService {
     private readonly prisma: PrismaService,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     private readonly configService: ConfigService,
-    @InjectQueue('reward-distribution') private readonly rewardDistributionQueue: Queue,
-  ) {}
+    @InjectQueue('reward-distribution') private readonly rewardDistributionQueue: Queue) {}
 
   /**
    * Create a new reward
@@ -44,8 +43,8 @@ export class RewardService {
           startDate: createData.startDate,
           endDate: createData.endDate,
           maxClaims: createData.maxClaims,
-          metadata: createData.metadata || {},
-        },
+          metadata: createData.metadata || {}
+        }
       });
 
       // Invalidate cache
@@ -71,8 +70,8 @@ export class RewardService {
         data: {
           isActive: true,
           approvedBy: adminId,
-          approvedAt: new Date(),
-        },
+          approvedAt: new Date()
+        }
       });
 
       // Invalidate cache
@@ -99,7 +98,7 @@ export class RewardService {
 
     try {
       const reward = await this.prisma.referralReward.findUnique({
-        where: { id: rewardId },
+        where: { id: rewardId }
       });
 
       if (!reward) {
@@ -111,8 +110,8 @@ export class RewardService {
         where: {
           userId,
           rewardId,
-          status: { in: [RewardStatus.PENDING, RewardStatus.PROCESSED, RewardStatus.PAID] },
-        },
+          status: { in: [RewardStatus.PENDING, RewardStatus.PROCESSED, RewardStatus.PAID] }
+        }
       });
 
       if (existingClaim) {
@@ -128,16 +127,16 @@ export class RewardService {
             rewardId,
             referralId,
             status: RewardStatus.PENDING,
-            metadata: metadata || {},
-          },
+            metadata: metadata || {}
+          }
         });
 
         // Update reward claim count
         await tx.referralReward.update({
           where: { id: rewardId },
           data: {
-            currentClaims: { increment: 1 },
-          },
+            currentClaims: { increment: 1 }
+          }
         });
 
         return newClaim;
@@ -150,15 +149,15 @@ export class RewardService {
           claimId: claim.id,
           userId,
           rewardId,
-          referralId,
+          referralId
         },
         {
           delay: 0,
           attempts: 3,
           backoff: {
             type: 'exponential',
-            delay: 2000,
-          },
+            delay: 2000
+          }
         }
       );
 
@@ -173,7 +172,7 @@ export class RewardService {
         processedAt: claim.updatedAt,
         value: reward.value,
         type: reward.type,
-        name: reward.name,
+        name: reward.name
       };
     } catch (error) {
       this.logger.error('Failed to distribute reward:', error);
@@ -196,9 +195,9 @@ export class RewardService {
           metadata: {
             expired: true,
             expiredAt: new Date(),
-            expiredReason: reason || 'Manual expiration',
-          },
-        },
+            expiredReason: reason || 'Manual expiration'
+          }
+        }
       });
 
       // Invalidate cache
@@ -246,14 +245,14 @@ export class RewardService {
             referral: {
               include: {
                 referredUser: {
-                  select: { username: true },
-                },
-              },
-            },
+                  select: { username: true }
+                }
+              }
+            }
           },
           orderBy: { createdAt: 'desc' },
           take: limit,
-          skip: offset,
+          skip: offset
         }),
         this.prisma.referralRewardClaim.count({ where: whereClause }),
       ]);
@@ -271,7 +270,7 @@ export class RewardService {
         description: claim.reward.description,
         referralId: claim.referralId,
         referral: claim.referral,
-        metadata: claim.metadata,
+        metadata: claim.metadata
       }));
 
       const result = { rewards, total };
@@ -300,7 +299,7 @@ export class RewardService {
         SIGNUP: 5,
         KYC: 10,
         FIRST_TRADE: 20,
-        FIRST_BET: 15,
+        FIRST_BET: 15
       });
 
       // Get tier multipliers
@@ -309,7 +308,7 @@ export class RewardService {
         SILVER: 1.5,
         GOLD: 2.0,
         PLATINUM: 3.0,
-        DIAMOND: 5.0,
+        DIAMOND: 5.0
       });
 
       const baseAmount = baseRewards[activity] || 0;
@@ -332,14 +331,14 @@ export class RewardService {
         by: ['referrerId'],
         where: {
           referrerId: userId,
-          status: 'COMPLETED',
+          status: 'COMPLETED'
         },
         _count: {
-          referrerId: true,
+          referrerId: true
         },
         _sum: {
-          rewardAmount: true,
-        },
+          rewardAmount: true
+        }
       });
 
       const completedReferrals = stats[0]?._count.referrerId || 0;
@@ -375,9 +374,9 @@ export class RewardService {
         where: { id: rewardId },
         include: {
           claims: {
-            select: { id: true },
-          },
-        },
+            select: { id: true }
+          }
+        }
       });
 
       if (!reward) {
@@ -400,7 +399,7 @@ export class RewardService {
     try {
       const reward = await this.prisma.referralReward.update({
         where: { id: rewardId },
-        data: updateData,
+        data: updateData
       });
 
       // Invalidate cache
@@ -422,7 +421,7 @@ export class RewardService {
 
     try {
       await this.prisma.referralReward.delete({
-        where: { id: rewardId },
+        where: { id: rewardId }
       });
 
       // Invalidate cache
@@ -458,12 +457,12 @@ export class RewardService {
           where: whereClause,
           include: {
             claims: {
-              select: { id: true },
-            },
+              select: { id: true }
+            }
           },
           orderBy: { createdAt: 'desc' },
           take: limit,
-          skip: offset,
+          skip: offset
         }),
         this.prisma.referralReward.count({ where: whereClause }),
       ]);
@@ -504,7 +503,7 @@ export class RewardService {
                 (reward.maxClaims === 0 || reward._count?.claims < reward.maxClaims),
       claimedByUser: false, // This would be set per user context
       createdAt: reward.createdAt,
-      updatedAt: reward.updatedAt,
+      updatedAt: reward.updatedAt
     };
   }
 }

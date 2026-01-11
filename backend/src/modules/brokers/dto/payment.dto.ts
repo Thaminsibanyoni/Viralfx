@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsUUID, IsEnum, IsOptional, IsUrl } from 'class-validator';
-import { PaymentMethod } from '../entities/broker-bill.entity';
+import { PaymentMethod } from '../enums/broker.enum';
 
 export class InitiatePaymentDto {
   @ApiProperty()

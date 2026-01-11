@@ -1,8 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
-import { FilesService } from './services/files.service';
-import { FilesController } from './controllers/files.controller';
-import { PrismaModule } from '../../prisma/prisma.module';
+import { FilesService } from "./services/files.service";
+import { FilesController } from "./controllers/files.controller";
 import { RedisModule } from '../redis/redis.module';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
@@ -17,14 +16,13 @@ import { extname } from 'path';
 @Module({
   imports: [
     ConfigModule,
-    PrismaModule,
     RedisModule,
-    AuthModule,
-    UsersModule,
-    NotificationsModule,
+    forwardRef(() => AuthModule),
+    forwardRef(() => UsersModule),
+    forwardRef(() => NotificationsModule),
     CacheModule.register({
       ttl: 600, // 10 minutes default TTL
-      max: 200, // Maximum number of items in cache
+      max: 200 // Maximum number of items in cache
     }),
     MinioModule.registerAsync({
       useFactory: () => ({
@@ -32,8 +30,8 @@ import { extname } from 'path';
         port: parseInt(process.env.MINIO_PORT || '9000'),
         useSSL: process.env.MINIO_USE_SSL === 'true',
         accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
-        secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
-      }),
+        secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin'
+      })
     }),
     MulterModule.register({
       storage: diskStorage({
@@ -41,11 +39,11 @@ import { extname } from 'path';
         filename: (req, file, cb) => {
           const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
           cb(null, `${randomName}${extname(file.originalname)}`);
-        },
+        }
       }),
       limits: {
         fileSize: 100 * 1024 * 1024, // 100MB
-        files: 10, // Max 10 files at once
+        files: 10 // Max 10 files at once
       },
       fileFilter: (req, file, cb) => {
         const allowedMimeTypes = [
@@ -70,23 +68,23 @@ import { extname } from 'path';
         } else {
           cb(new Error(`File type ${file.mimetype} is not allowed`), false);
         }
-      },
+      }
     }),
     BullModule.registerQueue({
-      name: 'file-processing',
+      name: 'file-processing'
     }),
     BullModule.registerQueue({
-      name: 'file-scanning',
+      name: 'file-scanning'
     }),
     BullModule.registerQueue({
-      name: 'file-cleanup',
+      name: 'file-cleanup'
     }),
     BullModule.registerQueue({
-      name: 'file-backup',
+      name: 'file-backup'
     }),
   ],
   controllers: [FilesController],
   providers: [FilesService],
-  exports: [FilesService],
+  exports: [FilesService]
 })
 export class FilesModule {}

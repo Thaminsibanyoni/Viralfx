@@ -1,13 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Injectable, Logger, Inject } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 
-import { PrismaService } from '../../prisma/prisma.service';
-import { MarketData } from '../../../database/entities/market-data.entity';
-import { PerformanceMetric } from '../../../database/entities/performance-metric.entity';
-import { Trend } from '../../../database/entities/trend.entity';
-import { WebSocketGateway } from '../../websocket/gateways/websocket.gateway';
+// TypeORM entities removed - using Prisma instead
+// import { MarketData } from "../../../database/entities/market-data.entity";
+// import { PerformanceMetric } from "../../../database/entities/performance-metric.entity";
+// import { Trend } from "../../../database/entities/trend.entity";
+// WebSocketGateway import removed - not a valid NestJS injection pattern
+// import { WebSocketGatewayHandler } from "../../websocket/gateways/websocket.gateway";
 import {
   AnalyticsQuery,
   AnalyticsData,
@@ -17,7 +17,7 @@ import {
   AnalyticsDataPoint,
   Prediction,
   RiskFactor,
-  Alert,
+  Alert
 } from '../interfaces/analytics.interface';
 
 @Injectable()
@@ -26,15 +26,8 @@ export class AnalyticsService {
 
   constructor(
     private prisma: PrismaService,
-    @InjectRepository(MarketData)
-    private readonly marketDataRepository: Repository<MarketData>,
-    @InjectRepository(PerformanceMetric)
-    private readonly performanceMetricRepository: Repository<PerformanceMetric>,
-    @InjectRepository(Trend)
-    private readonly trendRepository: Repository<Trend>,
-    @Inject('REDIS_CLIENT') private readonly redis: Redis,
-    private readonly webSocketGateway: WebSocketGateway,
-  ) {}
+    // TypeORM repositories removed - using Prisma instead
+    @Inject('REDIS_CLIENT') private readonly redis: Redis) {}
 
   /**
    * Find trend by symbol (name)
@@ -42,8 +35,8 @@ export class AnalyticsService {
   async findTrendBySymbol(symbol: string): Promise<{ id: string; topicName: string } | null> {
     try {
       // Try to find in TypeORM Trend entity first
-      const trend = await this.trendRepository.findOne({
-        where: { topicName: symbol },
+      const trend = await this.prisma.trend.findFirst({
+        where: { topicName: symbol }
       });
 
       if (trend) {
@@ -57,7 +50,7 @@ export class AnalyticsService {
             { name: symbol },
             { slug: symbol.toUpperCase() }
           ]
-        },
+        }
       });
 
       if (topic) {
@@ -88,16 +81,16 @@ export class AnalyticsService {
       const interval = query.interval || '1h';
 
       // Query MarketData
-      const marketData = await this.marketDataRepository.find({
+      const marketData = await this.prisma.marketdatarepository.findMany({
         where: {
           symbol: query.symbol,
           interval,
           timestamp: {
             $gte: startTime,
-            $lte: endTime,
-          },
+            $lte: endTime
+          }
         },
-        order: { timestamp: 'ASC' },
+        order: { timestamp: 'ASC' }
       });
 
       // If no MarketData, fall back to ViralIndexSnapshot
@@ -114,14 +107,14 @@ export class AnalyticsService {
         timeframe: {
           startTime,
           endTime,
-          interval,
+          interval
         },
         data: aggregatedData,
         metadata: {
           totalPoints: aggregatedData.length,
           hasGaps: this.detectGaps(aggregatedData),
-          source: marketData.length > 0 ? 'market_data' : 'viral_index_snapshot',
-        },
+          source: marketData.length > 0 ? 'market_data' : 'viral_index_snapshot'
+        }
       };
 
       // Cache for 5 minutes
@@ -149,7 +142,7 @@ export class AnalyticsService {
       const snapshots = await this.prisma.viralIndexSnapshot.findMany({
         where: { trendId },
         orderBy: { timestamp: 'desc' },
-        take: 100, // Last 100 snapshots
+        take: 100 // Last 100 snapshots
       });
 
       if (snapshots.length === 0) {
@@ -177,35 +170,35 @@ export class AnalyticsService {
           current: latest.viralIndex,
           trend: viralityTrend.direction,
           change24h: viralityTrend.change24h,
-          change7d: viralityTrend.change7d,
+          change7d: viralityTrend.change7d
         },
         velocity: {
           current: latest.viralVelocity,
           trend: velocityTrend.direction,
-          change24h: velocityTrend.change24h,
+          change24h: velocityTrend.change24h
         },
         sentiment: {
           current: latest.sentimentMean,
           trend: this.calculateSentimentTrend(snapshots),
-          distribution: this.calculateSentimentDistribution(snapshots),
+          distribution: this.calculateSentimentDistribution(snapshots)
         },
         engagement: {
           current: latest.engagementRate,
           trend: this.calculateEngagementTrend(snapshots),
           totalEngagements: latest.engagementTotal,
-          activeUsers: latest.activeUsers || 0,
+          activeUsers: latest.activeUsers || 0
         },
         momentum: {
           current: latest.momentumScore || 0,
           trend: this.calculateMomentumTrend(snapshots),
-          strength: this.getMomentumStrength(latest.momentumScore || 0),
+          strength: this.getMomentumStrength(latest.momentumScore || 0)
         },
         predictions: {
           shortTerm: await this.generateShortTermPrediction(snapshots),
-          longTerm: await this.generateLongTermPrediction(snapshots),
+          longTerm: await this.generateLongTermPrediction(snapshots)
         },
         riskFactors: this.calculateRiskFactors(snapshots),
-        updatedAt: new Date(),
+        updatedAt: new Date()
       };
 
       // Cache for 1 minute
@@ -233,13 +226,13 @@ export class AnalyticsService {
         return JSON.parse(cachedData);
       }
 
-      const metrics = await this.performanceMetricRepository.find({
+      const metrics = await this.prisma.performancemetricrepository.findMany({
         where: {
           entityType,
           entityId,
-          period,
+          period
         },
-        order: { timestamp: 'DESC' },
+        order: { timestamp: 'DESC' }
       });
 
       if (metrics.length === 0) {
@@ -259,7 +252,7 @@ export class AnalyticsService {
         alpha: this.getMetricValue(metrics, 'ALPHA'),
         beta: this.getMetricValue(metrics, 'BETA'),
         calmarRatio: this.getMetricValue(metrics, 'CALMAR_RATIO'),
-        sortinoRatio: this.getMetricValue(metrics, 'SORTINO_RATIO'),
+        sortinoRatio: this.getMetricValue(metrics, 'SORTINO_RATIO')
       };
 
       // Cache for 5 minutes
@@ -288,10 +281,10 @@ export class AnalyticsService {
       const snapshots = await this.prisma.viralIndexSnapshot.findMany({
         where: {
           trend: { topicName: symbol },
-          timestamp: { gte: oneHourAgo },
+          timestamp: { gte: oneHourAgo }
         },
         orderBy: { timestamp: 'desc' },
-        take: 60, // One per minute max
+        take: 60 // One per minute max
       });
 
       if (snapshots.length === 0) {
@@ -305,14 +298,15 @@ export class AnalyticsService {
         sentimentScore: latest.sentimentMean,
         velocity: latest.viralVelocity,
         engagementRate: latest.engagementRate,
-        momentumScore: latest.momentumScore || 0,
+        momentumScore: latest.momentumScore || 0
       };
 
       // Cache for 1 minute
       await this.redis.setex(cacheKey, 60, JSON.stringify(dataPoint));
 
+      // TODO: Re-enable WebSocket broadcast using proper NestJS pattern
       // Broadcast to WebSocket subscribers
-      this.webSocketGateway.broadcastAnalyticsUpdate(symbol, dataPoint);
+      // this.webSocketGateway.broadcastAnalyticsUpdate(symbol, dataPoint);
 
       return dataPoint;
     } catch (error) {
@@ -334,7 +328,7 @@ export class AnalyticsService {
 
       // Get trend info
       const trend = await this.prisma.trend.findFirst({
-        where: { topicName: assetId },
+        where: { topicName: assetId }
       });
 
       if (!trend) {
@@ -350,7 +344,7 @@ export class AnalyticsService {
       // Get market data
       const marketData = await this.getAnalyticsData({
         symbol: assetId,
-        interval: '1h',
+        interval: '1h'
       });
 
       // Get engagement data
@@ -362,8 +356,8 @@ export class AnalyticsService {
         longTerm: trendAnalytics.predictions.longTerm,
         accuracy: {
           shortTerm: await this.getPredictionAccuracy(trend.id, 'short'),
-          longTerm: await this.getPredictionAccuracy(trend.id, 'long'),
-        },
+          longTerm: await this.getPredictionAccuracy(trend.id, 'long')
+        }
       };
 
       // Generate alerts
@@ -379,10 +373,10 @@ export class AnalyticsService {
           currentPrice: trendAnalytics.viralityScore.current, // Using virality as price proxy
           priceChange24h: trendAnalytics.viralityScore.change24h,
           volume24h: engagement.totalEngagements,
-          marketData: marketData.data,
+          marketData: marketData.data
         },
         predictions,
-        alerts,
+        alerts
       };
 
       // Cache for 1 minute
@@ -407,11 +401,11 @@ export class AnalyticsService {
       include: {
         viralIndexSnapshots: {
           where: {
-            timestamp: { gte: startTime, lte: endTime },
+            timestamp: { gte: startTime, lte: endTime }
           },
-          orderBy: { timestamp: 'asc' },
-        },
-      },
+          orderBy: { timestamp: 'asc' }
+        }
+      }
     });
 
     if (!trend || !trend.viralIndexSnapshots.length) {
@@ -426,7 +420,7 @@ export class AnalyticsService {
       sentimentScore: snapshot.sentimentMean,
       velocity: snapshot.viralVelocity,
       engagementRate: snapshot.engagementRate,
-      momentumScore: snapshot.momentumScore || 0,
+      momentumScore: snapshot.momentumScore || 0
     }));
   }
 
@@ -489,7 +483,7 @@ export class AnalyticsService {
     return {
       positive: Math.max(0, (latest.sentimentMean + 1) * 50),
       neutral: Math.max(0, 50 - Math.abs(latest.sentimentMean) * 50),
-      negative: Math.max(0, (1 - latest.sentimentMean) * 50),
+      negative: Math.max(0, (1 - latest.sentimentMean) * 50)
     };
   }
 
@@ -537,7 +531,7 @@ export class AnalyticsService {
       confidence: Math.min(80, Math.abs(trend) * 20),
       targetPrice: snapshots[0].viralIndex + trend * 5,
       timeHorizon: '4 hours',
-      factors: ['momentum', 'volume', 'sentiment'],
+      factors: ['momentum', 'volume', 'sentiment']
     };
   }
 
@@ -555,7 +549,7 @@ export class AnalyticsService {
       confidence: Math.min(70, Math.abs(trend) * 15),
       targetPrice: snapshots[0].viralIndex + trend * 30,
       timeHorizon: '7 days',
-      factors: ['weekly_trend', 'sentiment_momentum', 'engagement_growth'],
+      factors: ['weekly_trend', 'sentiment_momentum', 'engagement_growth']
     };
   }
 
@@ -582,7 +576,7 @@ export class AnalyticsService {
         factor: 'High Volatility',
         probability: Math.min(90, volatility * 2),
         impact: 'high',
-        description: 'Asset shows high price volatility, increasing risk of sudden movements',
+        description: 'Asset shows high price volatility, increasing risk of sudden movements'
       });
     }
 
@@ -591,7 +585,7 @@ export class AnalyticsService {
         factor: 'Negative Sentiment',
         probability: Math.abs(latest.sentimentMean) * 60,
         impact: 'medium',
-        description: 'Negative sentiment may lead to continued price decline',
+        description: 'Negative sentiment may lead to continued price decline'
       });
     }
 
@@ -600,7 +594,7 @@ export class AnalyticsService {
         factor: 'Declining Velocity',
         probability: Math.abs(latest.viralVelocity) * 50,
         impact: 'medium',
-        description: 'Viral velocity is declining, indicating loss of momentum',
+        description: 'Viral velocity is declining, indicating loss of momentum'
       });
     }
 
@@ -631,7 +625,7 @@ export class AnalyticsService {
     const snapshots = await this.prisma.viralIndexSnapshot.findMany({
       where: { trendId },
       orderBy: { timestamp: 'desc' },
-      take: 100,
+      take: 100
     });
 
     const latest = snapshots[0];
@@ -651,7 +645,7 @@ export class AnalyticsService {
         { platform: 'Reddit', engagements: latest.engagementTotal * 0.3, growthRate: 3.1, sentiment: 0.4 },
         { platform: 'Telegram', engagements: latest.engagementTotal * 0.2, growthRate: 8.7, sentiment: 0.7 },
         { platform: 'Discord', engagements: latest.engagementTotal * 0.1, growthRate: 12.3, sentiment: 0.8 },
-      ],
+      ]
     };
   }
 
@@ -672,7 +666,7 @@ export class AnalyticsService {
         title: 'Virality Spike Detected',
         message: `Virality score increased by ${trendAnalytics.viralityScore.change24h.toFixed(1)}% in 24h`,
         timestamp: new Date(),
-        acknowledged: false,
+        acknowledged: false
       });
     }
 
@@ -684,7 +678,7 @@ export class AnalyticsService {
         title: 'Negative Sentiment Alert',
         message: 'Sentiment has dropped to extremely negative levels',
         timestamp: new Date(),
-        acknowledged: false,
+        acknowledged: false
       });
     }
 
@@ -696,7 +690,7 @@ export class AnalyticsService {
         title: 'Velocity Decline',
         message: 'Viral velocity is declining rapidly',
         timestamp: new Date(),
-        acknowledged: false,
+        acknowledged: false
       });
     }
 
@@ -722,7 +716,7 @@ export class AnalyticsService {
           id,
           userId: data.userId,
           performanceData: data.performanceData,
-          timestamp: data.timestamp,
+          timestamp: data.timestamp
         })
       );
 
@@ -734,8 +728,8 @@ export class AnalyticsService {
           metricType: 'PREDICTIVE_NOTIFICATION_PERFORMANCE',
           value: data.performanceData.analysis?.overallImprovement || 0,
           metadata: JSON.stringify(data.performanceData),
-          timestamp: data.timestamp,
-        },
+          timestamp: data.timestamp
+        }
       });
 
       this.logger.log(`Stored performance metrics for user ${data.userId}: ${id}`);
@@ -757,14 +751,15 @@ export class AnalyticsService {
       if (analysis.meetsTarget) {
         this.logger.log(`[Performance Target Met] User ${userId}: ${analysis.overallImprovement}% improvement`);
 
+        // TODO: Re-enable WebSocket notification using proper NestJS pattern
         // Send notification to user about performance milestone
-        this.webSocketGateway.sendNotificationToUser(userId, {
-          type: 'performance_milestone',
-          data: {
-            improvement: analysis.overallImprovement,
-            message: `Performance target achieved! ${analysis.overallImprovement}% improvement in notification loading.`,
-          },
-        });
+        // this.webSocketGateway.sendNotificationToUser(userId, {
+        //   type: 'performance_milestone',
+        //   data: {
+        //     improvement: analysis.overallImprovement,
+        //     message: `Performance target achieved! ${analysis.overallImprovement}% improvement in notification loading.`
+        //   }
+        // });
       }
 
       // Check for performance issues
@@ -777,7 +772,7 @@ export class AnalyticsService {
           severity: 'medium',
           message: 'Consider optimizing notification preloading strategy',
           action: 'Enable more aggressive caching',
-          autoFix: false,
+          autoFix: false
         });
       }
 
@@ -788,7 +783,7 @@ export class AnalyticsService {
         meetsTarget: analysis.meetsTarget,
         abTestGroup: performanceData.abTest?.group,
         recommendations: performanceData.recommendations.length,
-        timestamp: new Date(),
+        timestamp: new Date()
       };
 
       await this.redis.setex(
@@ -827,10 +822,10 @@ export class AnalyticsService {
         where: {
           metricType: 'PREDICTIVE_NOTIFICATION_PERFORMANCE',
           timestamp: {
-            gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
-          },
+            gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+          }
         },
-        orderBy: { timestamp: 'desc' },
+        orderBy: { timestamp: 'desc' }
       });
 
       const totalUsers = metrics.length;
@@ -919,14 +914,14 @@ export class AnalyticsService {
         abTestResults: {
           control: {
             count: controlMetrics.length,
-            averageLoadTime: controlAverageLoadTime,
+            averageLoadTime: controlAverageLoadTime
           },
           treatment: {
             count: treatmentMetrics.length,
             averageLoadTime: treatmentAverageLoadTime,
-            averageImprovement: treatmentImprovement,
-          },
-        },
+            averageImprovement: treatmentImprovement
+          }
+        }
       };
     } catch (error) {
       this.logger.error('Failed to get predictive notification performance:', error);

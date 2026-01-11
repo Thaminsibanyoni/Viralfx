@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Post,
@@ -10,20 +10,18 @@ import {
   HttpStatus,
   ParseUUIDPipe,
   ValidationPipe,
-  Request,
-} from '@nestjs/common';
+  Request, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UsageService } from '../services/usage.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { AdminAuthGuard } from '../../admin/guards/admin-auth.guard';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { AdminAuthGuard } from "../../admin/guards/admin-auth.guard";
 
 @ApiTags('API Marketplace - Billing')
 @Controller('api/v1/api-marketplace/billing')
 export class BillingController {
   constructor(
-    private readonly usageService: UsageService,
-  ) {}
+    private readonly usageService: UsageService) {}
 
   @Get('invoices')
   @HttpCode(HttpStatus.OK)
@@ -32,11 +30,10 @@ export class BillingController {
   @ApiOperation({ summary: 'Get user invoices' })
   @ApiResponse({ status: 200, description: 'Invoices retrieved successfully' })
   async getUserInvoices(
-    @Request() req: any,
+    @Req() req: any,
     @Query('status') status?: 'PENDING' | 'PAID' | 'OVERDUE',
     @Query('limit') limit: number = 50,
-    @Query('offset') offset: number = 0,
-  ): Promise<any> {
+    @Query('offset') offset: number = 0): Promise<any> {
     const userId = req.user?.id;
     const brokerId = req.user?.brokerId;
 
@@ -52,8 +49,7 @@ export class BillingController {
   @ApiResponse({ status: 404, description: 'Invoice not found' })
   async getInvoice(
     @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
-    @Request() req: any,
-  ): Promise<any> {
+    @Req() req: any): Promise<any> {
     const userId = req.user?.id;
     const brokerId = req.user?.brokerId;
 
@@ -69,9 +65,8 @@ export class BillingController {
   @ApiResponse({ status: 404, description: 'Invoice not found' })
   async payInvoice(
     @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
-    @Request() req: any,
-    @Body('paymentMethod') paymentMethod: 'paystack' | 'payfast' | 'ozow',
-  ): Promise<any> {
+    @Req() req: any,
+    @Body('paymentMethod') paymentMethod: 'paystack' | 'payfast' | 'ozow'): Promise<any> {
     const userId = req.user?.id;
     const brokerId = req.user?.brokerId;
 
@@ -86,8 +81,7 @@ export class BillingController {
   @ApiResponse({ status: 200, description: 'Invoice PDF generated successfully' })
   async downloadInvoicePdf(
     @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
-    @Request() req: any,
-  ): Promise<any> {
+    @Req() req: any): Promise<any> {
     const userId = req.user?.id;
     const brokerId = req.user?.brokerId;
 
@@ -101,10 +95,9 @@ export class BillingController {
   @ApiOperation({ summary: 'Get billing usage summary' })
   @ApiResponse({ status: 200, description: 'Usage summary retrieved successfully' })
   async getUsageSummary(
-    @Request() req: any,
+    @Req() req: any,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ): Promise<any> {
+    @Query('endDate') endDate?: string): Promise<any> {
     const userId = req.user?.id;
     const brokerId = req.user?.brokerId;
 
@@ -112,7 +105,7 @@ export class BillingController {
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
 
@@ -137,13 +130,12 @@ export class BillingController {
   @ApiResponse({ status: 200, description: 'Billing overview retrieved successfully' })
   async getBillingOverview(
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ): Promise<any> {
+    @Query('endDate') endDate?: string): Promise<any> {
     let dateRange;
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
 
@@ -167,8 +159,7 @@ export class BillingController {
         amount: number;
         quantity?: number;
       }>;
-    },
-  ): Promise<any> {
+    }): Promise<any> {
     return this.usageService.generateInvoice(data);
   }
 
@@ -181,13 +172,12 @@ export class BillingController {
   async getRevenueAnalytics(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('groupBy') groupBy: 'day' | 'week' | 'month' = 'month',
-  ): Promise<any> {
+    @Query('groupBy') groupBy: 'day' | 'week' | 'month' = 'month'): Promise<any> {
     let dateRange;
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
 
@@ -202,8 +192,7 @@ export class BillingController {
   @ApiResponse({ status: 200, description: 'Overdue invoices retrieved successfully' })
   async getOverdueInvoices(
     @Query('limit') limit: number = 50,
-    @Query('offset') offset: number = 0,
-  ): Promise<any> {
+    @Query('offset') offset: number = 0): Promise<any> {
     return this.usageService.getOverdueInvoices(limit, offset);
   }
 }

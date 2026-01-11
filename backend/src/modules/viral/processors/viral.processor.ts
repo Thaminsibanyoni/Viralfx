@@ -1,10 +1,11 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bullmq';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { ViralService } from '../services/viral.service';
 import { ViralIndexService } from '../services/viral-index.service';
 import { ViralMetricsService } from '../services/viral-metrics.service';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 
 interface ViralAnalysisJob {
   type: 'analyze-virality' | 'update-viral-index' | 'viral-metrics-update' | 'batch-calculation';
@@ -22,18 +23,34 @@ interface ViralAnalysisJob {
 }
 
 @Processor('viral-index-calculation')
-export class ViralProcessor {
+export class ViralProcessor extends WorkerHost {
   private readonly logger = new Logger(ViralProcessor.name);
 
   constructor(
     private readonly viralService: ViralService,
     private readonly viralIndexService: ViralIndexService,
     private readonly viralMetricsService: ViralMetricsService,
-    private readonly prisma: PrismaService,
-  ) {}
+    private readonly prisma: PrismaService) {
+    super();
+}
 
-  @Process('update-viral-index')
-  async handleViralIndexUpdate(job: Job<ViralAnalysisJob>): Promise<void> {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'update-viral-index':
+        return this.handleViralIndexUpdate(job);
+      case 'batch-calculation':
+        return this.handleBatchCalculation(job);
+      case 'cleanup-old-data':
+        return this.handleDataCleanup(job);
+      case 'analyze-virality':
+        return this.handleViralityAnalysis(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleViralIndexUpdate(job: Job<ViralAnalysisJob>): Promise<void> {
     const { topicId, contentId, analysis } = job.data;
 
     this.logger.log(`Updating viral index for topic ${topicId}, content ${contentId}`);
@@ -54,7 +71,7 @@ export class ViralProcessor {
           contentId,
           confidence: viralIndex.confidence,
           momentum: viralIndex.momentum,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString()
         }
       );
 
@@ -73,8 +90,7 @@ export class ViralProcessor {
     }
   }
 
-  @Process('batch-calculation')
-  async handleBatchCalculation(job: Job<ViralAnalysisJob>): Promise<void> {
+  private async handleBatchCalculation(job: Job<ViralAnalysisJob>): Promise<void> {
     const { topicIds, timeWindow = 24 } = job.data;
 
     this.logger.log(`Starting batch viral index calculation for ${topicIds.length} topics`);
@@ -96,14 +112,14 @@ export class ViralProcessor {
               topicId,
               success: true,
               index: index.index,
-              momentum: index.momentum,
+              momentum: index.momentum
             };
           } catch (error) {
             this.logger.warn(`Failed to calculate index for topic ${topicId}:`, error.message);
             return {
               topicId,
               success: false,
-              error: error.message,
+              error: error.message
             };
           }
         });
@@ -127,8 +143,7 @@ export class ViralProcessor {
     }
   }
 
-  @Process('cleanup-old-data')
-  async handleDataCleanup(job: Job): Promise<void> {
+  private async handleDataCleanup(job: Job): Promise<void> {
     const { olderThanDays = 90 } = job.data;
 
     this.logger.log(`Starting viral data cleanup for data older than ${olderThanDays} days`);
@@ -140,34 +155,34 @@ export class ViralProcessor {
       const deletedContent = await this.prisma.viralContent.deleteMany({
         where: {
           createdAt: {
-            lt: cutoffDate,
+            lt: cutoffDate
           },
           viralScore: {
-            lt: 0.8, // Keep high-viral content longer
-          },
-        },
+            lt: 0.8 // Keep high-viral content longer
+          }
+        }
       });
 
       // Clean up old viral index history
       const deletedHistory = await this.prisma.viralIndexHistory.deleteMany({
         where: {
           timestamp: {
-            lt: cutoffDate,
+            lt: cutoffDate
           },
           index: {
-            lt: 0.7, // Keep high-performing history
-          },
-        },
+            lt: 0.7 // Keep high-performing history
+          }
+        }
       });
 
       // Clean up old metrics events
       const deletedEvents = await this.prisma.metricsEvent.deleteMany({
         where: {
           timestamp: {
-            lt: cutoffDate,
+            lt: cutoffDate
           },
-          eventType: 'VIRAL_CONTENT_ANALYZED',
-        },
+          eventType: 'VIRAL_CONTENT_ANALYZED'
+        }
       });
 
       this.logger.log(
@@ -195,11 +210,11 @@ export class ViralProcessor {
             viralIndex: viralIndex.index,
             momentum: viralIndex.momentum,
             confidence: viralIndex.confidence,
-            timestamp: new Date().toISOString(),
+            timestamp: new Date().toISOString()
           },
           priority: 'HIGH',
-          createdAt: new Date(),
-        },
+          createdAt: new Date()
+        }
       });
 
       // Store breakout event
@@ -220,15 +235,15 @@ export class ViralProcessor {
             noveltyScore: 0.7,
             controversyLevel: 0.6,
             timelinessScore: 0.9,
-            platformFit: 0.8,
+            platformFit: 0.8
           },
           metadata: {
             eventType: 'VIRAL_BREAKOUT',
             automaticDetection: true,
-            breakoutConfidence: viralIndex.confidence,
+            breakoutConfidence: viralIndex.confidence
           },
-          createdAt: new Date(),
-        },
+          createdAt: new Date()
+        }
       });
 
       // Invalidate all caches for this topic
@@ -250,8 +265,7 @@ export class ViralProcessor {
       cacheKeys.push(
         `viral:metrics:*`,
         `viral:trending:*`,
-        `viral:breakouts:*`,
-      );
+        `viral:breakouts:*`);
     }
 
     for (const key of cacheKeys) {
@@ -261,17 +275,17 @@ export class ViralProcessor {
     }
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onJobActive(job: Job) {
     this.logger.debug(`Viral processor job ${job.id} started processing`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onJobCompleted(job: Job, result: any) {
     this.logger.log(`Viral processor job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onJobFailed(job: Job, error: Error) {
     this.logger.error(`Viral processor job ${job.id} failed:`, error.message);
   }
@@ -283,11 +297,11 @@ export class ViralContentAnalysisProcessor {
 
   constructor(
     private readonly viralService: ViralService,
-    private readonly viralMetricsService: ViralMetricsService,
-  ) {}
+    private readonly viralMetricsService: ViralMetricsService) {
+    super();
+}
 
-  @Process('analyze-virality')
-  async handleViralityAnalysis(job: Job<ViralAnalysisJob>): Promise<any> {
+  private async handleViralityAnalysis(job: Job<ViralAnalysisJob>): Promise<any> {
     const { content, topicId, source, authorId, metadata } = job.data;
 
     this.logger.log(`Processing virality analysis for content from topic ${topicId}`);
@@ -298,8 +312,7 @@ export class ViralContentAnalysisProcessor {
         topicId,
         source,
         authorId,
-        metadata,
-      );
+        metadata);
 
       // Track analysis metrics
       await this.viralMetricsService.trackMetrics(
@@ -310,7 +323,7 @@ export class ViralContentAnalysisProcessor {
           contentLength: content.length,
           source,
           authorId,
-          processingTime: Date.now() - job.timestamp,
+          processingTime: Date.now() - job.timestamp
         }
       );
 
@@ -320,7 +333,7 @@ export class ViralContentAnalysisProcessor {
         topicId,
         contentId: content.substring(0, 50), // Use content hash as ID
         analysis,
-        processingTime: Date.now() - job.timestamp,
+        processingTime: Date.now() - job.timestamp
       };
     } catch (error) {
       this.logger.error(`Failed to analyze virality for topic ${topicId}:`, error);
@@ -333,7 +346,7 @@ export class ViralContentAnalysisProcessor {
         {
           error: error.message,
           contentLength: content?.length || 0,
-          source,
+          source
         }
       );
 
@@ -341,17 +354,17 @@ export class ViralContentAnalysisProcessor {
     }
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onJobActive(job: Job) {
     this.logger.debug(`Viral content analysis job ${job.id} started processing`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onJobCompleted(job: Job, result: any) {
     this.logger.log(`Viral content analysis job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onJobFailed(job: Job, error: Error) {
     this.logger.error(`Viral content analysis job ${job.id} failed:`, error.message);
   }

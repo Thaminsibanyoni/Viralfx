@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID, IsNumber, Min, IsString, MaxLength } from 'class-validator';
+import { IsUUID, IsNumber, Min, IsString, MaxLength, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class TransferDto {

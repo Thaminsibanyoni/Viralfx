@@ -16,15 +16,15 @@ import {
   NotFoundException,
   UnauthorizedException,
   InternalServerErrorException,
-  Logger,
+  Logger
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { CurrentUser } from "../../auth/decorators/current-user.decorator";
 import { OAuthService } from '../services/oauth.service';
 import { ClientAttributionService, AttributionType } from '../services/client-attribution.service';
 import { BrokersService } from '../services/brokers.service';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Response as ExpressResponse } from 'express';
 import { Redis } from 'ioredis';
 import { ConfigService } from '@nestjs/config';
@@ -59,12 +59,11 @@ export class BrokersLinkController {
     private readonly clientAttributionService: ClientAttributionService,
     private readonly brokersService: BrokersService,
     private readonly prismaService: PrismaService,
-    private readonly configService: ConfigService,
-  ) {
+    private readonly configService: ConfigService) {
     this.redis = new Redis({
       host: this.configService.get('REDIS_HOST', 'localhost'),
       port: this.configService.get('REDIS_PORT', 6379),
-      password: this.configService.get('REDIS_PASSWORD'),
+      password: this.configService.get('REDIS_PASSWORD')
     });
   }
 
@@ -78,8 +77,7 @@ export class BrokersLinkController {
   async initiateLinking(
     @Param('brokerId') brokerId: string,
     @Param('provider') provider: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<any> {
+    @CurrentUser() user: AuthenticatedUser): Promise<any> {
     this.logger.log(`User ${user.id} initiating OAuth linking with broker ${brokerId} via ${provider}`);
 
     try {
@@ -109,7 +107,7 @@ export class BrokersLinkController {
         brokerId,
         provider: provider.toUpperCase(),
         timestamp: Date.now(),
-        nonce,
+        nonce
       };
 
       const stateString = Buffer.from(JSON.stringify(state)).toString('base64');
@@ -124,8 +122,7 @@ export class BrokersLinkController {
       const authorizationUrl = await this.oauthService.initiateOAuthFlow(
         brokerId,
         provider,
-        redirectUri,
-      );
+        redirectUri);
 
       // Log the OAuth initiation for audit
       await this.prismaService.auditLog.create({
@@ -135,9 +132,9 @@ export class BrokersLinkController {
           details: {
             brokerId,
             provider,
-            timestamp: new Date().toISOString(),
-          },
-        },
+            timestamp: new Date().toISOString()
+          }
+        }
       });
 
       return {
@@ -147,8 +144,8 @@ export class BrokersLinkController {
           state: stateString,
           provider: provider.toUpperCase(),
           brokerName: broker.companyName,
-          expiresAt: new Date(Date.now() + 600000).toISOString(), // 10 minutes
-        },
+          expiresAt: new Date(Date.now() + 600000).toISOString() // 10 minutes
+        }
       };
     } catch (error) {
       this.logger.error(`Failed to initiate OAuth linking for user ${user.id}:`, error);
@@ -171,8 +168,7 @@ export class BrokersLinkController {
   async handleCallback(
     @Query('code') code: string,
     @Query('state') state: string,
-    @Query('error') error?: string,
-  ): Promise<{ url: string }> {
+    @Query('error') error?: string): Promise<{ url: string }> {
     this.logger.log(`Processing OAuth callback with state: ${state.substring(0, 20)}...`);
 
     try {
@@ -203,7 +199,7 @@ export class BrokersLinkController {
 
       // Verify user still exists and is not linked to another broker
       const user = await this.prismaService.user.findUnique({
-        where: { id: oauthState.userId },
+        where: { id: oauthState.userId }
       });
 
       if (!user) {
@@ -229,14 +225,13 @@ export class BrokersLinkController {
         {
           provider: oauthState.provider,
           linkedAt: new Date().toISOString(),
-          oauthExpiry: oauthResult.expiresAt,
-        },
-      );
+          oauthExpiry: oauthResult.expiresAt
+        });
 
       // Update user record with broker ID
       await this.prismaService.user.update({
         where: { id: oauthState.userId },
-        data: { brokerId: oauthState.brokerId },
+        data: { brokerId: oauthState.brokerId }
       });
 
       // Get broker details for response
@@ -250,9 +245,9 @@ export class BrokersLinkController {
           details: {
             brokerId: oauthState.brokerId,
             provider: oauthState.provider,
-            linkedAt: new Date().toISOString(),
-          },
-        },
+            linkedAt: new Date().toISOString()
+          }
+        }
       });
 
       this.logger.log(`Successfully linked user ${oauthState.userId} to broker ${oauthState.brokerId}`);
@@ -277,8 +272,7 @@ export class BrokersLinkController {
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'User is not linked to any broker' })
   @HttpCode(HttpStatus.OK)
   async unlinkBroker(
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<any> {
+    @CurrentUser() user: AuthenticatedUser): Promise<any> {
     this.logger.log(`User ${user.id} requesting to unlink from broker`);
 
     try {
@@ -294,7 +288,7 @@ export class BrokersLinkController {
 
       // Get user's current broker-client attribution
       const brokerClients = await this.clientAttributionService.getBrokerClients(user.brokerId, {
-        attributionType: AttributionType.OAUTH,
+        attributionType: AttributionType.OAUTH
       });
 
       const userAttribution = brokerClients.find(bc => bc.clientId === user.id);
@@ -304,8 +298,7 @@ export class BrokersLinkController {
         try {
           await this.oauthService.revokeOAuthAccess(
             user.brokerId,
-            userAttribution.metadata.provider.toLowerCase(),
-          );
+            userAttribution.metadata.provider.toLowerCase());
         } catch (revokeError) {
           this.logger.warn(`Failed to revoke OAuth access for user ${user.id}:`, revokeError);
           // Continue with unlinking even if revocation fails
@@ -318,14 +311,13 @@ export class BrokersLinkController {
           user.brokerId,
           user.id,
           'INACTIVE' as any, // This would need to be added to ClientStatus enum
-          'User unlinked via account settings',
-        );
+          'User unlinked via account settings');
       }
 
       // Update user record to remove broker ID
       await this.prismaService.user.update({
         where: { id: user.id },
-        data: { brokerId: null },
+        data: { brokerId: null }
       });
 
       // Log unlinking for audit
@@ -335,9 +327,9 @@ export class BrokersLinkController {
           action: 'OAUTH_LINK_REVOKED',
           details: {
             brokerId: user.brokerId,
-            unlinkedAt: new Date().toISOString(),
-          },
-        },
+            unlinkedAt: new Date().toISOString()
+          }
+        }
       });
 
       this.logger.log(`Successfully unlinked user ${user.id} from broker ${user.brokerId}`);
@@ -347,8 +339,8 @@ export class BrokersLinkController {
         data: {
           message: 'Successfully unlinked from broker',
           unlinkedAt: new Date().toISOString(),
-          brokerName: broker.companyName,
-        },
+          brokerName: broker.companyName
+        }
       };
     } catch (error) {
       this.logger.error(`Failed to unlink user ${user.id} from broker:`, error);
@@ -365,8 +357,7 @@ export class BrokersLinkController {
   @ApiOperation({ summary: 'Get current user broker linking status' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Broker linking status retrieved successfully' })
   async getLinkingStatus(
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<any> {
+    @CurrentUser() user: AuthenticatedUser): Promise<any> {
     try {
       if (!user.brokerId) {
         return {
@@ -374,8 +365,8 @@ export class BrokersLinkController {
           data: {
             isLinked: false,
             broker: null,
-            linkedAt: null,
-          },
+            linkedAt: null
+          }
         };
       }
 
@@ -388,7 +379,7 @@ export class BrokersLinkController {
         // Clean up the inconsistent state
         await this.prismaService.user.update({
           where: { id: user.id },
-          data: { brokerId: null },
+          data: { brokerId: null }
         });
 
         return {
@@ -396,14 +387,14 @@ export class BrokersLinkController {
           data: {
             isLinked: false,
             broker: null,
-            linkedAt: null,
-          },
+            linkedAt: null
+          }
         };
       }
 
       // Get client attribution details
       const brokerClients = await this.clientAttributionService.getBrokerClients(user.brokerId, {
-        attributionType: AttributionType.OAUTH,
+        attributionType: AttributionType.OAUTH
       });
 
       const userAttribution = brokerClients.find(bc => bc.clientId === user.id);
@@ -417,12 +408,12 @@ export class BrokersLinkController {
             companyName: broker.companyName,
             logo: broker.logo,
             website: broker.website,
-            status: broker.status,
+            status: broker.status
           },
           linkedAt: userAttribution?.attributionDate || null,
           oauthProvider: userAttribution?.metadata?.provider || null,
-          oauthExpiry: userAttribution?.metadata?.oauthExpiry || null,
-        },
+          oauthExpiry: userAttribution?.metadata?.oauthExpiry || null
+        }
       };
     } catch (error) {
       this.logger.error(`Failed to get linking status for user ${user.id}:`, error);
@@ -438,7 +429,7 @@ export class BrokersLinkController {
       const brokers = await this.brokersService.getBrokers({
         status: 'VERIFIED',
         isActive: true,
-        acceptingNewClients: true,
+        acceptingNewClients: true
       });
 
       const availableBrokers = brokers.map(broker => ({
@@ -450,15 +441,15 @@ export class BrokersLinkController {
         tier: broker.tier,
         oauthProviders: Object.keys(broker.oauthConfig || {}),
         minimumDeposit: broker.minimumDeposit,
-        supportedAssets: broker.supportedAssets,
+        supportedAssets: broker.supportedAssets
       }));
 
       return {
         success: true,
         data: {
           brokers: availableBrokers,
-          count: availableBrokers.length,
-        },
+          count: availableBrokers.length
+        }
       };
     } catch (error) {
       this.logger.error('Failed to get available brokers:', error);

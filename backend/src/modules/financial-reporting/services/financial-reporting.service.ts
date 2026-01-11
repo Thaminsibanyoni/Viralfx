@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { MrrService } from './mrr.service';
-import { NrrService } from './nrr.service';
-import { CohortAnalysisService } from './cohort-analysis.service';
-import { RevenueAnalyticsService } from './revenue-analytics.service';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
-import { RedisService } from '../../redis/redis.service';
+import { MrrService } from "./mrr.service";
+import { NrrService } from "./nrr.service";
+import { CohortAnalysisService } from "./cohort-analysis.service";
+import { RevenueAnalyticsService } from "./revenue-analytics.service";
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { RedisService } from "../../redis/redis.service";
 
 @Injectable()
 export class FinancialReportingService {
@@ -19,8 +19,7 @@ export class FinancialReportingService {
     private readonly revenueAnalyticsService: RevenueAnalyticsService,
     @InjectQueue('financial-reports')
     private readonly financialReportsQueue: Queue,
-    private readonly redisService: RedisService,
-  ) {}
+    private readonly redisService: RedisService) {}
 
   async getDashboard(period?: { start: Date; end: Date }): Promise<{
     mrr: {
@@ -62,7 +61,7 @@ export class FinancialReportingService {
       const now = new Date();
       const defaultPeriod = period || {
         start: new Date(now.getFullYear(), now.getMonth() - 1, 1),
-        end: new Date(now.getFullYear(), now.getMonth() + 1, 0),
+        end: new Date(now.getFullYear(), now.getMonth() + 1, 0)
       };
 
       // Get MRR data
@@ -128,30 +127,30 @@ export class FinancialReportingService {
         mrr: {
           current: mrrData.total,
           growth: mrrGrowth.growthRate,
-          byTier: mrrData.byTier,
+          byTier: mrrData.byTier
         },
         nrr: {
           current: currentNRR,
-          trend: nrrTrendDirection,
+          trend: nrrTrendDirection
         },
         churn: {
           rate: churnRate,
-          churnedMRR: churnData.churnedMRR,
+          churnedMRR: churnData.churnedMRR
         },
         arpu: {
           current: arpuData.overall,
-          growth: arpuGrowth,
+          growth: arpuGrowth
         },
         totalRevenue: revenueGrowth.currentPeriodRevenue,
         growth: {
           monthly: revenueGrowth.monthOverMonth,
-          yearly: revenueGrowth.yearOverYear,
+          yearly: revenueGrowth.yearOverYear
         },
         topMetrics: {
           bestPerformingTier,
           fastestGrowingRegion,
-          highestLTV,
-        },
+          highestLTV
+        }
       };
 
       await this.redisService.setex(cacheKey, this.CACHE_TTL, JSON.stringify(dashboard));
@@ -208,21 +207,21 @@ export class FinancialReportingService {
           totalBrokers,
           averageRevenuePerBroker,
           growthRate: dashboard.growth.monthly,
-          profitability: 85.5, // Placeholder - would need cost data
+          profitability: 85.5 // Placeholder - would need cost data
         },
         metrics: {
           mrr: dashboard.mrr.current,
           nrr: dashboard.nrr.current,
           churnRate: dashboard.churn.rate,
           ltv: dashboard.topMetrics.highestLTV,
-          cac: 2500, // Placeholder - would need marketing spend data
+          cac: 2500 // Placeholder - would need marketing spend data
         },
         trends: {
           revenue: revenueGrowth.trend,
-          brokerGrowth: [], // Would need broker acquisition trend data
+          brokerGrowth: [] // Would need broker acquisition trend data
         },
         insights,
-        recommendations,
+        recommendations
       };
 
       this.logger.log('Generated executive report');
@@ -236,8 +235,7 @@ export class FinancialReportingService {
 
   async generateBrokerReport(
     brokerId: string,
-    period: { start: Date; end: Date },
-  ): Promise<{
+    period: { start: Date; end: Date }): Promise<{
     brokerInfo: {
       id: string;
       name: string;
@@ -271,32 +269,32 @@ export class FinancialReportingService {
           id: brokerId,
           name: 'Sample Broker',
           tier: 'PREMIUM',
-          joinDate: new Date('2023-01-01'),
+          joinDate: new Date('2023-01-01')
         },
         financialMetrics: {
           totalRevenue: 50000,
           totalTransactions: 1250,
           averageMonthlyRevenue: 5000,
-          ltv: 25000,
+          ltv: 25000
         },
         billing: [
           {
             period: '2024-01',
             amount: 5000,
             status: 'PAID',
-            paidDate: new Date('2024-01-15'),
+            paidDate: new Date('2024-01-15')
           },
         ],
         performance: {
           growthRate: 15.5,
           retentionRate: 95.2,
-          profitability: 88.7,
+          profitability: 88.7
         },
         insights: [
           'Strong revenue growth over the past quarter',
           'High retention rate indicates customer satisfaction',
           'Consider upselling additional services',
-        ],
+        ]
       };
 
       this.logger.log(`Generated broker report for ${brokerId}`);
@@ -322,17 +320,16 @@ export class FinancialReportingService {
         'generate-scheduled-report',
         {
           reportId,
-          config,
+          config
         },
         {
           repeat: this.getRepeatPattern(config.frequency),
           attempts: 3,
           backoff: {
             type: 'exponential',
-            delay: 2000,
-          },
-        },
-      );
+            delay: 2000
+          }
+        });
 
       const nextRun = this.getNextRunDate(config.frequency);
 
@@ -352,7 +349,7 @@ export class FinancialReportingService {
       const reportData = {
         reportId,
         generatedAt: new Date().toISOString(),
-        data: 'Sample report data',
+        data: 'Sample report data'
       };
 
       if (format === 'json') {

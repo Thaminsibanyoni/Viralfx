@@ -2,12 +2,25 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  Logger,
+  Logger
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { PrismaService } from '../../prisma/prisma.service';
-import { AdminAuditLog, AuditAction, AuditSeverity } from '../entities/admin-audit-log.entity';
+import { PrismaService } from "../../../prisma/prisma.service";
+
+// Audit action enums
+enum AuditAction {
+  USER_SUSPEND = 'USER_SUSPEND',
+  USER_UNSUSPEND = 'USER_UNSUSPEND',
+  USER_BAN = 'USER_BAN',
+  USER_UNBAN = 'USER_UNBAN',
+  BROKER_APPROVE = 'BROKER_APPROVE',
+  BROKER_SUSPEND = 'BROKER_SUSPEND',
+}
+
+enum AuditSeverity {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH'
+}
 
 // These interfaces would typically be defined in a shared types file
 interface DashboardMetrics {
@@ -77,10 +90,7 @@ export class AdminDashboardService {
   private readonly logger = new Logger(AdminDashboardService.name);
 
   constructor(
-    @InjectRepository(AdminAuditLog)
-    private auditLogRepository: Repository<AdminAuditLog>,
-    private prisma: PrismaService,
-  ) {}
+        private prisma: PrismaService) {}
 
   async getDashboardMetrics(timeframe: '1h' | '24h' | '7d' | '30d' = '24h'): Promise<DashboardMetrics> {
     // This would typically aggregate data from multiple sources
@@ -102,34 +112,34 @@ export class AdminDashboardService {
         systemAlerts: await this.getSystemAlerts(),
         abuseDetections: await this.getAbuseDetections(startTime, now),
         riskScore: await this.calculateRiskScore(),
-        systemHealth: await this.getSystemHealth(),
+        systemHealth: await this.getSystemHealth()
       },
       departments: {
         userOps: {
           pendingTasks: await this.getPendingUserOpsTasks(),
-          criticalIssues: await this.getCriticalUserIssues(),
+          criticalIssues: await this.getCriticalUserIssues()
         },
         brokerOps: {
           pendingApplications: await this.getPendingBrokerApplications(),
-          complianceIssues: await this.getComplianceIssues(),
+          complianceIssues: await this.getComplianceIssues()
         },
         trendOps: {
           activeTrends: await this.getActiveTrends(),
-          pendingReviews: await this.getPendingTrendReviews(),
+          pendingReviews: await this.getPendingTrendReviews()
         },
         riskOps: {
           highRiskAlerts: await this.getHighRiskAlerts(),
-          contentReviews: await this.getPendingContentReviews(),
+          contentReviews: await this.getPendingContentReviews()
         },
         financeOps: {
           pendingPayouts: await this.getPendingPayouts(),
-          revenueMetrics: await this.getRevenueMetrics(startTime, now),
+          revenueMetrics: await this.getRevenueMetrics(startTime, now)
         },
         techOps: {
           systemHealth: await this.getSystemHealth(),
-          activeNodes: await this.getActiveNodes(),
-        },
-      },
+          activeNodes: await this.getActiveNodes()
+        }
+      }
     };
   }
 
@@ -144,8 +154,8 @@ export class AdminDashboardService {
       overallRiskAssessment: {
         score: 85.5,
         level: 'LOW',
-        trend: 'STABLE',
-      },
+        trend: 'STABLE'
+      }
     };
   }
 
@@ -182,11 +192,11 @@ export class AdminDashboardService {
         balanceUsd: true,
         createdAt: true,
         lastLoginAt: true,
-        riskScore: true,
+        riskScore: true
       },
       orderBy: { createdAt: 'desc' },
       skip: (filters.page - 1) * filters.limit,
-      take: filters.limit,
+      take: filters.limit
     });
 
     return { users, total };
@@ -206,8 +216,8 @@ export class AdminDashboardService {
         balanceUsd: true,
         createdAt: true,
         lastLoginAt: true,
-        riskScore: true,
-      },
+        riskScore: true
+      }
     });
 
     if (!user) {
@@ -218,15 +228,22 @@ export class AdminDashboardService {
 
   async suspendUser(userId: string, reason: string, adminId: string): Promise<void> {
     // Update user status
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { status: 'SUSPENDED' }
+    });
+
     // Create audit log
-    await this.auditLogRepository.save({
-      adminId,
-      action: AuditAction.USER_SUSPEND,
-      severity: AuditSeverity.MEDIUM,
-      targetType: 'User',
-      targetId: userId,
-      metadata: { reason },
-      description: `Suspended user ${userId}: ${reason}`,
+    await this.prisma.auditLog.create({
+      data: {
+        adminId,
+        action: AuditAction.USER_SUSPEND,
+        severity: AuditSeverity.MEDIUM,
+        targetType: 'User',
+        targetId: userId,
+        metadata: { reason },
+        description: `Suspended user ${userId}: ${reason}`
+      }
     });
 
     this.logger.log(`User ${userId} suspended by admin ${adminId}: ${reason}`);
@@ -234,14 +251,21 @@ export class AdminDashboardService {
 
   async unsuspendUser(userId: string, adminId: string): Promise<void> {
     // Update user status
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { status: 'ACTIVE' }
+    });
+
     // Create audit log
-    await this.auditLogRepository.save({
-      adminId,
-      action: AuditAction.USER_UNSUSPEND,
-      severity: AuditSeverity.LOW,
-      targetType: 'User',
-      targetId: userId,
-      description: `Unsuspended user ${userId}`,
+    await this.prisma.auditLog.create({
+      data: {
+        adminId,
+        action: AuditAction.USER_UNSUSPEND,
+        severity: AuditSeverity.LOW,
+        targetType: 'User',
+        targetId: userId,
+        description: `Unsuspended user ${userId}`
+      }
     });
 
     this.logger.log(`User ${userId} unsuspended by admin ${adminId}`);
@@ -249,15 +273,22 @@ export class AdminDashboardService {
 
   async banUser(userId: string, reason: string, adminId: string): Promise<void> {
     // Update user status
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { status: 'BANNED' }
+    });
+
     // Create audit log
-    await this.auditLogRepository.save({
-      adminId,
-      action: AuditAction.USER_BAN,
-      severity: AuditSeverity.HIGH,
-      targetType: 'User',
-      targetId: userId,
-      metadata: { reason },
-      description: `Banned user ${userId}: ${reason}`,
+    await this.prisma.auditLog.create({
+      data: {
+        adminId,
+        action: AuditAction.USER_BAN,
+        severity: AuditSeverity.HIGH,
+        targetType: 'User',
+        targetId: userId,
+        metadata: { reason },
+        description: `Banned user ${userId}: ${reason}`
+      }
     });
 
     this.logger.log(`User ${userId} banned by admin ${adminId}: ${reason}`);
@@ -265,37 +296,51 @@ export class AdminDashboardService {
 
   async unbanUser(userId: string, adminId: string): Promise<void> {
     // Update user status
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { status: 'ACTIVE' }
+    });
+
     // Create audit log
-    await this.auditLogRepository.save({
-      adminId,
-      action: AuditAction.USER_UNBAN,
-      severity: AuditSeverity.LOW,
-      targetType: 'User',
-      targetId: userId,
-      description: `Unbanned user ${userId}`,
+    await this.prisma.auditLog.create({
+      data: {
+        adminId,
+        action: AuditAction.USER_UNBAN,
+        severity: AuditSeverity.LOW,
+        targetType: 'User',
+        targetId: userId,
+        description: `Unbanned user ${userId}`
+      }
     });
 
     this.logger.log(`User ${userId} unbanned by admin ${adminId}`);
   }
 
-  async getUserAuditTrail(userId: string): Promise<AdminAuditLog[]> {
-    return await this.auditLogRepository.find({
+  async getUserAuditTrail(userId: string) {
+    return await this.prisma.auditLog.findMany({
       where: { targetId: userId, targetType: 'User' },
-      order: { createdAt: 'DESC' },
-      take: 100,
+      orderBy: { createdAt: 'desc' },
+      take: 100
     });
   }
 
   async approveKYC(userId: string, adminId: string): Promise<void> {
     // Update KYC status
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { kycStatus: 'APPROVED' }
+    });
+
     // Create audit log
-    await this.auditLogRepository.save({
-      adminId,
-      action: AuditAction.USER_SUSPEND, // Would be a KYC_APPROVED action
-      severity: AuditSeverity.MEDIUM,
-      targetType: 'User',
-      targetId: userId,
-      description: `Approved KYC for user ${userId}`,
+    await this.prisma.auditLog.create({
+      data: {
+        adminId,
+        action: 'KYC_APPROVED',
+        severity: AuditSeverity.MEDIUM,
+        targetType: 'User',
+        targetId: userId,
+        description: `Approved KYC for user ${userId}`
+      }
     });
 
     this.logger.log(`KYC approved for user ${userId} by admin ${adminId}`);
@@ -303,15 +348,22 @@ export class AdminDashboardService {
 
   async rejectKYC(userId: string, reason: string, adminId: string): Promise<void> {
     // Update KYC status
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { kycStatus: 'REJECTED' }
+    });
+
     // Create audit log
-    await this.auditLogRepository.save({
-      adminId,
-      action: AuditAction.USER_SUSPEND, // Would be a KYC_REJECTED action
-      severity: AuditSeverity.MEDIUM,
-      targetType: 'User',
-      targetId: userId,
-      metadata: { reason },
-      description: `Rejected KYC for user ${userId}: ${reason}`,
+    await this.prisma.auditLog.create({
+      data: {
+        adminId,
+        action: 'KYC_REJECTED',
+        severity: AuditSeverity.MEDIUM,
+        targetType: 'User',
+        targetId: userId,
+        metadata: { reason },
+        description: `Rejected KYC for user ${userId}: ${reason}`
+      }
     });
 
     this.logger.log(`KYC rejected for user ${userId} by admin ${adminId}: ${reason}`);
@@ -346,11 +398,11 @@ export class AdminDashboardService {
         fscaLicense: true,
         createdAt: true,
         tradingVolume: true,
-        complianceScore: true,
+        complianceScore: true
       },
       orderBy: { createdAt: 'desc' },
       skip: (filters.page - 1) * filters.limit,
-      take: filters.limit,
+      take: filters.limit
     });
 
     return { brokers, total };
@@ -368,8 +420,8 @@ export class AdminDashboardService {
         fscaLicense: true,
         createdAt: true,
         tradingVolume: true,
-        complianceScore: true,
-      },
+        complianceScore: true
+      }
     });
 
     if (!broker) {
@@ -380,13 +432,20 @@ export class AdminDashboardService {
 
   async approveBroker(brokerId: string, adminId: string): Promise<void> {
     // Update broker status
-    await this.auditLogRepository.save({
-      adminId,
-      action: AuditAction.BROKER_APPROVE,
-      severity: AuditSeverity.HIGH,
-      targetType: 'Broker',
-      targetId: brokerId,
-      description: `Approved broker ${brokerId}`,
+    await this.prisma.broker.update({
+      where: { id: brokerId },
+      data: { status: 'APPROVED' }
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        adminId,
+        action: AuditAction.BROKER_APPROVE,
+        severity: AuditSeverity.HIGH,
+        targetType: 'Broker',
+        targetId: brokerId,
+        description: `Approved broker ${brokerId}`
+      }
     });
 
     this.logger.log(`Broker ${brokerId} approved by admin ${adminId}`);
@@ -394,14 +453,21 @@ export class AdminDashboardService {
 
   async suspendBroker(brokerId: string, reason: string, adminId: string): Promise<void> {
     // Update broker status
-    await this.auditLogRepository.save({
-      adminId,
-      action: AuditAction.BROKER_SUSPEND,
-      severity: AuditSeverity.HIGH,
-      targetType: 'Broker',
-      targetId: brokerId,
-      metadata: { reason },
-      description: `Suspended broker ${brokerId}: ${reason}`,
+    await this.prisma.broker.update({
+      where: { id: brokerId },
+      data: { status: 'SUSPENDED' }
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        adminId,
+        action: AuditAction.BROKER_SUSPEND,
+        severity: AuditSeverity.HIGH,
+        targetType: 'Broker',
+        targetId: brokerId,
+        metadata: { reason },
+        description: `Suspended broker ${brokerId}: ${reason}`
+      }
     });
 
     this.logger.log(`Broker ${brokerId} suspended by admin ${adminId}: ${reason}`);
@@ -409,14 +475,21 @@ export class AdminDashboardService {
 
   async verifyBroker(brokerId: string, verificationData: any, adminId: string): Promise<void> {
     // Update broker verification status
-    await this.auditLogRepository.save({
-      adminId,
-      action: AuditAction.BROKER_APPROVE, // Would be BROKER_VERIFY action
-      severity: AuditSeverity.MEDIUM,
-      targetType: 'Broker',
-      targetId: brokerId,
-      metadata: verificationData,
-      description: `Verified broker ${brokerId}`,
+    await this.prisma.broker.update({
+      where: { id: brokerId },
+      data: { fscaVerified: true }
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        adminId,
+        action: 'BROKER_VERIFY',
+        severity: AuditSeverity.MEDIUM,
+        targetType: 'Broker',
+        targetId: brokerId,
+        metadata: verificationData,
+        description: `Verified broker ${brokerId}`
+      }
     });
 
     this.logger.log(`Broker ${brokerId} verified by admin ${adminId}`);
@@ -430,58 +503,59 @@ export class AdminDashboardService {
     targetType?: string;
     startDate?: Date;
     endDate?: Date;
-  }): Promise<{ logs: AdminAuditLog[]; total: number }> {
+  }): Promise<{ logs: any[]; total: number }> {
     const where: any = {};
 
     if (filters.action) where.action = filters.action;
     if (filters.adminId) where.adminId = filters.adminId;
     if (filters.targetType) where.targetType = filters.targetType;
     if (filters.startDate || filters.endDate) {
-      if (filters.startDate && filters.endDate) {
-        where.createdAt = this.auditLogRepository.manager.createQueryBuilder()
-          .select('*')
-          .from(AdminAuditLog, 'log')
-          .where('log.createdAt BETWEEN :start AND :end', {
-            start: filters.startDate,
-            end: filters.endDate
-          })
-          .getExpression();
-      } else if (filters.startDate) {
-        where.createdAt = { $gte: filters.startDate };
-      } else if (filters.endDate) {
-        where.createdAt = { $lte: filters.endDate };
-      }
+      where.createdAt = {};
+      if (filters.startDate) where.createdAt.gte = filters.startDate;
+      if (filters.endDate) where.createdAt.lte = filters.endDate;
     }
 
-    const [logs, total] = await this.auditLogRepository.findAndCount({
-      where,
-      order: { createdAt: 'DESC' },
-      skip: (filters.page - 1) * filters.limit,
-      take: filters.limit,
-    });
+    const [logs, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (filters.page - 1) * filters.limit,
+        take: filters.limit
+      }),
+      this.prisma.auditLog.count({ where })
+    ]);
 
     return { logs, total };
   }
 
   async getAuditStatistics(): Promise<any> {
-    return {
-      totalLogs: await this.auditLogRepository.count(),
-      actionsByType: await this.auditLogRepository
-        .createQueryBuilder('log')
-        .select('log.action', 'action')
-        .addSelect('COUNT(*)', 'count')
-        .groupBy('log.action')
-        .getRawMany(),
-      severityDistribution: await this.auditLogRepository
-        .createQueryBuilder('log')
-        .select('log.severity', 'severity')
-        .addSelect('COUNT(*)', 'count')
-        .groupBy('log.severity')
-        .getRawMany(),
-      recentActivity: await this.auditLogRepository.find({
-        order: { createdAt: 'DESC' },
-        take: 10,
+    const [totalLogs, actionsByType, severityDistribution, recentActivity] = await Promise.all([
+      this.prisma.auditLog.count(),
+      this.prisma.auditLog.groupBy({
+        by: ['action'],
+        _count: { action: true }
       }),
+      this.prisma.auditLog.groupBy({
+        by: ['severity'],
+        _count: { severity: true }
+      }),
+      this.prisma.auditLog.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 10
+      })
+    ]);
+
+    return {
+      totalLogs,
+      actionsByType: actionsByType.map(item => ({
+        action: item.action,
+        count: item._count.action
+      })),
+      severityDistribution: severityDistribution.map(item => ({
+        severity: item.severity,
+        count: item._count.severity
+      })),
+      recentActivity
     };
   }
 
@@ -494,9 +568,9 @@ export class AdminDashboardService {
     return await this.prisma.user.count({
       where: {
         lastLoginAt: {
-          gte: startTime,
-        },
-      },
+          gte: startTime
+        }
+      }
     });
   }
 
@@ -510,16 +584,16 @@ export class AdminDashboardService {
         OR: [
           {
             lastLoginAt: {
-              gte: startTime,
-            },
+              gte: startTime
+            }
           },
           {
             createdAt: {
-              gte: startTime,
-            },
+              gte: startTime
+            }
           },
-        ],
-      },
+        ]
+      }
     });
   }
 
@@ -527,18 +601,18 @@ export class AdminDashboardService {
     const volumeData = await this.prisma.transaction.aggregate({
       where: {
         type: {
-          in: ['BET_STAKE', 'BET_PAYOUT'],
+          in: ['BET_STAKE', 'BET_PAYOUT']
         },
         status: 'COMPLETED',
         createdAt: {
           gte: startTime,
-          lte: endTime,
-        },
+          lte: endTime
+        }
       },
       _sum: {
         amountZar: true,
-        amountUsd: true,
-      },
+        amountUsd: true
+      }
     });
 
     return (volumeData._sum.amountZar || 0) + (volumeData._sum.amountUsd || 0);
@@ -548,8 +622,8 @@ export class AdminDashboardService {
     const totalNodes = await this.prisma.validatorNode.count();
     const activeNodes = await this.prisma.validatorNode.count({
       where: {
-        status: 'ONLINE',
-      },
+        status: 'ONLINE'
+      }
     });
 
     if (totalNodes === 0) return 100;
@@ -559,11 +633,11 @@ export class AdminDashboardService {
   private async getNodeUptime(): Promise<number> {
     const nodes = await this.prisma.validatorNode.findMany({
       where: {
-        status: 'ONLINE',
+        status: 'ONLINE'
       },
       select: {
-        uptimePercentage: true,
-      },
+        uptimePercentage: true
+      }
     });
 
     if (nodes.length === 0) return 100;
@@ -575,18 +649,18 @@ export class AdminDashboardService {
     const revenueData = await this.prisma.transaction.aggregate({
       where: {
         type: {
-          in: ['DEPOSIT', 'WITHDRAWAL'],
+          in: ['DEPOSIT', 'WITHDRAWAL']
         },
         status: 'COMPLETED',
         createdAt: {
           gte: startTime,
-          lte: endTime,
-        },
+          lte: endTime
+        }
       },
       _sum: {
         amountZar: true,
-        amountUsd: true,
-      },
+        amountUsd: true
+      }
     });
 
     return (revenueData._sum.amountZar || 0) + (revenueData._sum.amountUsd || 0);
@@ -597,9 +671,9 @@ export class AdminDashboardService {
       where: {
         status: 'OPEN',
         severity: {
-          in: ['HIGH', 'CRITICAL'],
-        },
-      },
+          in: ['HIGH', 'CRITICAL']
+        }
+      }
     });
   }
 
@@ -609,9 +683,9 @@ export class AdminDashboardService {
         moderationStatus: 'FLAGGED',
         createdAt: {
           gte: startTime,
-          lte: endTime,
-        },
-      },
+          lte: endTime
+        }
+      }
     });
   }
 
@@ -619,15 +693,15 @@ export class AdminDashboardService {
     const highRiskAlerts = await this.prisma.monitoringAlert.count({
       where: {
         status: 'OPEN',
-        severity: 'CRITICAL',
-      },
+        severity: 'CRITICAL'
+      }
     });
 
     const totalUsers = await this.prisma.user.count();
     const suspendedUsers = await this.prisma.user.count({
       where: {
-        status: 'SUSPENDED',
-      },
+        status: 'SUSPENDED'
+      }
     });
 
     const baseScore = 90;
@@ -646,13 +720,13 @@ export class AdminDashboardService {
       where: {
         OR: [
           {
-            kycStatus: 'PENDING',
+            kycStatus: 'PENDING'
           },
           {
-            status: 'PENDING_VERIFICATION',
+            status: 'PENDING_VERIFICATION'
           },
-        ],
-      },
+        ]
+      }
     });
   }
 
@@ -661,16 +735,16 @@ export class AdminDashboardService {
       where: {
         type: 'USER_SECURITY',
         severity: 'CRITICAL',
-        status: 'OPEN',
-      },
+        status: 'OPEN'
+      }
     });
   }
 
   private async getPendingBrokerApplications(): Promise<number> {
     return await this.prisma.broker.count({
       where: {
-        status: 'PENDING',
-      },
+        status: 'PENDING'
+      }
     });
   }
 
@@ -679,15 +753,15 @@ export class AdminDashboardService {
       where: {
         AND: [
           {
-            fscaVerified: false,
+            fscaVerified: false
           },
           {
             createdAt: {
-              lte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Older than 7 days
-            },
+              lte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Older than 7 days
+            }
           },
-        ],
-      },
+        ]
+      }
     });
   }
 
@@ -696,17 +770,17 @@ export class AdminDashboardService {
       where: {
         status: 'ACTIVE',
         viralIndex: {
-          gt: 50, // Trends with significant virality
-        },
-      },
+          gt: 50 // Trends with significant virality
+        }
+      }
     });
   }
 
   private async getPendingTrendReviews(): Promise<number> {
     return await this.prisma.topic.count({
       where: {
-        status: 'PENDING_REVIEW',
-      },
+        status: 'PENDING_REVIEW'
+      }
     });
   }
 
@@ -714,18 +788,18 @@ export class AdminDashboardService {
     return await this.prisma.monitoringAlert.count({
       where: {
         severity: {
-          in: ['HIGH', 'CRITICAL'],
+          in: ['HIGH', 'CRITICAL']
         },
-        status: 'OPEN',
-      },
+        status: 'OPEN'
+      }
     });
   }
 
   private async getPendingContentReviews(): Promise<number> {
     return await this.prisma.ingestEvent.count({
       where: {
-        moderationStatus: 'PENDING_REVIEW',
-      },
+        moderationStatus: 'PENDING_REVIEW'
+      }
     });
   }
 
@@ -734,9 +808,9 @@ export class AdminDashboardService {
       where: {
         status: 'PENDING',
         dueDate: {
-          lte: new Date(),
-        },
-      },
+          lte: new Date()
+        }
+      }
     });
   }
 
@@ -747,26 +821,26 @@ export class AdminDashboardService {
         status: 'COMPLETED',
         createdAt: {
           gte: startTime,
-          lte: endTime,
-        },
+          lte: endTime
+        }
       },
       _sum: {
         amountZar: true,
-        amountUsd: true,
+        amountUsd: true
       },
-      _count: true,
+      _count: true
     });
 
     const brokerCommissions = await this.prisma.commission.aggregate({
       where: {
         createdAt: {
           gte: startTime,
-          lte: endTime,
-        },
+          lte: endTime
+        }
       },
       _sum: {
-        amount: true,
-      },
+        amount: true
+      }
     });
 
     return {
@@ -775,7 +849,7 @@ export class AdminDashboardService {
       platformFees: transactions.reduce((sum, tx) => {
         const amount = (tx._sum.amountZar || 0) + (tx._sum.amountUsd || 0);
         return sum + (amount * 0.002); // 0.2% platform fee
-      }, 0),
+      }, 0)
     };
   }
 
@@ -793,8 +867,8 @@ export class AdminDashboardService {
   private async getActiveNodes(): Promise<number> {
     return await this.prisma.validatorNode.count({
       where: {
-        status: 'ONLINE',
-      },
+        status: 'ONLINE'
+      }
     });
   }
 
@@ -803,7 +877,7 @@ export class AdminDashboardService {
       '1h': 60 * 60 * 1000,
       '24h': 24 * 60 * 60 * 1000,
       '7d': 7 * 24 * 60 * 60 * 1000,
-      '30d': 30 * 24 * 60 * 60 * 1000,
+      '30d': 30 * 24 * 60 * 60 * 1000
     };
 
     return new Date(now.getTime() - timeframes[timeframe as keyof typeof timeframes]);

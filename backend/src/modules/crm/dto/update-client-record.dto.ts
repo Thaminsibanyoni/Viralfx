@@ -1,5 +1,5 @@
 import { PartialType } from '@nestjs/swagger';
-import { CreateClientRecordDto, ClientSegment, ClientStatus, PreferredContact } from './create-client-record.dto';
+import { CreateClientRecordDto, ClientSegment, ClientStatus, PreferredContact } from "./create-client-record.dto";
 import { IsString, IsOptional, IsEnum, IsNumber, IsArray, IsObject, Min, Max, IsDateString } from 'class-validator';
 
 export class UpdateClientRecordDto extends PartialType(CreateClientRecordDto) {

@@ -1,18 +1,16 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Job, Queue } from 'bull';
-import { InjectQueue } from '@nestjs/bull';
+import { Job, Queue } from 'bullmq';
+import { InjectQueue } from '@nestjs/bullmq';
 
-import { ViralAsset, ViralCategory } from '../../assets/entities/viral-asset.entity';
-import { Broker } from '../../brokers/entities/broker.entity';
-import { Sponsorship, SponsorshipStatus, SponsorshipTier } from '../entities/sponsorship.entity';
-import { SponsorshipAgreement } from '../entities/sponsorship-agreement.entity';
+// COMMENTED OUT (cross-module entity import): import { ViralAsset, ViralCategory } from "../../assets/entities/viral-asset.entity";
+// COMMENTED OUT (cross-module entity import): import { Broker } from "../../brokers/entities/broker.entity";
+// COMMENTED OUT (TypeORM entity deleted): import { Sponsorship, SponsorshipStatus, SponsorshipTier } from '../entities/sponsorship.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { SponsorshipAgreement } from '../entities/sponsorship-agreement.entity';
 import { SponsorshipAnalytics } from '../interfaces/sponsorship.interface';
-import { NotificationService } from '../../notifications/services/notification.service';
+import { NotificationService } from "../../notifications/services/notification.service";
 import { AuditService } from '../services/audit.service';
-import { BillingService } from '../../billing/services/billing.service';
+import { BillingService } from "../../billing/services/billing.service";
 
 @Injectable()
 export class BrokerSponsorshipService {
@@ -20,16 +18,8 @@ export class BrokerSponsorshipService {
 
   constructor(
     private config: ConfigService,
-    private dataSource: DataSource,
-    @InjectRepository(ViralAsset)
-    private assetRepository: Repository<ViralAsset>,
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-    @InjectRepository(Sponsorship)
-    private sponsorshipRepository: Repository<Sponsorship>,
-    @InjectRepository(SponsorshipAgreement)
-    private agreementRepository: Repository<SponsorshipAgreement>,
-    private notificationService: NotificationService,
+    
+        private notificationService: NotificationService,
     private auditService: AuditService,
     private billingService: BillingService,
     @InjectQueue('sponsorship-processing')
@@ -55,7 +45,7 @@ export class BrokerSponsorshipService {
       this.logger.log(`Creating sponsorship: broker ${brokerId} for asset ${assetId}`);
 
       // Verify broker exists and is eligible for sponsorship
-      const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+      const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
       if (!broker) {
         throw new NotFoundException('Broker not found');
       }
@@ -65,7 +55,7 @@ export class BrokerSponsorshipService {
       }
 
       // Verify asset exists and is eligible for sponsorship
-      const asset = await this.assetRepository.findOne({ where: { id: assetId } });
+      const asset = await this.prisma.asset.findFirst({ where: { id: assetId } });
       if (!asset) {
         throw new NotFoundException('Viral asset not found');
       }
@@ -75,7 +65,7 @@ export class BrokerSponsorshipService {
       }
 
       // Check for existing active sponsorship
-      const existingSponsorship = await this.sponsorshipRepository.findOne({
+      const existingSponsorship = await this.prisma.sponsorshiprepository.findFirst({
         where: {
           brokerId,
           assetId,
@@ -102,7 +92,7 @@ export class BrokerSponsorshipService {
       );
 
       // Create sponsorship record
-      const sponsorship = this.sponsorshipRepository.create({
+      const sponsorship = this.prisma.sponsorshiprepository.create({
         brokerId,
         assetId,
         tier: sponsorshipData.tier,
@@ -119,7 +109,7 @@ export class BrokerSponsorshipService {
         createdBy: brokerId
       });
 
-      const savedSponsorship = await this.sponsorshipRepository.save(sponsorship);
+      const savedSponsorship = await this.prisma.sponsorshiprepository.upsert(sponsorship);
 
       // Create sponsorship agreement
       const agreement = await this.createSponsorshipAgreement(savedSponsorship, broker, asset);
@@ -159,7 +149,7 @@ export class BrokerSponsorshipService {
    */
   async activateSponsorship(sponsorshipId: string, activatedBy?: string): Promise<void> {
     try {
-      const sponsorship = await this.sponsorshipRepository.findOne({
+      const sponsorship = await this.prisma.sponsorshiprepository.findFirst({
         where: { id: sponsorshipId },
         relations: ['broker', 'asset']
       });
@@ -262,7 +252,7 @@ export class BrokerSponsorshipService {
    */
   async getSponsorshipAnalytics(sponsorshipId: string): Promise<SponsorshipAnalytics> {
     try {
-      const sponsorship = await this.sponsorshipRepository.findOne({
+      const sponsorship = await this.prisma.sponsorshiprepository.findFirst({
         where: { id: sponsorshipId },
         relations: ['asset', 'broker']
       });
@@ -315,7 +305,7 @@ export class BrokerSponsorshipService {
     }
   ): Promise<void> {
     try {
-      const sponsorship = await this.sponsorshipRepository.findOne({
+      const sponsorship = await this.prisma.sponsorshiprepository.findFirst({
         where: { id: sponsorshipId }
       });
 
@@ -324,7 +314,7 @@ export class BrokerSponsorshipService {
       }
 
       // Update cumulative metrics
-      await this.sponsorshipRepository.update(sponsorshipId, {
+      await this.prisma.sponsorshiprepository.update(sponsorshipId, {
         impressions: sponsorship.impressions + (metrics.impressions || 0),
         clicks: sponsorship.clicks + (metrics.clicks || 0),
         conversions: sponsorship.conversions + (metrics.conversions || 0),
@@ -369,7 +359,7 @@ export class BrokerSponsorshipService {
     categoryInsights: any;
   }> {
     try {
-      const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+      const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
       if (!broker) {
         throw new NotFoundException('Broker not found');
       }
@@ -429,7 +419,7 @@ export class BrokerSponsorshipService {
    * Get assets sponsored by a broker
    */
   async getSponsoredAssets(brokerId: string): Promise<ViralAsset[]> {
-    const sponsorships = await this.sponsorshipRepository.find({
+    const sponsorships = await this.prisma.sponsorshiprepository.findMany({
       where: {
         brokerId,
         status: SponsorshipStatus.ACTIVE
@@ -498,7 +488,7 @@ export class BrokerSponsorshipService {
     broker: Broker,
     asset: ViralAsset
   ): Promise<SponsorshipAgreement> {
-    const agreement = this.agreementRepository.create({
+    const agreement = this.prisma.agreementrepository.create({
       sponsorshipId: sponsorship.id,
       brokerId: broker.id,
       assetId: asset.id,
@@ -508,7 +498,7 @@ export class BrokerSponsorshipService {
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days to sign
     });
 
-    return await this.agreementRepository.save(agreement);
+    return await this.prisma.agreementrepository.upsert(agreement);
   }
 
   private async calculatePerformanceMetrics(sponsorship: Sponsorship): Promise<any> {

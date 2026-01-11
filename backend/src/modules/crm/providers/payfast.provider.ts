@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import axios, { AxiosResponse } from 'axios';
 import { createHash, createHmac } from 'crypto';
 import { PaymentProvider, PaymentRequest, PaymentResponse, WebhookEvent } from '../interfaces/payment-provider.interface';
-import { WalletService } from '../../wallet/wallet.service';
+// import { WalletService } from "../../wallet/wallet.service";
 
 @Injectable()
 export class PayFastProvider implements PaymentProvider {
@@ -15,17 +15,15 @@ export class PayFastProvider implements PaymentProvider {
 
   constructor(
     private configService: ConfigService,
-    private walletService: WalletService,
+    // private walletService: WalletService
   ) {
     this.merchantId = this.configService.get('PAYFAST_MERCHANT_ID');
     this.merchantKey = this.configService.get('PAYFAST_MERCHANT_KEY');
     this.passphrase = this.configService.get('PAYFAST_PASSPHRASE');
     this.isTestMode = this.configService.get('PAYFAST_TEST_MODE', 'true') === 'true';
-
     if (!this.merchantId || !this.merchantKey) {
       throw new Error('PAYFAST_MERCHANT_ID and PAYFAST_MERCHANT_KEY environment variables are required');
     }
-
     this.baseUrl = this.isTestMode
       ? 'https://sandbox.payfast.co.za/eng/process'
       : 'https://www.payfast.co.za/eng/process';
@@ -49,32 +47,28 @@ export class PayFastProvider implements PaymentProvider {
         item_description: `Payment for invoice ${paymentRequest.invoiceId}`,
         custom_int1: paymentRequest.invoiceId,
         custom_int2: paymentRequest.brokerId,
-        custom_str1: 'VIRALFX_CRM',
+        custom_str1: 'VIRALFX_CRM'
       };
-
       if (this.passphrase) {
         signatureData['passphrase'] = this.passphrase;
       }
-
       const signature = this.generateSignature(signatureData);
-
       const paymentUrl = `${this.baseUrl}?${new URLSearchParams({
         ...signatureData,
-        signature,
+        signature
       }).toString()}`;
-
       return {
         success: true,
         reference: paymentRequest.reference,
         authorizationUrl: paymentUrl,
         provider: 'payfast',
-        metadata: { signature, paymentUrl },
+        metadata: { signature, paymentUrl }
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        provider: 'payfast',
+        provider: 'payfast'
       };
     }
   }
@@ -85,23 +79,20 @@ export class PayFastProvider implements PaymentProvider {
       const verificationData = {
         m_payment_id: reference,
         merchant_id: this.merchantId,
-        merchant_key: this.merchantKey,
+        merchant_key: this.merchantKey
       };
-
       if (this.passphrase) {
         verificationData['passphrase'] = this.passphrase;
       }
-
       const signature = this.generateSignature(verificationData);
       verificationData['signature'] = signature;
-
       const response: AxiosResponse = await axios.post(
         `${this.isTestMode ? 'https://sandbox.payfast.co.za' : 'https://www.payfast.co.za'}/eng/query/verify`,
         new URLSearchParams(verificationData).toString(),
         {
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
         }
       );
 
@@ -112,7 +103,7 @@ export class PayFastProvider implements PaymentProvider {
           reference,
           status: 'completed',
           provider: 'payfast',
-          metadata: { verification: 'valid' },
+          metadata: { verification: 'valid' }
         };
       } else {
         return {
@@ -120,14 +111,14 @@ export class PayFastProvider implements PaymentProvider {
           reference,
           status: 'invalid',
           provider: 'payfast',
-          metadata: { verification: 'invalid', response: response.data },
+          metadata: { verification: 'invalid', response: response.data }
         };
       }
     } catch (error) {
       return {
         success: false,
         error: error.response?.data?.message || error.message,
-        provider: 'payfast',
+        provider: 'payfast'
       };
     }
   }
@@ -137,16 +128,14 @@ export class PayFastProvider implements PaymentProvider {
       // Parse URL-encoded form data from PayFast
       const parsedData = new URLSearchParams(rawBody);
       const eventData: any = {};
-
-      for (const [key, value] of parsedData.entries()) {
+      parsedData.forEach((value, key) => {
         eventData[key] = value;
-      }
+      });
 
       // Verify webhook signature
       const expectedSignature = createHash('md5')
         .update(`${rawBody}${this.passphrase}`)
         .digest('hex');
-
       if (signature !== expectedSignature) {
         throw new Error('Invalid webhook signature');
       }
@@ -162,7 +151,7 @@ export class PayFastProvider implements PaymentProvider {
           status: 'completed',
           paidAt: new Date(),
           customerEmail: eventData.email_address,
-          metadata: eventData,
+          metadata: eventData
         };
       } else if (eventData.payment_status === 'FAILED') {
         return {
@@ -174,7 +163,7 @@ export class PayFastProvider implements PaymentProvider {
           status: 'failed',
           paidAt: new Date(),
           customerEmail: eventData.email_address,
-          metadata: eventData,
+          metadata: eventData
         };
       } else {
         return {
@@ -186,7 +175,7 @@ export class PayFastProvider implements PaymentProvider {
           status: eventData.payment_status?.toLowerCase(),
           paidAt: new Date(),
           customerEmail: eventData.email_address,
-          metadata: eventData,
+          metadata: eventData
         };
       }
     } catch (error) {
@@ -206,7 +195,6 @@ export class PayFastProvider implements PaymentProvider {
       .sort()
       .map(key => `${key}=${encodeURIComponent(data[key].toString()).replace(/%20/g, '+')}`)
       .join('&');
-
     return createHash('md5').update(parameterString).digest('hex');
   }
 
@@ -220,10 +208,11 @@ export class PayFastProvider implements PaymentProvider {
 
   async creditBrokerWallet(brokerId: string, amount: number, metadata: any): Promise<void> {
     // Credit broker wallet after successful payment
-    await this.walletService.creditBroker(brokerId, amount, {
-      source: 'payment',
-      provider: 'payfast',
-      ...metadata,
-    });
+    // await this.walletService.creditBroker(brokerId, amount, {
+    //   source: 'payment',
+    //   provider: 'payfast',
+    //   ...metadata
+    // });
+    throw new Error('Wallet service not implemented');
   }
 }

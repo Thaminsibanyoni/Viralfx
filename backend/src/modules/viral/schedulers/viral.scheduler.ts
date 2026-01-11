@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { ViralIndexService } from '../services/viral-index.service';
 import { ViralMetricsService } from '../services/viral-metrics.service';
 import { ViralService } from '../services/viral.service';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 
 @Injectable()
 export class ViralScheduler implements OnModuleInit {
@@ -13,8 +13,7 @@ export class ViralScheduler implements OnModuleInit {
     private readonly viralIndexService: ViralIndexService,
     private readonly viralMetricsService: ViralMetricsService,
     private readonly viralService: ViralService,
-    private readonly prisma: PrismaService,
-  ) {}
+    private readonly prisma: PrismaService) {}
 
   onModuleInit() {
     this.logger.log('Viral scheduler initialized');
@@ -32,11 +31,11 @@ export class ViralScheduler implements OnModuleInit {
           isActive: true,
           lastViralAnalysis: {
             // Only update topics that haven't been analyzed in the last 30 minutes
-            lt: new Date(Date.now() - 30 * 60 * 1000),
-          },
+            lt: new Date(Date.now() - 30 * 60 * 1000)
+          }
         },
         select: { id: true, name: true },
-        take: 100, // Limit to prevent overwhelming the system
+        take: 100 // Limit to prevent overwhelming the system
       });
 
       if (activeTopics.length === 0) {
@@ -89,22 +88,22 @@ export class ViralScheduler implements OnModuleInit {
       const recentBreakouts = await this.prisma.viralContent.findMany({
         where: {
           createdAt: {
-            gte: new Date(Date.now() - 30 * 60 * 1000), // Last 30 minutes
+            gte: new Date(Date.now() - 30 * 60 * 1000) // Last 30 minutes
           },
           viralScore: {
-            gte: 0.85, // High viral score threshold
+            gte: 0.85 // High viral score threshold
           },
           momentumScore: {
-            gte: 0.7, // High momentum threshold
-          },
+            gte: 0.7 // High momentum threshold
+          }
         },
         include: {
           topic: {
-            select: { name: true },
-          },
+            select: { name: true }
+          }
         },
         orderBy: { viralScore: 'desc' },
-        take: 20,
+        take: 20
       });
 
       if (recentBreakouts.length > 0) {
@@ -143,18 +142,18 @@ export class ViralScheduler implements OnModuleInit {
         by: ['topicId'],
         where: {
           createdAt: {
-            gte: new Date(Date.now() - 2 * 60 * 60 * 1000), // Last 2 hours
-          },
+            gte: new Date(Date.now() - 2 * 60 * 60 * 1000) // Last 2 hours
+          }
         },
         _count: { id: true },
         having: {
           id: {
             _count: {
-              gte: 5, // At least 5 recent content items
-            },
-          },
+              gte: 5 // At least 5 recent content items
+            }
+          }
         },
-        take: 50,
+        take: 50
       });
 
       if (activeTopics.length === 0) {
@@ -176,8 +175,8 @@ export class ViralScheduler implements OnModuleInit {
             data: {
               viralScore: metrics.viralScore,
               momentumScore: metrics.momentumScore,
-              lastViralAnalysis: new Date(),
-            },
+              lastViralAnalysis: new Date()
+            }
           });
 
           updated++;
@@ -204,36 +203,36 @@ export class ViralScheduler implements OnModuleInit {
       const deletedContent = await this.prisma.viralContent.deleteMany({
         where: {
           createdAt: {
-            lt: cutoffDate,
+            lt: cutoffDate
           },
           viralScore: {
-            lt: 0.8, // Keep high viral content
-          },
-        },
+            lt: 0.8 // Keep high viral content
+          }
+        }
       });
 
       // Clean up old viral index history
       const deletedHistory = await this.prisma.viralIndexHistory.deleteMany({
         where: {
           timestamp: {
-            lt: cutoffDate,
+            lt: cutoffDate
           },
           index: {
-            lt: 0.7, // Keep high-performing history
-          },
-        },
+            lt: 0.7 // Keep high-performing history
+          }
+        }
       });
 
       // Clean up old metrics events
       const deletedEvents = await this.prisma.metricsEvent.deleteMany({
         where: {
           timestamp: {
-            lt: cutoffDate,
+            lt: cutoffDate
           },
           eventType: {
-            in: ['VIRAL_CONTENT_ANALYZED', 'VIRAL_INDEX_UPDATE'],
-          },
-        },
+            in: ['VIRAL_CONTENT_ANALYZED', 'VIRAL_INDEX_UPDATE']
+          }
+        }
       });
 
       this.logger.log(
@@ -266,50 +265,50 @@ export class ViralScheduler implements OnModuleInit {
           viralScore: { gte: 0.9 },
           metadata: {
             path: ['eventType'],
-            equals: 'VIRAL_BREAKOUT',
-          },
+            equals: 'VIRAL_BREAKOUT'
+          }
         },
         include: {
           topic: {
-            select: { name: true },
-          },
-        },
+            select: { name: true }
+          }
+        }
       });
 
       // Generate summary report
       const report = {
         period: {
           start: weekAgo.toISOString(),
-          end: new Date().toISOString(),
+          end: new Date().toISOString()
         },
         overview: {
           totalTopics: systemMetrics.totalTopics,
           totalViralContent: systemMetrics.totalViralContent,
           averageViralIndex: systemMetrics.averageViralIndex,
-          performanceMetrics: systemMetrics.performanceMetrics,
+          performanceMetrics: systemMetrics.performanceMetrics
         },
         topPerformers: topTopics.slice(0, 10),
         viralBreakouts: breakouts.map(b => ({
           topicName: b.topic?.name || 'Unknown',
           breakoutTime: b.createdAt,
           viralScore: b.viralScore,
-          momentumScore: b.momentumScore,
+          momentumScore: b.momentumScore
         })),
         trendingCategories: systemMetrics.trendingCategories,
-        insights: this.generateWeeklyInsights(systemMetrics, topTopics, breakouts),
+        insights: this.generateWeeklyInsights(systemMetrics, topTopics, breakouts)
       };
 
       // Store report in database (would have reports table)
       this.logger.log('Weekly viral performance report generated', {
         totalTopics: report.overview.totalTopics,
         totalViralContent: report.overview.totalViralContent,
-        viralBreakouts: report.viralBreakouts.length,
+        viralBreakouts: report.viralBreakouts.length
       });
 
       // Clean up very old reports (keep last 12 weeks)
       const twelveWeeksAgo = new Date(Date.now() - 12 * 7 * 24 * 60 * 60 * 1000);
       // await this.prisma.viralReport.deleteMany({
-      //   where: { createdAt: { lt: twelveWeeksAgo } },
+      //   where: { createdAt: { lt: twelveWeeksAgo } }
       // });
 
       this.logger.log('Weekly viral performance report generation completed');
@@ -332,11 +331,11 @@ export class ViralScheduler implements OnModuleInit {
             viralScore: breakout.viralScore,
             momentumScore: breakout.momentumScore,
             predictedVirality: breakout.predictedVirality,
-            timestamp: breakout.createdAt.toISOString(),
+            timestamp: breakout.createdAt.toISOString()
           },
           priority: 'CRITICAL',
-          createdAt: new Date(),
-        },
+          createdAt: new Date()
+        }
       });
 
       // Could also send WebSocket notifications, emails, etc.
@@ -360,11 +359,11 @@ export class ViralScheduler implements OnModuleInit {
             momentum: topic.momentum,
             growth: topic.growth,
             viralIndex: topic.viralIndex,
-            timestamp: new Date().toISOString(),
+            timestamp: new Date().toISOString()
           },
           priority: 'HIGH',
-          createdAt: new Date(),
-        },
+          createdAt: new Date()
+        }
       });
 
       this.logger.warn(`VIRAL MOMENTUM: ${topic.topicName} (${topic.growth}% growth, momentum: ${topic.momentum})`);

@@ -11,9 +11,9 @@
  */
 
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from '../../app.module';
-import { BullModule, getQueueToken } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { AppModule } from "../../app.module";
+import { BullModule, getQueueToken } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 
 interface LoadTestConfig {
@@ -66,8 +66,7 @@ class NotificationLoadTester {
     pushQueue: Queue,
     smsQueue: Queue,
     inAppQueue: Queue,
-    configService: ConfigService,
-  ) {
+    configService: ConfigService) {
     this.emailQueue = emailQueue;
     this.pushQueue = pushQueue;
     this.smsQueue = smsQueue;
@@ -175,7 +174,7 @@ class NotificationLoadTester {
     const systemMetrics: SystemMetrics = {
       memoryUsage: process.memoryUsage(),
       cpuUsage: process.cpuUsage(),
-      uptime: process.uptime(),
+      uptime: process.uptime()
     };
 
     return {
@@ -183,24 +182,24 @@ class NotificationLoadTester {
       emailQueue: {
         ...emailCounts,
         paused: emailPaused,
-        rate: this.calculateRate('email'),
+        rate: this.calculateRate('email')
       },
       pushQueue: {
         ...pushCounts,
         paused: pushPaused,
-        rate: this.calculateRate('push'),
+        rate: this.calculateRate('push')
       },
       smsQueue: {
         ...smsCounts,
         paused: smsPaused,
-        rate: this.calculateRate('sms'),
+        rate: this.calculateRate('sms')
       },
       inAppQueue: {
         ...inAppCounts,
         paused: inAppPaused,
-        rate: this.calculateRate('in-app'),
+        rate: this.calculateRate('in-app')
       },
-      systemMetrics,
+      systemMetrics
     };
   }
 
@@ -269,7 +268,7 @@ class NotificationLoadTester {
           template: 'user-welcome',
           data: { name: `Load Test User ${i}` },
           priority: 'MEDIUM',
-          userId: `load-user-${i}`,
+          userId: `load-user-${i}`
         })
       );
     }
@@ -282,7 +281,7 @@ class NotificationLoadTester {
           title: `Load Test Push ${i}`,
           body: `This is load test push notification ${i}`,
           data: { testId: i },
-          priority: 'MEDIUM',
+          priority: 'MEDIUM'
         })
       );
     }
@@ -294,7 +293,7 @@ class NotificationLoadTester {
           to: `+2712345678${String(i).padStart(2, '0')}`,
           message: `Load test SMS ${i}`,
           priority: 'LOW',
-          userId: `load-user-${i}`,
+          userId: `load-user-${i}`
         })
       );
     }
@@ -309,7 +308,7 @@ class NotificationLoadTester {
           data: { testId: i },
           type: 'SYSTEM',
           category: 'INFO',
-          priority: 'MEDIUM',
+          priority: 'MEDIUM'
         })
       );
     }
@@ -334,7 +333,7 @@ class NotificationLoadTester {
           to: `stresstest${i}@example.com`,
           subject: `Stress Test Email ${i}`,
           message: `High volume stress test email ${i}`,
-          priority: i % 3 === 0 ? 'HIGH' : 'MEDIUM',
+          priority: i % 3 === 0 ? 'HIGH' : 'MEDIUM'
         })
       );
     }
@@ -346,7 +345,7 @@ class NotificationLoadTester {
           title: `Stress Test Push ${i}`,
           body: `High volume stress test push ${i}`,
           data: { stressTest: true, testId: i },
-          priority: 'HIGH',
+          priority: 'HIGH'
         })
       );
     }
@@ -371,19 +370,19 @@ class NotificationLoadTester {
             to: `burst${i}@example.com`,
             subject: `Burst Email ${i}`,
             message: `Burst test email ${i}`,
-            priority: 'CRITICAL',
+            priority: 'CRITICAL'
           }),
           this.pushQueue.add('send-push', {
             userId: `burst-user-${i}`,
             title: `Burst Push ${i}`,
             body: `Burst test push ${i}`,
-            priority: 'CRITICAL',
+            priority: 'CRITICAL'
           }),
           this.inAppQueue.add('send-in-app', {
             userId: `burst-user-${i}`,
             title: `Burst In-App ${i}`,
             message: `Burst test in-app ${i}`,
-            priority: 'CRITICAL',
+            priority: 'CRITICAL'
           }),
         ])
       );
@@ -413,7 +412,7 @@ class NotificationLoadTester {
       await this.emailQueue.add('send-email', {
         to: `recovery${i}@example.com`,
         subject: `Recovery Test Email ${i}`,
-        message: `Recovery test email ${i}`,
+        message: `Recovery test email ${i}`
       });
     }
 
@@ -534,7 +533,7 @@ class NotificationLoadTester {
       totalFailed: failed[failed.length - 1] || 0,
       peakRate: Math.max(...rates, 0),
       averageRate: rates.reduce((a, b) => a + b, 0) / rates.length,
-      successRate: this.calculateSuccessRate(completed[completed.length - 1], failed[failed.length - 1]),
+      successRate: this.calculateSuccessRate(completed[completed.length - 1], failed[failed.length - 1])
     };
   }
 
@@ -545,7 +544,7 @@ class NotificationLoadTester {
       initialMemory: memoryUsage[0] || 0,
       peakMemory: Math.max(...memoryUsage, 0),
       finalMemory: memoryUsage[memoryUsage.length - 1] || 0,
-      avgMemory: memoryUsage.reduce((a, b) => a + b, 0) / memoryUsage.length,
+      avgMemory: memoryUsage.reduce((a, b) => a + b, 0) / memoryUsage.length
     };
   }
 
@@ -657,7 +656,7 @@ async function main() {
       inAppJobs: 120,
       concurrentBatches: 10,
       batchDelay: 1000,
-      monitoringInterval: 2000,
+      monitoringInterval: 2000
     };
 
     // Override config from command line arguments
@@ -687,7 +686,7 @@ async function main() {
     console.log('🔧 Initializing NestJS application...\n');
 
     app = await NestFactory.createApplicationContext(AppModule, {
-      logger: ['error'], // Minimal logging during load test
+      logger: ['error'] // Minimal logging during load test
     });
 
     const emailQueue = app.get(getQueueToken('notifications:email'));
@@ -701,8 +700,7 @@ async function main() {
       pushQueue,
       smsQueue,
       inAppQueue,
-      configService,
-    );
+      configService);
 
     await tester.runLoadTest(config);
 

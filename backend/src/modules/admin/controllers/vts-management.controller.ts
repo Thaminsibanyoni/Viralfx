@@ -11,14 +11,15 @@ import {
   Request,
   Logger,
   ParseUUIDPipe,
+  Req,
+  Inject,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../guards/admin-auth.guard';
 import { Permissions } from '../decorators/permissions.decorator';
 import { VTSManagementService } from '../services/vts-management.service';
-import { AdminAuditLog, AuditAction, AuditSeverity } from '../entities/admin-audit-log.entity';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { AuditService } from '../../audit/audit.service';
+import { AuditAction, AuditSeverity, AuditResourceType } from '../../audit/enums/audit.enum';
 
 @ApiTags('VTS Management')
 @Controller('admin/vts')
@@ -29,8 +30,7 @@ export class VTSManagementController {
 
   constructor(
     private readonly vtsManagementService: VTSManagementService,
-    @InjectRepository(AdminAuditLog)
-    private readonly auditLogRepository: Repository<AdminAuditLog>,
+    private readonly auditService: AuditService,
   ) {}
 
   @Get('symbols')
@@ -43,15 +43,14 @@ export class VTSManagementController {
     @Query('category') category?: string,
     @Query('region') region?: string,
     @Query('status') status?: string,
-    @Query('search') search?: string,
-  ) {
+    @Query('search') search?: string) {
     return await this.vtsManagementService.getSymbols({
       page: parseInt(page),
       limit: parseInt(limit),
       category,
       region,
       status,
-      search,
+      search
     });
   }
 
@@ -61,8 +60,7 @@ export class VTSManagementController {
   @ApiParam({ name: 'id', description: 'VTS Symbol ID' })
   @ApiResponse({ status: 200, description: 'VTS symbol details retrieved successfully' })
   async getVTSSymbolById(
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+    @Param('id', ParseUUIDPipe) id: string) {
     return await this.vtsManagementService.getSymbolById(id);
   }
 
@@ -74,23 +72,21 @@ export class VTSManagementController {
   async updateSymbolCategory(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('category') category: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.vtsManagementService.updateCategory(
       id,
       category,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.auditService.logAdminAction({
       adminId: req.admin.id,
       action: AuditAction.TREND_OVERRIDE,
       severity: AuditSeverity.MEDIUM,
       targetType: 'VTSSymbol',
       targetId: id,
       metadata: { category },
-      description: `Updated VTS symbol ${id} category to ${category}`,
+      description: `Updated VTS symbol ${id} category to ${category}`
     });
 
     this.logger.log(`VTS symbol ${id} category updated to ${category} by admin ${req.admin.id}`);
@@ -105,23 +101,21 @@ export class VTSManagementController {
   async freezeSymbol(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.vtsManagementService.freezeSymbol(
       id,
       reason,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.auditService.logAdminAction({
       adminId: req.admin.id,
       action: AuditAction.TREND_PAUSE,
       severity: AuditSeverity.HIGH,
       targetType: 'VTSSymbol',
       targetId: id,
       metadata: { reason },
-      description: `Froze VTS symbol ${id}: ${reason}`,
+      description: `Froze VTS symbol ${id}: ${reason}`
     });
 
     this.logger.log(`VTS symbol ${id} frozen by admin ${req.admin.id}: ${reason}`);
@@ -135,21 +129,19 @@ export class VTSManagementController {
   @ApiResponse({ status: 200, description: 'VTS symbol unfrozen successfully' })
   async unfreezeSymbol(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.vtsManagementService.unfreezeSymbol(
       id,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.auditService.logAdminAction({
       adminId: req.admin.id,
       action: AuditAction.TREND_RESUME,
       severity: AuditSeverity.MEDIUM,
       targetType: 'VTSSymbol',
       targetId: id,
-      description: `Unfroze VTS symbol ${id}`,
+      description: `Unfroze VTS symbol ${id}`
     });
 
     this.logger.log(`VTS symbol ${id} unfrozen by admin ${req.admin.id}`);
@@ -164,23 +156,21 @@ export class VTSManagementController {
   async mergeSymbols(
     @Param('id', ParseUUIDPipe) sourceId: string,
     @Body('targetId') targetId: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.vtsManagementService.mergeSymbols(
       sourceId,
       targetId,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.auditService.logAdminAction({
       adminId: req.admin.id,
       action: AuditAction.TREND_OVERRIDE,
       severity: AuditSeverity.HIGH,
       targetType: 'VTSSymbol',
       targetId: sourceId,
       metadata: { sourceId, targetId },
-      description: `Merged VTS symbol ${sourceId} into ${targetId}`,
+      description: `Merged VTS symbol ${sourceId} into ${targetId}`
     });
 
     this.logger.log(`VTS symbols merged by admin ${req.admin.id}: ${sourceId} -> ${targetId}`);
@@ -195,23 +185,21 @@ export class VTSManagementController {
   async splitSymbol(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('newSymbols') newSymbols: any[],
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.vtsManagementService.splitSymbol(
       id,
       newSymbols,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.auditService.logAdminAction({
       adminId: req.admin.id,
       action: AuditAction.TREND_OVERRIDE,
       severity: AuditSeverity.CRITICAL,
       targetType: 'VTSSymbol',
       targetId: id,
       metadata: { newSymbols },
-      description: `Split VTS symbol ${id} into ${newSymbols.length} symbols`,
+      description: `Split VTS symbol ${id} into ${newSymbols.length} symbols`
     });
 
     this.logger.log(`VTS symbol ${id} split by admin ${req.admin.id}`);
@@ -226,23 +214,21 @@ export class VTSManagementController {
   async rollbackSymbol(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('version') version: number,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.vtsManagementService.rollbackSymbol(
       id,
       version,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.auditService.logAdminAction({
       adminId: req.admin.id,
       action: AuditAction.TREND_OVERRIDE,
       severity: AuditSeverity.HIGH,
       targetType: 'VTSSymbol',
       targetId: id,
       metadata: { version },
-      description: `Rolled back VTS symbol ${id} to version ${version}`,
+      description: `Rolled back VTS symbol ${id} to version ${version}`
     });
 
     this.logger.log(`VTS symbol ${id} rolled back to version ${version} by admin ${req.admin.id}`);
@@ -256,12 +242,11 @@ export class VTSManagementController {
   async getVTSAliases(
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '50',
-    @Query('search') search?: string,
-  ) {
+    @Query('search') search?: string) {
     return await this.vtsManagementService.getAliases({
       page: parseInt(page),
       limit: parseInt(limit),
-      search,
+      search
     });
   }
 
@@ -273,23 +258,21 @@ export class VTSManagementController {
   async updateAlias(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('alias') alias: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.vtsManagementService.updateAlias(
       id,
       alias,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.auditService.logAdminAction({
       adminId: req.admin.id,
       action: AuditAction.TREND_OVERRIDE,
       severity: AuditSeverity.LOW,
       targetType: 'VTSAlias',
       targetId: id,
       metadata: { alias },
-      description: `Updated VTS alias ${id} to ${alias}`,
+      description: `Updated VTS alias ${id} to ${alias}`
     });
 
     this.logger.log(`VTS alias ${id} updated to ${alias} by admin ${req.admin.id}`);
@@ -304,13 +287,12 @@ export class VTSManagementController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '50',
     @Query('status') status?: string,
-    @Query('type') type?: string,
-  ) {
+    @Query('type') type?: string) {
     return await this.vtsManagementService.getDisputes({
       page: parseInt(page),
       limit: parseInt(limit),
       status,
-      type,
+      type
     });
   }
 
@@ -322,23 +304,21 @@ export class VTSManagementController {
   async resolveDispute(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('resolution') resolution: any,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.vtsManagementService.resolveDispute(
       id,
       resolution,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.auditService.logAdminAction({
       adminId: req.admin.id,
       action: AuditAction.TREND_OVERRIDE,
       severity: AuditSeverity.HIGH,
       targetType: 'VTSDispute',
       targetId: id,
       metadata: { resolution },
-      description: `Resolved VTS dispute ${id}`,
+      description: `Resolved VTS dispute ${id}`
     });
 
     this.logger.log(`VTS dispute ${id} resolved by admin ${req.admin.id}`);
@@ -350,8 +330,7 @@ export class VTSManagementController {
   @ApiOperation({ summary: 'Get VTS statistics' })
   @ApiResponse({ status: 200, description: 'VTS statistics retrieved successfully' })
   async getVTSStatistics(
-    @Query('timeframe') timeframe: string = '30d',
-  ) {
+    @Query('timeframe') timeframe: string = '30d') {
     return await this.vtsManagementService.getStatistics(timeframe);
   }
 
@@ -376,8 +355,7 @@ export class VTSManagementController {
   @ApiOperation({ summary: 'Validate VTS symbol format' })
   @ApiResponse({ status: 200, description: 'VTS symbol validation result' })
   async validateVTSSymbol(
-    @Body('symbol') symbol: string,
-  ) {
+    @Body('symbol') symbol: string) {
     return await this.vtsManagementService.validateSymbolFormat(symbol);
   }
 
@@ -388,8 +366,7 @@ export class VTSManagementController {
   @ApiResponse({ status: 200, description: 'VTS symbol usage retrieved successfully' })
   async getVTSymbolUsage(
     @Param('id', ParseUUIDPipe) id: string,
-    @Query('timeframe') timeframe: string = '30d',
-  ) {
+    @Query('timeframe') timeframe: string = '30d') {
     return await this.vtsManagementService.getSymbolUsage(id, timeframe);
   }
 

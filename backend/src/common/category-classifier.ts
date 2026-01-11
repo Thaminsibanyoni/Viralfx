@@ -4,7 +4,7 @@
  * © 2025 ViralFX - Content Classification System
  */
 
-import { CategoryCode } from './symbol-generator';
+import { CategoryCode } from "./symbol-generator";
 
 export interface CategoryDetection {
   category: CategoryCode;

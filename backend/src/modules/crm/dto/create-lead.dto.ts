@@ -1,6 +1,6 @@
 import { IsString, IsEmail, IsNotEmpty, IsOptional, IsEnum, IsNumber, IsObject, IsUUID } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { LeadSource } from '../entities/lead.entity';
+import { LeadSource } from '../enums/crm.enum';
 
 export class CreateLeadDto {
   @ApiPropertyOptional({ description: 'Broker ID if lead is associated with a broker' })

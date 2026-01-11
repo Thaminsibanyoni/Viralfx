@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
 
 @Injectable()
 export class MrrService {
@@ -9,8 +9,7 @@ export class MrrService {
 
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly redisService: RedisService,
-  ) {}
+    private readonly redisService: RedisService) {}
 
   async calculateMRR(date: Date): Promise<{
     total: number;
@@ -39,16 +38,16 @@ export class MrrService {
           status: 'PAID',
           createdAt: {
             gte: startOfMonth,
-            lte: endOfMonth,
-          },
+            lte: endOfMonth
+          }
         },
         include: {
           broker: {
             select: {
-              tier: true,
-            },
-          },
-        },
+              tier: true
+            }
+          }
+        }
       });
 
       // Calculate MRR by tier
@@ -82,8 +81,8 @@ export class MrrService {
         components: {
           baseFee: baseFeeTotal,
           transactionFees: transactionFeesTotal,
-          additionalServices: additionalServicesTotal,
-        },
+          additionalServices: additionalServicesTotal
+        }
       };
 
       await this.redisService.setex(cacheKey, this.CACHE_TTL, JSON.stringify(mrrData));
@@ -115,7 +114,7 @@ export class MrrService {
       monthlyData.push({
         month: month.toISOString().slice(0, 7), // YYYY-MM format
         mrr: mrrData.total,
-        growth: 0, // Will be calculated below
+        growth: 0 // Will be calculated below
       });
     }
 
@@ -134,7 +133,7 @@ export class MrrService {
       currentPeriod,
       previousPeriod,
       growthRate,
-      monthlyData,
+      monthlyData
     };
   }
 
@@ -155,7 +154,7 @@ export class MrrService {
     return {
       tiers: mrrData.byTier,
       percentages,
-      total,
+      total
     };
   }
 
@@ -181,32 +180,32 @@ export class MrrService {
             status: 'SUSPENDED',
             updatedAt: {
               gte: startOfMonth,
-              lte: endOfMonth,
-            },
+              lte: endOfMonth
+            }
           },
           {
             isActive: false,
             updatedAt: {
               gte: startOfMonth,
-              lte: endOfMonth,
-            },
+              lte: endOfMonth
+            }
           },
-        ],
+        ]
       },
       include: {
         bills: {
           where: {
             status: 'PAID',
             createdAt: {
-              lt: startOfMonth,
-            },
+              lt: startOfMonth
+            }
           },
           orderBy: {
-            createdAt: 'desc',
+            createdAt: 'desc'
           },
-          take: 1,
-        },
-      },
+          take: 1
+        }
+      }
     });
 
     let totalChurnedMRR = 0;
@@ -222,7 +221,7 @@ export class MrrService {
           brokerId: broker.id,
           brokerName: broker.businessName || broker.name,
           mrrAmount,
-          churnReason: broker.status === 'SUSPENDED' ? 'Payment suspension' : 'Account deactivated',
+          churnReason: broker.status === 'SUSPENDED' ? 'Payment suspension' : 'Account deactivated'
         });
       }
     }
@@ -240,7 +239,7 @@ export class MrrService {
       churnedMRR: totalChurnedMRR,
       churnRate,
       churnedBrokers: churnedBrokers.length,
-      details,
+      details
     };
   }
 
@@ -263,20 +262,20 @@ export class MrrService {
       where: {
         createdAt: {
           gte: startOfMonth,
-          lte: endOfMonth,
-        },
+          lte: endOfMonth
+        }
       },
       include: {
         bills: {
           where: {
-            status: 'PAID',
+            status: 'PAID'
           },
           orderBy: {
-            createdAt: 'desc',
+            createdAt: 'desc'
           },
-          take: 1,
-        },
-      },
+          take: 1
+        }
+      }
     });
 
     let totalNewMRR = 0;
@@ -292,7 +291,7 @@ export class MrrService {
           brokerId: broker.id,
           brokerName: broker.businessName || broker.name,
           mrrAmount,
-          tier: broker.tier,
+          tier: broker.tier
         });
       }
     }
@@ -305,7 +304,7 @@ export class MrrService {
       newMRR: totalNewMRR,
       newBrokers: newBrokers.length,
       averageMRRPerBroker,
-      details,
+      details
     };
   }
 
@@ -331,8 +330,8 @@ export class MrrService {
         status: 'PAID',
         createdAt: {
           gte: startOfMonth,
-          lte: endOfMonth,
-        },
+          lte: endOfMonth
+        }
       },
       include: {
         broker: {
@@ -340,10 +339,10 @@ export class MrrService {
             id: true,
             businessName: true,
             name: true,
-            tier: true,
-          },
-        },
-      },
+            tier: true
+          }
+        }
+      }
     });
 
     const previousMonthBills = await this.prismaService.brokerBill.findMany({
@@ -351,16 +350,16 @@ export class MrrService {
         status: 'PAID',
         createdAt: {
           gte: new Date(previousMonth.getFullYear(), previousMonth.getMonth(), 1),
-          lte: new Date(previousMonth.getFullYear(), previousMonth.getMonth() + 1, 0),
-        },
+          lte: new Date(previousMonth.getFullYear(), previousMonth.getMonth() + 1, 0)
+        }
       },
       include: {
         broker: {
           select: {
-            id: true,
-          },
-        },
-      },
+            id: true
+          }
+        }
+      }
     });
 
     // Create a map of previous month MRR by broker
@@ -386,7 +385,7 @@ export class MrrService {
           oldMRR: previousMRR,
           newMRR: currentMRR,
           expansionAmount,
-          tier: currentBill.broker.tier,
+          tier: currentBill.broker.tier
         });
       }
     }
@@ -396,7 +395,7 @@ export class MrrService {
     return {
       expansionMRR: totalExpansionMRR,
       expansionBrokers: details.length,
-      details,
+      details
     };
   }
 

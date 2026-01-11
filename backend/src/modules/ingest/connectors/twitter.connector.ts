@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import { TwitterApi } from 'twitter-api-v2';
-import { BaseConnector, Content, ContentMetrics, MediaUrl } from './base.connector';
+import { BaseConnector, Content, ContentMetrics, MediaUrl } from "./base.connector";
 
 @Injectable()
 export class TwitterConnector extends BaseConnector {
@@ -11,8 +11,7 @@ export class TwitterConnector extends BaseConnector {
 
   constructor(
     @InjectRedis() redis: Redis,
-    config: ConfigService,
-  ) {
+    config: ConfigService) {
     super(redis, config, 'twitter');
     this.initializeClient();
   }
@@ -195,7 +194,7 @@ export class TwitterConnector extends BaseConnector {
             url: mediaUrl,
             type: this.mapMediaType(mediaItem.type),
             thumbnail: mediaItem.preview_image_url,
-            duration: mediaItem.duration_ms,
+            duration: mediaItem.duration_ms
           });
         }
       }
@@ -212,13 +211,13 @@ export class TwitterConnector extends BaseConnector {
       if (place) {
         location = {
           name: place.full_name,
-          coordinates: null, // Twitter doesn't provide exact coordinates
+          coordinates: null // Twitter doesn't provide exact coordinates
         };
       }
     } else if (authorLocation) {
       location = {
         name: authorLocation,
-        coordinates: null,
+        coordinates: null
       };
     }
 
@@ -227,7 +226,7 @@ export class TwitterConnector extends BaseConnector {
       likes: tweet.public_metrics?.like_count || 0,
       shares: tweet.public_metrics?.retweet_count || 0,
       comments: tweet.public_metrics?.reply_count || 0,
-      views: tweet.public_metrics?.impression_count || 0, // Changed from undefined to 0
+      views: tweet.public_metrics?.impression_count || 0 // Changed from undefined to 0
     };
 
     // Calculate engagement
@@ -252,8 +251,8 @@ export class TwitterConnector extends BaseConnector {
         verified: author?.verified || false,
         contextAnnotations: tweet.context_annotations,
         possiblySensitive: tweet.possibly_sensitive,
-        replySettings: tweet.reply_settings,
-      },
+        replySettings: tweet.reply_settings
+      }
     };
   }
 

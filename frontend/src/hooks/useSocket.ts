@@ -19,7 +19,7 @@ export const useSocket = (url?: string): UseSocketReturn => {
   const maxReconnectAttempts = 5;
   const reconnectAttempts = useRef(0);
 
-  const wsUrl = url || process.env.REACT_APP_WS_URL || 'ws://localhost:3001';
+  const wsUrl = url || (import.meta.env.VITE_WS_URL as string)?.replace('http', 'ws') || 'ws://localhost:3000';
 
   const connect = useCallback(() => {
     try {

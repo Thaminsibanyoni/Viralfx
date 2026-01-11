@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Order } from '../market-aggregation/entities/order.entity';
+import { Order } from '../market-aggregation/interfaces/order.interface';
 
 export class OrderResponseDto {
   @ApiProperty({ description: 'Order ID' })
@@ -119,7 +119,7 @@ export class OrderResponseDto {
       isActive: order.is_active,
       isFilled: order.is_filled,
       isCancelled: order.is_cancelled,
-      fillPercentage: order.fill_percentage,
+      fillPercentage: order.fill_percentage
     };
   }
 }

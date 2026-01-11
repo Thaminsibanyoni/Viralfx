@@ -1,8 +1,9 @@
-import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { Injectable, Logger, BadRequestException, NotFoundException, Inject } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 import { Cache } from 'cache-manager';
 import { ConfigService } from '@nestjs/config';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ModerationAction, UserRole, MessageStatus, MessageType } from '../types/chat.types';
 
 @Injectable()
@@ -14,9 +15,8 @@ export class ChatModerationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: Redis,
-    private readonly cacheManager: Cache,
-    private readonly configService: ConfigService,
-  ) {}
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    private readonly configService: ConfigService) {}
 
   /**
    * Mute a user in a room
@@ -40,14 +40,14 @@ export class ChatModerationService {
         // Update participant status
         const participant = await tx.chatParticipant.update({
           where: {
-            roomId_userId: { roomId, userId: targetUserId },
+            roomId_userId: { roomId, userId: targetUserId }
           },
           data: {
             isMuted: true,
             mutedUntil: muteEndsAt,
             mutedBy: moderatorId,
-            muteReason: reason,
-          },
+            muteReason: reason
+          }
         });
 
         if (!participant) {
@@ -63,8 +63,8 @@ export class ChatModerationService {
             moderatorId: moderatorId || 'SYSTEM',
             reason: reason || 'Violation of chat rules',
             duration: durationHours * 3600, // Convert to seconds
-            expiresAt: muteEndsAt,
-          },
+            expiresAt: muteEndsAt
+          }
         });
       });
 
@@ -83,8 +83,8 @@ export class ChatModerationService {
           action: 'user_muted',
           userId: targetUserId,
           duration: durationHours,
-          reason,
-        },
+          reason
+        }
       });
 
       this.logger.log(`User ${targetUserId} muted successfully in room ${roomId}`);
@@ -112,14 +112,14 @@ export class ChatModerationService {
         // Update participant status
         await tx.chatParticipant.update({
           where: {
-            roomId_userId: { roomId, userId: targetUserId },
+            roomId_userId: { roomId, userId: targetUserId }
           },
           data: {
             isMuted: false,
             mutedUntil: null,
             mutedBy: null,
-            muteReason: null,
-          },
+            muteReason: null
+          }
         });
 
         // Log moderation action
@@ -129,8 +129,8 @@ export class ChatModerationService {
             userId: targetUserId,
             roomId,
             moderatorId: moderatorId || 'SYSTEM',
-            reason: 'Mute lifted by moderator',
-          },
+            reason: 'Mute lifted by moderator'
+          }
         });
       });
 
@@ -166,15 +166,15 @@ export class ChatModerationService {
         // Remove from room
         await tx.chatParticipant.update({
           where: {
-            roomId_userId: { roomId, userId: targetUserId },
+            roomId_userId: { roomId, userId: targetUserId }
           },
           data: {
             leftAt: new Date(),
             isBanned: true,
             bannedUntil: banEndsAt,
             bannedBy: moderatorId,
-            banReason: reason,
-          },
+            banReason: reason
+          }
         });
 
         // Log moderation action
@@ -186,8 +186,8 @@ export class ChatModerationService {
             moderatorId: moderatorId || 'SYSTEM',
             reason: reason || 'Violation of chat rules',
             duration: durationHours * 3600, // Convert to seconds
-            expiresAt: banEndsAt,
-          },
+            expiresAt: banEndsAt
+          }
         });
       });
 
@@ -206,8 +206,8 @@ export class ChatModerationService {
           action: 'user_banned',
           userId: targetUserId,
           duration: durationHours,
-          reason,
-        },
+          reason
+        }
       });
 
       this.logger.log(`User ${targetUserId} banned successfully from room ${roomId}`);
@@ -236,11 +236,11 @@ export class ChatModerationService {
         // Remove from room
         await tx.chatParticipant.update({
           where: {
-            roomId_userId: { roomId, userId: targetUserId },
+            roomId_userId: { roomId, userId: targetUserId }
           },
           data: {
-            leftAt: new Date(),
-          },
+            leftAt: new Date()
+          }
         });
 
         // Log moderation action
@@ -250,8 +250,8 @@ export class ChatModerationService {
             userId: targetUserId,
             roomId,
             moderatorId: moderatorId || 'SYSTEM',
-            reason: reason || 'Removed by moderator',
-          },
+            reason: reason || 'Removed by moderator'
+          }
         });
       });
 
@@ -262,8 +262,8 @@ export class ChatModerationService {
         metadata: {
           action: 'user_kicked',
           userId: targetUserId,
-          reason,
-        },
+          reason
+        }
       });
 
       this.logger.log(`User ${targetUserId} kicked successfully from room ${roomId}`);
@@ -288,9 +288,9 @@ export class ChatModerationService {
         where: { id: messageId },
         include: {
           room: {
-            select: { id: true },
-          },
-        },
+            select: { id: true }
+          }
+        }
       });
 
       if (!message) {
@@ -314,9 +314,9 @@ export class ChatModerationService {
               deletedAt: new Date(),
               deletedBy: moderatorId,
               deleteReason: reason,
-              originalContent: message.content,
-            },
-          },
+              originalContent: message.content
+            }
+          }
         });
 
         // Log moderation action
@@ -329,9 +329,9 @@ export class ChatModerationService {
             reason: reason || 'Message violated community guidelines',
             metadata: {
               messageId,
-              originalContent: message.content,
-            },
-          },
+              originalContent: message.content
+            }
+          }
         });
       });
 
@@ -428,7 +428,7 @@ export class ChatModerationService {
       filteredContent: filteredContent !== content ? filteredContent : undefined,
       severity,
       reason: violations.length > 0 ? violations.join('; ') : undefined,
-      autoAction,
+      autoAction
     };
   }
 
@@ -498,10 +498,10 @@ export class ChatModerationService {
               profile: {
                 select: {
                   firstName: true,
-                  lastName: true,
-                },
-              },
-            },
+                  lastName: true
+                }
+              }
+            }
           },
           targetUser: {
             select: {
@@ -509,12 +509,12 @@ export class ChatModerationService {
               profile: {
                 select: {
                   firstName: true,
-                  lastName: true,
-                },
-              },
-            },
-          },
-        },
+                  lastName: true
+                }
+              }
+            }
+          }
+        }
       }),
       this.prisma.moderationAction.count({ where: whereClause }),
     ]);
@@ -530,11 +530,11 @@ export class ChatModerationService {
         expiresAt: action.expiresAt,
         metadata: action.metadata,
         moderator: action.moderator,
-        targetUser: action.targetUser,
+        targetUser: action.targetUser
       })),
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit)
     };
   }
 
@@ -569,8 +569,8 @@ export class ChatModerationService {
             select: {
               id: true,
               name: true,
-              type: true,
-            },
+              type: true
+            }
           },
           moderator: {
             select: {
@@ -578,12 +578,12 @@ export class ChatModerationService {
               profile: {
                 select: {
                   firstName: true,
-                  lastName: true,
-                },
-              },
-            },
-          },
-        },
+                  lastName: true
+                }
+              }
+            }
+          }
+        }
       }),
       this.prisma.moderationAction.count({ where: whereClause }),
     ]);
@@ -592,7 +592,7 @@ export class ChatModerationService {
       actions,
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit)
     };
   }
 
@@ -615,9 +615,9 @@ export class ChatModerationService {
         userId,
         isMuted: true,
         mutedUntil: {
-          gt: new Date(),
-        },
-      },
+          gt: new Date()
+        }
+      }
     });
 
     const isMuted = !!participant;
@@ -651,9 +651,9 @@ export class ChatModerationService {
         userId,
         isBanned: true,
         bannedUntil: {
-          gt: new Date(),
-        },
-      },
+          gt: new Date()
+        }
+      }
     });
 
     const isBanned = !!participant;
@@ -701,21 +701,21 @@ export class ChatModerationService {
       this.prisma.moderationAction.groupBy({
         by: ['type'],
         where: whereClause,
-        _count: { type: true },
+        _count: { type: true }
       }),
       this.prisma.chatParticipant.count({
         where: {
           isMuted: true,
           mutedUntil: { gt: new Date() },
-          ...(roomId && { roomId }),
-        },
+          ...(roomId && { roomId })
+        }
       }),
       this.prisma.chatParticipant.count({
         where: {
           isBanned: true,
           bannedUntil: { gt: new Date() },
-          ...(roomId && { roomId }),
-        },
+          ...(roomId && { roomId })
+        }
       }),
       this.prisma.moderationAction.findMany({
         where: whereClause,
@@ -724,8 +724,8 @@ export class ChatModerationService {
         select: {
           type: true,
           reason: true,
-          createdAt: true,
-        },
+          createdAt: true
+        }
       }),
     ]);
 
@@ -737,7 +737,7 @@ export class ChatModerationService {
       }, {}),
       activeMutes,
       activeBans,
-      recentActions,
+      recentActions
     };
   }
 
@@ -755,8 +755,8 @@ export class ChatModerationService {
         content: data.content,
         type: MessageType.SYSTEM,
         status: MessageStatus.SENT,
-        metadata: data.metadata || {},
-      },
+        metadata: data.metadata || {}
+      }
     });
   }
 
@@ -770,8 +770,8 @@ export class ChatModerationService {
 
     const participant = await this.prisma.chatParticipant.findUnique({
       where: {
-        roomId_userId: { roomId, userId: moderatorId },
-      },
+        roomId_userId: { roomId, userId: moderatorId }
+      }
     });
 
     if (!participant || !['ADMIN', 'MODERATOR'].includes(participant.role)) {
@@ -800,7 +800,7 @@ export class ChatModerationService {
       ]),
       suspiciousPatterns: this.configService.get<string[]>('CHAT_SUSPICIOUS_PATTERNS', [
         '\\b\\d{3}-?\\d{3}-?\\d{4}\\b', // Phone numbers
-        '\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b', // Emails
+        '\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2}\\b', // Emails
         '\\b\\$\\d+', // Money mentions
       ]),
       spamPatterns: this.configService.get<string[]>('CHAT_SPAM_PATTERNS', [
@@ -808,7 +808,7 @@ export class ChatModerationService {
         'free money',
         'limited offer',
         'act now',
-      ]),
+      ])
     };
 
     await this.cacheManager.set(cacheKey, rules, this.MODERATION_CACHE_TTL);
@@ -829,7 +829,7 @@ export class ChatModerationService {
     }
 
     // Check for repetitive characters
-    if (/(.)\1{4,}/.test(content)) {
+    if (/(.)\1{4}/.test(content)) {
       score += 0.2;
     }
 
@@ -855,12 +855,12 @@ export class ChatModerationService {
         roomId,
         senderId: userId,
         content: {
-          equals: content,
+          equals: content
         },
         createdAt: {
-          gte: new Date(Date.now() - 5 * 60 * 1000), // Last 5 minutes
-        },
-      },
+          gte: new Date(Date.now() - 5 * 60 * 1000) // Last 5 minutes
+        }
+      }
     });
 
     return !!recentMessage;
@@ -883,7 +883,7 @@ export class ChatModerationService {
       d: 24 * 60 * 60 * 1000, // day
       w: 7 * 24 * 60 * 60 * 1000, // week
       m: 30 * 24 * 60 * 60 * 1000, // month
-      y: 365 * 24 * 60 * 60 * 1000, // year
+      y: 365 * 24 * 60 * 60 * 1000 // year
     };
 
     return value * (multipliers[unit as keyof typeof multipliers] || multipliers.d);

@@ -1,9 +1,10 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bullmq';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { DeceptionService } from '../services/deception.service';
 import { DeceptionAnalysisService } from '../services/deception-analysis.service';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 
 interface DeceptionAnalysisJob {
   type: 'single' | 'batch' | 'process-deception-update' | 'process-high-risk';
@@ -24,17 +25,33 @@ interface DeceptionAnalysisJob {
 }
 
 @Processor('deception-analysis')
-export class DeceptionProcessor {
+export class DeceptionProcessor extends WorkerHost {
   private readonly logger = new Logger(DeceptionProcessor.name);
 
   constructor(
     private readonly deceptionService: DeceptionService,
     private readonly analysisService: DeceptionAnalysisService,
-    private readonly prisma: PrismaService,
-  ) {}
+    private readonly prisma: PrismaService) {
+    super();
+}
 
-  @Process('analyze-deception')
-  async handleDeceptionAnalysis(job: Job<DeceptionAnalysisJob>): Promise<any> {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'analyze-deception':
+        return this.handleDeceptionAnalysis(job);
+      case 'process-deception-update':
+        return this.handleDeceptionUpdate(job);
+      case 'process-high-risk':
+        return this.handleHighRiskContent(job);
+      case 'cleanup-old-data':
+        return this.handleDataCleanup(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleDeceptionAnalysis(job: Job<DeceptionAnalysisJob>): Promise<any> {
     const { type, data } = job.data;
 
     this.logger.log(`Processing deception analysis job ${job.id} of type: ${type}`);
@@ -54,8 +71,7 @@ export class DeceptionProcessor {
     }
   }
 
-  @Process('process-deception-update')
-  async handleDeceptionUpdate(job: Job): Promise<void> {
+  private async handleDeceptionUpdate(job: Job): Promise<void> {
     const { topicId, snapshotId, analysis } = job.data;
 
     this.logger.log(`Processing deception update for topic ${topicId}, snapshot ${snapshotId}`);
@@ -79,8 +95,7 @@ export class DeceptionProcessor {
     }
   }
 
-  @Process('process-high-risk')
-  async handleHighRiskContent(job: Job): Promise<void> {
+  private async handleHighRiskContent(job: Job): Promise<void> {
     const { snapshotId, topicId, analysis, content } = job.data;
 
     this.logger.log(`Processing high-risk content for snapshot ${snapshotId}`);
@@ -103,9 +118,9 @@ export class DeceptionProcessor {
               advancedAnalysis,
               factCheck,
               reviewedAt: new Date(),
-              priorityLevel: 'HIGH',
-            },
-          },
+              priorityLevel: 'HIGH'
+            }
+          }
         });
       }
 
@@ -119,8 +134,7 @@ export class DeceptionProcessor {
     }
   }
 
-  @Process('cleanup-old-data')
-  async handleDataCleanup(job: Job): Promise<void> {
+  private async handleDataCleanup(job: Job): Promise<void> {
     const { olderThanDays = 90 } = job.data;
 
     this.logger.log(`Starting deception data cleanup for data older than ${olderThanDays} days`);
@@ -143,7 +157,7 @@ export class DeceptionProcessor {
     return {
       topicId,
       analysis,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -159,7 +173,7 @@ export class DeceptionProcessor {
         this.logger.warn(`Failed to analyze content for topic ${contentItem.topicId}:`, error);
         results.push({
           topicId: contentItem.topicId,
-          error: error.message,
+          error: error.message
         });
       }
     }
@@ -171,13 +185,12 @@ export class DeceptionProcessor {
   private async performAdditionalHighRiskAnalysis(
     topicId: string,
     snapshotId: string,
-    analysis: any,
-  ): Promise<void> {
+    analysis: any): Promise<void> {
     try {
       // Get topic content for additional analysis
       const topic = await this.prisma.topic.findUnique({
         where: { id: topicId },
-        select: { content: true },
+        select: { content: true }
       });
 
       if (topic?.content) {
@@ -191,9 +204,9 @@ export class DeceptionProcessor {
             analysisDetails: {
               ...analysis,
               socialAnalysis,
-              additionalAnalysisAt: new Date(),
-            },
-          },
+              additionalAnalysisAt: new Date()
+            }
+          }
         });
       }
     } catch (error) {
@@ -208,9 +221,9 @@ export class DeceptionProcessor {
         where: {
           topicId,
           timestamp: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
-          },
-        },
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+          }
+        }
       });
 
       if (recentSnapshots.length === 0) {
@@ -226,8 +239,8 @@ export class DeceptionProcessor {
         data: {
           deceptionScore: avgDeceptionScore,
           highRiskCount,
-          lastDeceptionAnalysis: new Date(),
-        },
+          lastDeceptionAnalysis: new Date()
+        }
       });
 
       this.logger.debug(`Updated deception metrics for topic ${topicId}: ${avgDeceptionScore.toFixed(3)}`);
@@ -251,11 +264,11 @@ export class DeceptionProcessor {
             topicId,
             snapshotId,
             riskLevel: analysis.riskLevel,
-            deceptionScore: analysis.deceptionScore,
+            deceptionScore: analysis.deceptionScore
           },
           priority: 'HIGH',
-          createdAt: new Date(),
-        },
+          createdAt: new Date()
+        }
       });
     } catch (error) {
       this.logger.error(`Failed to notify moderators for high-risk content:`, error);
@@ -274,17 +287,17 @@ export class DeceptionProcessor {
     }
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onJobActive(job: Job) {
     this.logger.debug(`Deception analysis job ${job.id} started processing`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onJobCompleted(job: Job, result: any) {
     this.logger.log(`Deception analysis job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onJobFailed(job: Job, error: Error) {
     this.logger.error(`Deception analysis job ${job.id} failed:`, error.message);
   }

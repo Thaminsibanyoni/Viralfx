@@ -1,13 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
-import { Trend } from '../entities/trend.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Trend } from '../entities/trend.entity';
 import { ModerationAction } from '../interfaces/moderation.interface';
-import { ComplianceService } from '../../compliance/services/compliance.service';
-import { NotificationService } from '../../notifications/services/notification.service';
+import { ComplianceService } from "../../compliance/services/compliance.service";
+import { NotificationService } from "../../notifications/services/notification.service";
 
 interface ModerationTask {
   id: string;
@@ -37,8 +36,7 @@ export class ModerationService {
   };
 
   constructor(
-    @InjectRepository(Trend)
-    private readonly trendRepository: Repository<Trend>,
+        private prisma: PrismaService,
     private readonly complianceService: ComplianceService,
     private readonly notificationService: NotificationService,
     @InjectQueue('moderation') private readonly moderationQueue: Queue
@@ -253,11 +251,14 @@ export class ModerationService {
    */
   private async approveTrend(trendId: string): Promise<void> {
     try {
-      await this.trendRepository.update(trendId, {
-        moderationStatus: 'APPROVED',
-        moderatedAt: new Date(),
-        isActive: true,
-        lastModeratedBy: 'system'
+      await this.prisma.topic.update({
+        where: { id: trendId },
+        data: {
+          moderationStatus: 'APPROVED',
+          moderatedAt: new Date(),
+          isActive: true,
+          lastModeratedBy: 'system'
+        }
       });
 
       // Notify trend submitter
@@ -275,11 +276,14 @@ export class ModerationService {
    */
   private async flagTrend(trendId: string, reason: string): Promise<void> {
     try {
-      await this.trendRepository.update(trendId, {
-        moderationStatus: 'PENDING',
-        moderatedAt: new Date(),
-        moderationReason: reason,
-        lastModeratedBy: 'system'
+      await this.prisma.topic.update({
+        where: { id: trendId },
+        data: {
+          moderationStatus: 'PENDING',
+          moderatedAt: new Date(),
+          moderationReason: reason,
+          lastModeratedBy: 'system'
+        }
       });
 
       // Notify moderation team
@@ -301,12 +305,15 @@ export class ModerationService {
    */
   private async blockTrend(trendId: string, reason: string): Promise<void> {
     try {
-      await this.trendRepository.update(trendId, {
-        moderationStatus: 'REJECTED',
-        moderatedAt: new Date(),
-        moderationReason: reason,
-        isActive: false,
-        lastModeratedBy: 'system'
+      await this.prisma.topic.update({
+        where: { id: trendId },
+        data: {
+          moderationStatus: 'REJECTED',
+          moderatedAt: new Date(),
+          moderationReason: reason,
+          isActive: false,
+          lastModeratedBy: 'system'
+        }
       });
 
       // Notify trend submitter
@@ -454,17 +461,22 @@ export class ModerationService {
    */
   async getModerationTrends(timeframe: string): Promise<any> {
     try {
-      const trends = await this.trendRepository
-        .createQueryBuilder('trend')
-        .where('trend.moderatedAt >= :startTime', { startTime: this.calculateStartTime(new Date(), timeframe) })
-        .orderBy('trend.moderatedAt', 'DESC')
-        .limit(100)
-        .getMany();
+      const startTime = this.calculateStartTime(new Date(), timeframe);
 
-      return trends.map(trend => ({
+      const trends = await this.prisma.topic.findMany({
+        where: {
+          moderatedAt: { gte: startTime }
+        },
+        orderBy: {
+          moderatedAt: 'desc'
+        },
+        take: 100
+      });
+
+      return trends.map((trend: any) => ({
         id: trend.id,
-        title: trend.title,
-        platform: trend.platform,
+        title: trend.topicName || trend.title,
+        platform: trend.platform || 'unknown',
         status: trend.moderationStatus,
         reason: trend.moderationReason,
         moderatedAt: trend.moderatedAt,
@@ -484,7 +496,7 @@ export class ModerationService {
   async generateAutomatedModerationTasks(): Promise<void> {
     try {
       // Find trends pending moderation
-      const pendingTrends = await this.trendRepository.find({
+      const pendingTrends = await this.prisma.topic.findMany({
         where: {
           moderationStatus: 'PENDING'
         }
@@ -493,10 +505,10 @@ export class ModerationService {
       for (const trend of pendingTrends) {
         await this.submitTrendForModeration({
           id: trend.id,
-          title: trend.title,
-          content: trend.content,
-          platform: trend.platform,
-          author: trend.author,
+          title: (trend as any).topicName || trend.name || '',
+          content: (trend as any).description || '',
+          platform: (trend as any).platform || 'unknown',
+          author: (trend as any).author || 'unknown',
           submittedBy: 'automated'
         });
       }

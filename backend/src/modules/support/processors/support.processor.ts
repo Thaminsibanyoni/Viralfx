@@ -1,13 +1,11 @@
-import { Processor, Process } from '@nestjs/bull';
-import { Job } from 'bull';
+import {Processor, WorkerHost} from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Ticket, TicketStatus } from '../entities/ticket.entity';
-import { TicketMessage } from '../entities/ticket-message.entity';
-import { TicketSLA } from '../entities/ticket-sla.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Ticket, TicketStatus } from '../entities/ticket.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { TicketMessage } from '../entities/ticket-message.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { TicketSLA } from '../entities/ticket-sla.entity';
 import { SlaService } from '../services/sla.service';
-import { NotificationService } from '../../notifications/services/notification.service';
+import { NotificationService } from "../../notifications/services/notification.service";
 
 export interface SupportJobData {
   ticketId: string;
@@ -26,28 +24,45 @@ export interface SupportJobData {
 }
 
 @Processor('support-tickets')
-export class SupportProcessor {
+export class SupportProcessor extends WorkerHost {
   private readonly logger = new Logger(SupportProcessor.name);
 
   constructor(
-    @InjectRepository(Ticket)
-    private readonly ticketRepository: Repository<Ticket>,
-    @InjectRepository(TicketMessage)
-    private readonly ticketMessageRepository: Repository<TicketMessage>,
-    @InjectRepository(TicketSLA)
-    private readonly ticketSLARepository: Repository<TicketSLA>,
+    private readonly prisma: PrismaService,
     private readonly slaService: SlaService,
-    private readonly notificationsService: NotificationService,
-  ) {}
+    private readonly notificationsService: NotificationService) {
+    super();
+}
 
-  @Process('send-ticket-confirmation')
-  async handleTicketConfirmation(job: Job<SupportJobData>) {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'send-ticket-confirmation':
+        return this.handleTicketConfirmation(job);
+      case 'assign-ticket':
+        return this.handleTicketAssignment(job);
+      case 'ticket-status-changed':
+        return this.handleTicketStatusChange(job);
+      case 'new-ticket-message':
+        return this.handleNewTicketMessage(job);
+      case 'sla-breached':
+        return this.handleSLABreach(job);
+      case 'sla-at-risk':
+        return this.handleSLAAtRisk(job);
+      case 'escalate-ticket':
+        return this.handleTicketEscalation(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleTicketConfirmation(job: Job<SupportJobData>) {
     this.logger.log(`Processing ticket confirmation for ticket ${job.data.ticketId}`);
 
     try {
-      const ticket = await this.ticketRepository.findOne({
+      const ticket = await this.prisma.ticket.findFirst({
         where: { id: job.data.ticketId },
-        relations: ['user', 'category'],
+        relations: ['user', 'category']
       });
 
       if (!ticket) {
@@ -66,8 +81,8 @@ export class SupportProcessor {
             subject: ticket.subject,
             category: ticket.category?.name,
             priority: ticket.priority,
-            description: ticket.description,
-          },
+            description: ticket.description
+          }
         });
       }
 
@@ -77,14 +92,14 @@ export class SupportProcessor {
         title: 'Support Ticket Created',
         message: `Your ticket ${ticket.ticketNumber} has been created successfully`,
         type: 'support',
-        data: { ticketId: ticket.id },
+        data: { ticketId: ticket.id }
       });
 
       // Send SMS if user has phone number and ticket is high priority
       if (ticket.user?.phone && ticket.priority === 'HIGH' || ticket.priority === 'CRITICAL') {
         await this.notificationsService.sendSMS({
           to: ticket.user.phone,
-          message: `Your support ticket ${ticket.ticketNumber} has been created. We will respond shortly.`,
+          message: `Your support ticket ${ticket.ticketNumber} has been created. We will respond shortly.`
         });
       }
 
@@ -95,16 +110,15 @@ export class SupportProcessor {
     }
   }
 
-  @Process('assign-ticket')
-  async handleTicketAssignment(job: Job<SupportJobData>) {
+  private async handleTicketAssignment(job: Job<SupportJobData>) {
     this.logger.log(`Processing ticket assignment for ticket ${job.data.ticketId}`);
 
     try {
       const { ticketId, assignedTo, assignedBy } = job.data;
 
-      const ticket = await this.ticketRepository.findOne({
+      const ticket = await this.prisma.ticket.findFirst({
         where: { id: ticketId },
-        relations: ['assignedToUser', 'category'],
+        relations: ['assignedToUser', 'category']
       });
 
       if (!ticket) {
@@ -123,8 +137,8 @@ export class SupportProcessor {
             subject: ticket.subject,
             priority: ticket.priority,
             category: ticket.category?.name,
-            assignedBy: assignedBy,
-          },
+            assignedBy: assignedBy
+          }
         });
 
         // Send in-app notification to agent
@@ -133,7 +147,7 @@ export class SupportProcessor {
           title: 'New Ticket Assigned',
           message: `Ticket ${ticket.ticketNumber} has been assigned to you`,
           type: 'support',
-          data: { ticketId: ticket.id },
+          data: { ticketId: ticket.id }
         });
 
         // Send push notification
@@ -141,7 +155,7 @@ export class SupportProcessor {
           userId: assignedTo,
           title: 'New Support Ticket',
           message: `You've been assigned ticket ${ticket.ticketNumber}`,
-          data: { ticketId: ticket.id },
+          data: { ticketId: ticket.id }
         });
       }
 
@@ -152,16 +166,15 @@ export class SupportProcessor {
     }
   }
 
-  @Process('ticket-status-changed')
-  async handleTicketStatusChange(job: Job<SupportJobData>) {
+  private async handleTicketStatusChange(job: Job<SupportJobData>) {
     this.logger.log(`Processing ticket status change for ticket ${job.data.ticketId}`);
 
     try {
       const { ticketId, previousStatus, newStatus, notes } = job.data;
 
-      const ticket = await this.ticketRepository.findOne({
+      const ticket = await this.prisma.ticket.findFirst({
         where: { id: ticketId },
-        relations: ['user', 'assignedToUser'],
+        relations: ['user', 'assignedToUser']
       });
 
       if (!ticket) {
@@ -182,8 +195,8 @@ export class SupportProcessor {
             subject: ticket.subject,
             previousStatus,
             newStatus,
-            notes,
-          },
+            notes
+          }
         });
 
         await this.notificationsService.sendInAppNotification({
@@ -191,7 +204,7 @@ export class SupportProcessor {
           title: `Support Ticket ${statusMessage}`,
           message: `Your ticket ${ticket.ticketNumber} has been ${statusMessage}`,
           type: 'support',
-          data: { ticketId: ticket.id, status: newStatus },
+          data: { ticketId: ticket.id, status: newStatus }
         });
       }
 
@@ -202,21 +215,20 @@ export class SupportProcessor {
     }
   }
 
-  @Process('new-ticket-message')
-  async handleNewTicketMessage(job: Job<SupportJobData>) {
+  private async handleNewTicketMessage(job: Job<SupportJobData>) {
     this.logger.log(`Processing new ticket message for ticket ${job.data.ticketId}`);
 
     try {
       const { ticketId, messageId, isInternal } = job.data;
 
-      const ticket = await this.ticketRepository.findOne({
+      const ticket = await this.prisma.ticket.findFirst({
         where: { id: ticketId },
-        relations: ['user', 'assignedToUser'],
+        relations: ['user', 'assignedToUser']
       });
 
-      const message = await this.ticketMessageRepository.findOne({
+      const message = await this.prisma.ticketMessage.findFirst({
         where: { id: messageId },
-        relations: ['author'],
+        relations: ['author']
       });
 
       if (!ticket || !message) {
@@ -233,7 +245,7 @@ export class SupportProcessor {
             title: 'Support Ticket Update',
             message: `There's an update on your ticket ${ticket.ticketNumber}`,
             type: 'support',
-            data: { ticketId: ticket.id },
+            data: { ticketId: ticket.id }
           });
         }
       } else {
@@ -247,8 +259,8 @@ export class SupportProcessor {
               ticketNumber: ticket.ticketNumber,
               subject: ticket.subject,
               message: message.content,
-              sender: message.author?.name || 'Customer',
-            },
+              sender: message.author?.name || 'Customer'
+            }
           });
 
           await this.notificationsService.sendInAppNotification({
@@ -256,7 +268,7 @@ export class SupportProcessor {
             title: 'New Customer Message',
             message: `New message on ticket ${ticket.ticketNumber}`,
             type: 'support',
-            data: { ticketId: ticket.id, messageId: message.id },
+            data: { ticketId: ticket.id, messageId: message.id }
           });
 
           // Send push notification for immediate attention
@@ -264,7 +276,7 @@ export class SupportProcessor {
             userId: ticket.assignedTo,
             title: 'New Customer Message',
             message: `${message.author?.name || 'Customer'} sent a message on ${ticket.ticketNumber}`,
-            data: { ticketId: ticket.id },
+            data: { ticketId: ticket.id }
           });
         }
       }
@@ -276,16 +288,15 @@ export class SupportProcessor {
     }
   }
 
-  @Process('sla-breached')
-  async handleSLABreach(job: Job<SupportJobData>) {
+  private async handleSLABreach(job: Job<SupportJobData>) {
     this.logger.log(`Processing SLA breach for ticket ${job.data.ticketId}`);
 
     try {
       const { ticketId, breachType } = job.data;
 
-      const ticketSLA = await this.ticketSLARepository.findOne({
+      const ticketSLA = await this.prisma.ticketslarepository.findFirst({
         where: { id: job.data.ticketSLAId },
-        relations: ['ticket', 'sla', 'ticket.assignedToUser'],
+        relations: ['ticket', 'sla', 'ticket.assignedToUser']
       });
 
       if (!ticketSLA || !ticketSLA.ticket) {
@@ -305,8 +316,8 @@ export class SupportProcessor {
             ticketNumber: ticket.ticketNumber,
             subject: ticket.subject,
             breachType,
-            ticketId: ticket.id,
-          },
+            ticketId: ticket.id
+          }
         });
 
         await this.notificationsService.sendInAppNotification({
@@ -315,7 +326,7 @@ export class SupportProcessor {
           message: `SLA ${breachType} breach detected for ticket ${ticket.ticketNumber}`,
           type: 'alert',
           priority: 'high',
-          data: { ticketId: ticket.id, breachType },
+          data: { ticketId: ticket.id, breachType }
         });
       }
 
@@ -325,7 +336,7 @@ export class SupportProcessor {
         title: 'URGENT: SLA Breach',
         message: `SLA ${breachType} breach on ${ticket.ticketNumber}`,
         priority: 'high',
-        data: { ticketId: ticket.id, breachType },
+        data: { ticketId: ticket.id, breachType }
       });
 
       // Notify support team lead/admin
@@ -335,7 +346,7 @@ export class SupportProcessor {
         message: `Agent ${ticket.assignedToUser?.name} has SLA breach on ${ticket.ticketNumber}`,
         type: 'management',
         priority: 'medium',
-        data: { ticketId: ticket.id, agentId: ticket.assignedTo },
+        data: { ticketId: ticket.id, agentId: ticket.assignedTo }
       });
 
       this.logger.log(`SLA breach notification sent successfully for ticket ${ticket.ticketNumber}`);
@@ -345,16 +356,15 @@ export class SupportProcessor {
     }
   }
 
-  @Process('sla-at-risk')
-  async handleSLAAtRisk(job: Job<SupportJobData>) {
+  private async handleSLAAtRisk(job: Job<SupportJobData>) {
     this.logger.log(`Processing SLA at-risk for ticket ${job.data.ticketId}`);
 
     try {
       const { ticketId, riskType, dueAt } = job.data;
 
-      const ticket = await this.ticketRepository.findOne({
+      const ticket = await this.prisma.ticket.findFirst({
         where: { id: ticketId },
-        relations: ['assignedToUser'],
+        relations: ['assignedToUser']
       });
 
       if (!ticket) {
@@ -370,7 +380,7 @@ export class SupportProcessor {
           message: `SLA ${riskType} at risk for ${ticket.ticketNumber} - Due: ${dueAt}`,
           type: 'warning',
           priority: 'medium',
-          data: { ticketId: ticket.id, riskType, dueAt },
+          data: { ticketId: ticket.id, riskType, dueAt }
         });
       }
 
@@ -381,16 +391,15 @@ export class SupportProcessor {
     }
   }
 
-  @Process('escalate-ticket')
-  async handleTicketEscalation(job: Job<SupportJobData>) {
+  private async handleTicketEscalation(job: Job<SupportJobData>) {
     this.logger.log(`Processing ticket escalation for ticket ${job.data.ticketId}`);
 
     try {
       const { ticketId, assignedTo, notify, reason } = job.data;
 
-      const ticket = await this.ticketRepository.findOne({
+      const ticket = await this.prisma.ticket.findFirst({
         where: { id: ticketId },
-        relations: ['user', 'assignedToUser', 'category'],
+        relations: ['user', 'assignedToUser', 'category']
       });
 
       if (!ticket) {
@@ -399,9 +408,9 @@ export class SupportProcessor {
       }
 
       // Update ticket assignment
-      await this.ticketRepository.update(ticketId, {
+      await this.prisma.ticket.update(ticketId, {
         assignedTo,
-        updatedAt: new Date(),
+        updatedAt: new Date()
       });
 
       // Send escalation notification
@@ -414,8 +423,8 @@ export class SupportProcessor {
             ticketNumber: ticket.ticketNumber,
             subject: ticket.subject,
             reason,
-            previousAssignee: ticket.assignedToUser?.name,
-          },
+            previousAssignee: ticket.assignedToUser?.name
+          }
         });
 
         await this.notificationsService.sendInAppNotification({
@@ -424,7 +433,7 @@ export class SupportProcessor {
           message: `Ticket ${ticket.ticketNumber} has been escalated to you`,
           type: 'support',
           priority: 'high',
-          data: { ticketId: ticket.id, escalationReason: reason },
+          data: { ticketId: ticket.id, escalationReason: reason }
         });
 
         // Send high-priority push notification
@@ -433,7 +442,7 @@ export class SupportProcessor {
           title: 'Escalated Ticket',
           message: `URGENT: Ticket ${ticket.ticketNumber} escalated to you`,
           priority: 'high',
-          data: { ticketId: ticket.id },
+          data: { ticketId: ticket.id }
         });
       }
 
@@ -444,7 +453,7 @@ export class SupportProcessor {
           title: 'Ticket Escalated',
           message: `Ticket ${ticket.ticketNumber} has been escalated`,
           type: 'support',
-          data: { ticketId: ticket.id },
+          data: { ticketId: ticket.id }
         });
       }
 

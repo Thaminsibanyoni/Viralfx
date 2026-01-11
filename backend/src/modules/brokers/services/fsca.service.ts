@@ -1,15 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { firstValueFrom } from 'rxjs';
-import { BrokerVerification, VerificationType, VerificationStatus, KycStatus } from '../entities/broker-verification.entity';
+import { BrokerStatus } from '../enums/broker.enum';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerVerification, VerificationType, VerificationStatus, KycStatus } from '../entities/broker-verification.entity';
 import { FSCAVerificationDto } from '../dto/fsca-verification.dto';
 import { FSCAVerificationResponse } from '../interfaces/broker.interface';
-import { Broker, BrokerStatus } from '../entities/broker.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Broker, BrokerStatus } from '../entities/broker.entity';
 
 @Injectable()
 export class FSCAService {
@@ -19,14 +18,9 @@ export class FSCAService {
   private readonly verificationTimeout: number;
 
   constructor(
-    @InjectRepository(BrokerVerification)
-    private verificationRepository: Repository<BrokerVerification>,
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-    private configService: ConfigService,
+        private configService: ConfigService,
     private httpService: HttpService,
-    @InjectQueue('broker-verification') private verificationQueue: Queue,
-  ) {
+    @InjectQueue('broker-verification') private verificationQueue: Queue) {
     this.fscaApiUrl = this.configService.get<string>('FSCA_API_URL', 'https://api.fsca.co.za');
     this.fscaApiKey = this.configService.get<string>('FSCA_API_KEY');
     this.verificationTimeout = this.configService.get<number>('FSCA_VERIFICATION_TIMEOUT', 30000);
@@ -72,7 +66,7 @@ export class FSCAService {
         isValid: false,
         licenseStatus: 'PENDING_MANUAL_REVIEW',
         verificationDate: new Date(),
-        riskRating: 'UNKNOWN',
+        riskRating: 'UNKNOWN'
       };
     }
   }
@@ -87,7 +81,7 @@ export class FSCAService {
       registrationNumber: data.registrationNumber,
       licenseCategory: data.licenseCategory,
       directors: data.directors,
-      aum: data.aum,
+      aum: data.aum
     };
 
     const response = await firstValueFrom(
@@ -97,9 +91,9 @@ export class FSCAService {
         {
           headers: {
             'Authorization': `Bearer ${this.fscaApiKey}`,
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json'
           },
-          timeout: this.verificationTimeout,
+          timeout: this.verificationTimeout
         }
       )
     );
@@ -117,9 +111,9 @@ export class FSCAService {
           {
             headers: {
               'Authorization': `Bearer ${this.fscaApiKey}`,
-              'Content-Type': 'application/json',
+              'Content-Type': 'application/json'
             },
-            timeout: this.verificationTimeout,
+            timeout: this.verificationTimeout
           }
         )
       );
@@ -165,7 +159,7 @@ export class FSCAService {
     return {
       valid: allValid && issues.length === 0,
       issues,
-      sanctions,
+      sanctions
     };
   }
 
@@ -233,9 +227,9 @@ export class FSCAService {
         this.httpService.get(`${this.fscaApiUrl}/public-registry`, {
           headers: {
             'Authorization': `Bearer ${this.fscaApiKey}`,
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json'
           },
-          timeout: this.verificationTimeout,
+          timeout: this.verificationTimeout
         })
       );
 
@@ -249,11 +243,10 @@ export class FSCAService {
   private async updateVerificationStatus(
     brokerId: string,
     status: VerificationStatus,
-    fscaResponse: FSCAVerificationResponse,
-  ): Promise<void> {
-    const verification = await this.verificationRepository.findOne({
+    fscaResponse: FSCAVerificationResponse): Promise<void> {
+    const verification = await this.prisma.verificationrepository.findFirst({
       where: { brokerId, verificationType: VerificationType.FSCA_LICENSE },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: 'DESC' }
     });
 
     if (verification) {
@@ -268,20 +261,20 @@ export class FSCAService {
           : 'License validation failed';
       }
 
-      await this.verificationRepository.save(verification);
+      await this.prisma.verificationrepository.upsert(verification);
     }
   }
 
   private async updateBrokerVerificationStatus(brokerId: string, verified: boolean): Promise<void> {
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
 
     if (!broker) {
       return;
     }
 
     // Check KYC/AML status before activating broker
-    const kycVerifications = await this.verificationRepository.find({
-      where: { brokerId },
+    const kycVerifications = await this.prisma.verificationrepository.findMany({
+      where: { brokerId }
     });
 
     const kycStatus = this.evaluateKycStatus(kycVerifications);
@@ -318,7 +311,7 @@ export class FSCAService {
       this.logger.log(`Broker ${brokerId} rejected: FSCA verification failed`);
     }
 
-    await this.brokerRepository.save(broker);
+    await this.prisma.broker.upsert(broker);
   }
 
   private evaluateKycStatus(verifications: BrokerVerification[]): {
@@ -403,7 +396,7 @@ export class FSCAService {
     });
 
     // Set KYC status to in progress
-    const kycVerification = await this.verificationRepository.findOne({
+    const kycVerification = await this.prisma.verificationrepository.findFirst({
       where: {
         brokerId,
         verificationType: VerificationType.KYC_DIRECTORS
@@ -412,7 +405,7 @@ export class FSCAService {
 
     if (kycVerification) {
       kycVerification.kycStatus = KycStatus.IN_PROGRESS;
-      await this.verificationRepository.save(kycVerification);
+      await this.prisma.verificationrepository.upsert(kycVerification);
     }
   }
 
@@ -420,7 +413,7 @@ export class FSCAService {
     this.logger.log(`Queueing manual review for FSCA license: ${verificationData.fscaLicenseNumber}`);
 
     // Create verification record for manual review
-    const verification = this.verificationRepository.create({
+    const verification = this.prisma.verificationrepository.create({
       brokerId: verificationData.brokerId,
       verificationType: VerificationType.MANUAL_REVIEW,
       status: VerificationStatus.PENDING,
@@ -428,11 +421,11 @@ export class FSCAService {
         type: 'FSCA_LICENSE_APPLICATION',
         url: null,
         uploadedAt: new Date(),
-        verified: false,
-      }],
+        verified: false
+      }]
     });
 
-    await this.verificationRepository.save(verification);
+    await this.prisma.verificationrepository.upsert(verification);
 
     // Queue manual review job
     await this.verificationQueue.add('manual-review', {
@@ -440,7 +433,7 @@ export class FSCAService {
       brokerId: verificationData.brokerId,
       fscaLicenseNumber: verificationData.fscaLicenseNumber,
       registrationNumber: verificationData.registrationNumber,
-      verificationData,
+      verificationData
     });
   }
 }

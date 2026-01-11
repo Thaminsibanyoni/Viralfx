@@ -4,7 +4,7 @@
  * © 2025 ViralFX - Global Governance System
  */
 
-import { CategoryCode, VerificationLevel, RiskLevel, RegionCode } from '../../types/vts';
+import { CategoryCode, VerificationLevel, RiskLevel, RegionCode } from "../../types/vts";
 
 export interface VTSGovernancePolicy {
   symbolCreationRules: SymbolCreationRules;
@@ -759,7 +759,7 @@ export class VTSGovernancePolicyEngine {
             regions: Object.values(RegionCode),
             restriction: 'No trading allowed',
             reason: 'Public safety and ethical concerns',
-            alternative: 'Information-only access',
+            alternative: 'Information-only access'
           }
         ]
       }

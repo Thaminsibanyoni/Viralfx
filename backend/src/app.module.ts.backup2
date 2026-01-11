@@ -1,0 +1,174 @@
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { BullModule } from '@nestjs/bullmq';
+import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
+
+import { AppController } from "./app.controller";
+import { AppService } from "./app.service";
+
+// Core modules
+import { RedisModule } from "./modules/redis/redis.module";
+import { AuthModule } from "./modules/auth/auth.module";
+import { UsersModule } from "./modules/users/users.module";
+import { TopicsModule } from "./modules/topics/topics.module";
+import { IngestModule } from "./modules/ingest/ingest.module";
+import { SentimentModule } from "./modules/sentiment/sentiment.module";
+import { DeceptionModule } from "./modules/deception/deception.module";
+import { ViralModule } from "./modules/viral/viral.module";
+import { MarketsModule } from "./modules/markets/markets.module";
+import { MarketAggregationModule } from "./modules/market-aggregation/market-aggregation.module"; // Re-enabled - Redis config fixed, TypeORM imports removed
+import { OrderMatchingModule } from "./modules/order-matching/order-matching.module"; // Re-enabled - TypeORM imports removed
+import { WalletModule } from "./modules/wallet/wallet.module";
+import { PaymentModule } from "./modules/payment/payment.module";
+import { WebSocketModule } from "./modules/websocket/websocket.module";
+import { ChatModule } from "./modules/chat/chat.module";
+import { NotificationsModule } from "./modules/notifications/notifications.module";
+import { FilesModule } from "./modules/files/files.module";
+import { AdminModule } from "./modules/admin/admin.module"; // Re-enabled - SWC decorator issue fixed
+import { OracleModule } from "./modules/oracle/oracle.module";
+import { BrokersModule } from "./modules/brokers/brokers.module"; // Re-enabled - TypeORM imports removed
+import { AnalyticsModule } from "./modules/analytics/analytics.module";
+import { TrendMLModule } from "./modules/trend-ml/trend-ml.module";
+import { ReferralModule } from "./modules/referral/referral.module";
+import { StorageModule } from "./modules/storage/storage.module";
+import { CrmModule } from "./modules/crm/crm.module";
+import { FinancialReportingModule } from "./modules/financial-reporting/financial-reporting.module";
+import { SupportModule } from "./modules/support/support.module";
+import { ApiMarketplaceModule } from "./modules/api-marketplace/api-marketplace.module";
+import { VPMXModule } from "./modules/vpmx/vpmx.module";
+
+// Configuration
+import appConfig from "./config/app.config";
+import databaseConfig from "./config/database.config";
+import redisConfig from "./config/redis.config";
+import s3Config from "./config/s3.config";
+import jwtConfig from "./config/jwt.config";
+
+// Middleware
+import { RequestLoggingMiddleware } from "./common/middleware/request-logging.middleware";
+import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware";
+
+@Module({
+  imports: [
+    // Configuration
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [appConfig, databaseConfig, redisConfig, s3Config, jwtConfig],
+      envFilePath: ['.env.local', '.env'],
+      expandVariables: true
+    }),
+
+    // Rate limiting
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => [
+        {
+          ttl: config.get('THROTTLE_TTL', 60000),
+          limit: config.get('THROTTLE_LIMIT', 100)
+        },
+        {
+          name: 'auth',
+          ttl: config.get('THROTTLE_AUTH_TTL', 60000),
+          limit: config.get('THROTTLE_AUTH_LIMIT', 10)
+        },
+        {
+          name: 'payments',
+          ttl: config.get('THROTTLE_PAYMENTS_TTL', 60000),
+          limit: config.get('THROTTLE_PAYMENTS_LIMIT', 5)
+        },
+      ],
+      inject: [ConfigService]
+    }),
+
+    // Task scheduling
+    ScheduleModule.forRoot(),
+
+    // Queue management
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => ({
+        redis: {
+          host: config.get('REDIS_HOST', 'localhost'),
+          port: parseInt(config.get('REDIS_PORT', '6379')),
+          password: config.get('REDIS_PASSWORD'),
+          db: parseInt(config.get('REDIS_DB', '0')),
+          maxRetriesPerRequest: 3,
+          retryDelayOnFailover: 100,
+          enableReadyCheck: false
+        },
+        defaultJobOptions: {
+          removeOnComplete: 100,
+          removeOnFail: 50,
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 2000
+          }
+        }
+      }),
+      inject: [ConfigService]
+    }),
+
+    // Static file serving (uploads)
+    ServeStaticModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => [
+        {
+          rootPath: join(__dirname, '..', 'uploads'),
+          serveRoot: '/uploads',
+          exclude: ['/api/*']
+        },
+      ],
+      inject: [ConfigService]
+    }),
+
+    // Core modules - Order matters for dependencies
+    ConfigModule,
+    RedisModule,
+    StorageModule, // Global module - should be early
+    WebSocketModule,
+    OrderMatchingModule, // Re-enabled - TypeORM imports removed
+    WalletModule,
+    PaymentModule,
+    MarketAggregationModule, // Re-enabled - Redis config fixed, TypeORM imports removed
+    AuthModule,
+    UsersModule,
+    TopicsModule,
+    IngestModule,
+    SentimentModule,
+    DeceptionModule,
+    ViralModule,
+    TrendMLModule,
+    MarketsModule,
+    ChatModule,
+    NotificationsModule,
+    FilesModule,
+    AdminModule, // Re-enabled - SWC decorator issue fixed
+    OracleModule,
+    BrokersModule, // Re-enabled - TypeORM imports removed
+    CrmModule, // Re-enabled - depends on BrokersModule
+    FinancialReportingModule, // Re-enabled - depends on BrokersModule
+    SupportModule,
+    AnalyticsModule,
+    ReferralModule,
+    ApiMarketplaceModule, // API Marketplace for monetizing platform data
+    VPMXModule, // VPMX - Viral Popularity Market Index (Prediction Markets)
+  ],
+  controllers: [AppController],
+  providers: [AppService]
+})
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // Global middleware order matters
+    consumer
+      .apply(CorrelationIdMiddleware)
+      .forRoutes('*');
+
+    consumer
+      .apply(RequestLoggingMiddleware)
+      .forRoutes('*');
+  }
+}

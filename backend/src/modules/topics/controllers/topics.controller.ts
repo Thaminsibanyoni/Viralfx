@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Post,
@@ -12,20 +12,19 @@ import {
   ParseUUIDPipe,
   HttpStatus,
   HttpCode,
-  NotFoundException,
-} from '@nestjs/common';
+  NotFoundException, Req } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
   ApiQuery,
-  ApiBearerAuth,
+  ApiBearerAuth
 } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { TopicsService } from '../services/topics.service';
 import { TopicMergingService } from '../services/topic-merging.service';
 import { TrendingService } from '../services/trending.service';
@@ -39,8 +38,7 @@ export class TopicsController {
   constructor(
     private readonly topicsService: TopicsService,
     private readonly topicMergingService: TopicMergingService,
-    private readonly trendingService: TrendingService,
-  ) {}
+    private readonly trendingService: TrendingService) {}
 
   @Get()
   @ApiOperation({ summary: 'List topics with pagination and filters' })
@@ -53,8 +51,7 @@ export class TopicsController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
-    @Query('category') category?: string,
-  ) {
+    @Query('category') category?: string) {
     const pageNum = page ? parseInt(page) : 1;
     const limitNum = limit ? parseInt(limit) : 20;
 
@@ -75,8 +72,7 @@ export class TopicsController {
   async getTrendingTopics(
     @Query('limit') limit?: string,
     @Query('category') category?: string,
-    @Query('region') region?: string,
-  ) {
+    @Query('region') region?: string) {
     const limitNum = limit ? parseInt(limit) : 10;
 
     if (region) {
@@ -97,8 +93,7 @@ export class TopicsController {
   @ApiResponse({ status: 200, description: 'Viral spikes detected successfully' })
   async getViralSpikes(
     @Query('threshold') threshold?: string,
-    @Query('windowSize') windowSize?: string,
-  ) {
+    @Query('windowSize') windowSize?: string) {
     const thresholdNum = threshold ? parseFloat(threshold) : 2.0;
     const windowSizeNum = windowSize ? parseInt(windowSize) : 60;
 
@@ -128,7 +123,7 @@ export class TopicsController {
         'INTERNATIONAL',
         'LOCAL',
         'OTHER',
-      ],
+      ]
     };
   }
 
@@ -148,7 +143,7 @@ export class TopicsController {
 
     return {
       ...topic,
-      stats,
+      stats
     };
   }
 
@@ -168,7 +163,7 @@ export class TopicsController {
 
     return {
       ...topic,
-      stats,
+      stats
     };
   }
 
@@ -181,8 +176,7 @@ export class TopicsController {
   async getTopicTrendingHistory(
     @Param('id', ParseUUIDPipe) id: string,
     @Query('timeRange') timeRange?: string,
-    @Query('interval') interval?: string,
-  ) {
+    @Query('interval') interval?: string) {
     const timeRangeNum = timeRange ? parseInt(timeRange) : 24;
     const intervalNum = interval ? parseInt(interval) : 60;
 
@@ -216,8 +210,7 @@ export class TopicsController {
   @ApiResponse({ status: 404, description: 'Topic not found' })
   async updateTopic(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() updateData: Partial<CreateTopicDto>,
-  ) {
+    @Body() updateData: Partial<CreateTopicDto>) {
     return this.topicsService.updateTopic(id, updateData);
   }
 
@@ -252,8 +245,7 @@ export class TopicsController {
   }) {
     return this.topicMergingService.proposeMerge(
       body.primaryTopicId,
-      body.duplicateTopicIds,
-    );
+      body.duplicateTopicIds);
   }
 
   @Post('execute-merge')
@@ -273,8 +265,7 @@ export class TopicsController {
       confidence: number;
       reason: string;
     },
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.topicMergingService.executeMerge(body, req.user.userId);
   }
 
@@ -286,8 +277,7 @@ export class TopicsController {
     @Body() body: {
       mergeId: string;
       reason?: string;
-    },
-  ) {
+    }) {
     return this.topicMergingService.rollbackMerge(body.mergeId, body.reason);
   }
 

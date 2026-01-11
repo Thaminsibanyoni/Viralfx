@@ -1,26 +1,23 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThanOrEqual, LessThanOrEqual, In } from 'typeorm';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ConfigService } from '@nestjs/config';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 
-import { Order } from '../../market-aggregation/entities/order.entity';
-import { WalletService } from '../../wallet/services/wallet.service';
-import { MarketDataService } from '../../market-aggregation/services/market-data.service';
+import { Order } from "../../market-aggregation/interfaces/order.interface";
+import { WalletService } from "../../wallet/services/wallet.service";
+import { MarketDataService } from "../../market-aggregation/services/market-data.service";
 import { ValidationResult } from '../interfaces/order-matching.interface';
 
 @Injectable()
 export class OrderValidationService {
   constructor(
-    @InjectRepository(Order)
-    private readonly orderRepository: Repository<Order>,
+        private prisma: PrismaService,
     private readonly walletService: WalletService,
     private readonly marketDataService: MarketDataService,
     private readonly configService: ConfigService,
     @InjectRedis()
-    private readonly redis: Redis,
-  ) {}
+    private readonly redis: Redis) {}
 
   async validateOrder(order: Order, userId: string): Promise<ValidationResult> {
     const errors: string[] = [];
@@ -93,7 +90,7 @@ export class OrderValidationService {
       return {
         isValid: errors.length === 0,
         errors,
-        warnings,
+        warnings
       };
     } catch (error) {
       errors.push(`Validation error: ${error.message}`);
@@ -123,7 +120,7 @@ export class OrderValidationService {
     return {
       isValid: errors.length === 0,
       errors,
-      warnings,
+      warnings
     };
   }
 
@@ -156,7 +153,7 @@ export class OrderValidationService {
     return {
       isValid: errors.length === 0,
       errors,
-      warnings,
+      warnings
     };
   }
 
@@ -199,7 +196,7 @@ export class OrderValidationService {
     return {
       isValid: errors.length === 0,
       errors,
-      warnings,
+      warnings
     };
   }
 
@@ -226,7 +223,7 @@ export class OrderValidationService {
     return {
       isValid: errors.length === 0,
       errors,
-      warnings,
+      warnings
     };
   }
 
@@ -234,8 +231,8 @@ export class OrderValidationService {
     const errors: string[] = [];
     const warnings: string[] = [];
 
-    const order = await this.orderRepository.findOne({
-      where: { id: orderId, userId },
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, userId }
     });
 
     if (!order) {
@@ -258,7 +255,7 @@ export class OrderValidationService {
     return {
       isValid: errors.length === 0,
       errors,
-      warnings,
+      warnings
     };
   }
 }

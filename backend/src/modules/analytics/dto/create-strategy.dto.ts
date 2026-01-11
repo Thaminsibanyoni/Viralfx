@@ -1,12 +1,13 @@
 import { IsString, IsNotEmpty, IsOptional, IsArray, IsEnum, IsBoolean, Length, ValidateNested, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { StrategyCategory } from '../../../database/entities/backtesting-strategy.entity';
+// TypeORM entity removed - using Prisma instead
+// import { StrategyCategory } from "../../../database/entities/backtesting-strategy.entity";
 
 export class StrategyParameterDto {
   @ApiProperty({
     description: 'Parameter name',
-    example: 'minViralityScore',
+    example: 'minViralityScore'
   })
   @IsString()
   @IsNotEmpty()
@@ -15,21 +16,21 @@ export class StrategyParameterDto {
   @ApiProperty({
     description: 'Parameter type',
     enum: ['number', 'string', 'boolean'],
-    example: 'number',
+    example: 'number'
   })
   @IsEnum(['number', 'string', 'boolean'])
   type: 'number' | 'string' | 'boolean';
 
   @ApiProperty({
     description: 'Default value for the parameter',
-    example: 75,
+    example: 75
   })
   @IsNotEmpty()
   defaultValue: any;
 
   @ApiPropertyOptional({
     description: 'Minimum value for numeric parameters',
-    example: 0,
+    example: 0
   })
   @IsNumber()
   @IsOptional()
@@ -37,7 +38,7 @@ export class StrategyParameterDto {
 
   @ApiPropertyOptional({
     description: 'Maximum value for numeric parameters',
-    example: 100,
+    example: 100
   })
   @IsNumber()
   @IsOptional()
@@ -45,7 +46,7 @@ export class StrategyParameterDto {
 
   @ApiPropertyOptional({
     description: 'Step size for numeric parameters',
-    example: 5,
+    example: 5
   })
   @IsNumber()
   @IsOptional()
@@ -53,7 +54,7 @@ export class StrategyParameterDto {
 
   @ApiPropertyOptional({
     description: 'Parameter description',
-    example: 'Minimum virality score to trigger buy signal',
+    example: 'Minimum virality score to trigger buy signal'
   })
   @IsString()
   @IsOptional()
@@ -63,7 +64,7 @@ export class StrategyParameterDto {
 export class StrategyRuleCriterionDto {
   @ApiProperty({
     description: 'Field to evaluate',
-    example: 'momentum_score',
+    example: 'momentum_score'
   })
   @IsString()
   @IsNotEmpty()
@@ -72,14 +73,14 @@ export class StrategyRuleCriterionDto {
   @ApiProperty({
     description: 'Comparison operator',
     enum: ['>', '<', '>=', '<=', '==', '!=', 'contains'],
-    example: '>',
+    example: '>'
   })
   @IsEnum(['>', '<', '>=', '<=', '==', '!=', 'contains'])
   operator: '>' | '<' | '>=' | '<=' | '==' | '!=' | 'contains';
 
   @ApiProperty({
     description: 'Value to compare against (supports template variables)',
-    example: '{{minViralityScore}}',
+    example: '{{minViralityScore}}'
   })
   @IsNotEmpty()
   value: string | number;
@@ -89,7 +90,7 @@ export class StrategyRuleDto {
   @ApiProperty({
     description: 'Rule type',
     enum: ['BUY', 'SELL', 'EXIT'],
-    example: 'BUY',
+    example: 'BUY'
   })
   @IsEnum(['BUY', 'SELL', 'EXIT'])
   type: 'BUY' | 'SELL' | 'EXIT';
@@ -97,14 +98,14 @@ export class StrategyRuleDto {
   @ApiProperty({
     description: 'Logical condition for multiple criteria',
     enum: ['AND', 'OR'],
-    example: 'AND',
+    example: 'AND'
   })
   @IsEnum(['AND', 'OR'])
   condition: 'AND' | 'OR';
 
   @ApiProperty({
     description: 'Array of criteria to evaluate',
-    type: [StrategyRuleCriterionDto],
+    type: [StrategyRuleCriterionDto]
   })
   @IsArray()
   @ValidateNested({ each: true })
@@ -117,7 +118,7 @@ export class CreateStrategyDto {
     description: 'Strategy name',
     example: 'My Custom Momentum Strategy',
     minLength: 3,
-    maxLength: 100,
+    maxLength: 100
   })
   @IsString()
   @IsNotEmpty()
@@ -127,7 +128,7 @@ export class CreateStrategyDto {
   @ApiPropertyOptional({
     description: 'Strategy description',
     example: 'A custom strategy that combines momentum and sentiment indicators',
-    maxLength: 500,
+    maxLength: 500
   })
   @IsString()
   @IsOptional()
@@ -136,15 +137,15 @@ export class CreateStrategyDto {
 
   @ApiProperty({
     description: 'Strategy category',
-    enum: StrategyCategory,
-    example: 'TREND_MOMENTUM',
+    enum: ['TREND_MOMENTUM', 'MEAN_REVERSION', 'SENTIMENT_ANALYSIS', 'TECHNICAL_ANALYSIS', 'FUNDAMENTAL_ANALYSIS', 'ML_PREDICTION'],
+    example: 'TREND_MOMENTUM'
   })
-  @IsEnum(StrategyCategory)
-  category: StrategyCategory;
+  @IsEnum(['TREND_MOMENTUM', 'MEAN_REVERSION', 'SENTIMENT_ANALYSIS', 'TECHNICAL_ANALYSIS', 'FUNDAMENTAL_ANALYSIS', 'ML_PREDICTION'])
+  category: string;
 
   @ApiProperty({
     description: 'Strategy parameters',
-    type: [StrategyParameterDto],
+    type: [StrategyParameterDto]
   })
   @IsArray()
   @ValidateNested({ each: true })
@@ -153,7 +154,7 @@ export class CreateStrategyDto {
 
   @ApiProperty({
     description: 'Strategy rules',
-    type: [StrategyRuleDto],
+    type: [StrategyRuleDto]
   })
   @IsArray()
   @ValidateNested({ each: true })
@@ -163,7 +164,7 @@ export class CreateStrategyDto {
   @ApiPropertyOptional({
     description: 'Whether strategy is public',
     example: false,
-    default: false,
+    default: false
   })
   @IsBoolean()
   @IsOptional()

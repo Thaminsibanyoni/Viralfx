@@ -5,18 +5,19 @@ import {
   Delete,
   Param,
   Query,
+  Body,
   UseGuards,
   HttpStatus,
   HttpCode,
+  Headers,
   Request,
   Response,
   Res,
-  Redirect,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+  Redirect, Req } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBody } from '@nestjs/swagger';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { OAuthService } from '../services/oauth.service';
 import { UserRole } from '@prisma/client';
 import { Response, Request as ExpressRequest } from 'express';
@@ -37,20 +38,18 @@ export class OAuthController {
   async authorizeOAuth(
     @Param('provider') provider: string,
     @Query('brokerId') brokerId: string,
-    @Query('redirectUri') redirectUri?: string,
-  ): Promise<any> {
+    @Query('redirectUri') redirectUri?: string): Promise<any> {
     const authUrl = await this.oauthService.initiateOAuthFlow(
       brokerId,
       provider,
-      redirectUri,
-    );
+      redirectUri);
 
     return {
       success: true,
       data: {
         authUrl,
-        provider,
-      },
+        provider
+      }
     };
   }
 
@@ -66,8 +65,7 @@ export class OAuthController {
     @Query('code') code: string,
     @Query('state') state: string,
     @Query('error') error?: string,
-    @Res() res?: Response,
-  ): Promise<{ url: string }> {
+    @Res() res?: Response): Promise<{ url: string }> {
     try {
       if (error) {
         throw new Error(`OAuth error: ${error}`);
@@ -77,12 +75,12 @@ export class OAuthController {
 
       // Redirect to success page with result
       return {
-        url: `${process.env.FRONTEND_URL}/oauth/success?provider=${provider}&success=true&brokerId=${result.brokerId}`,
+        url: `${process.env.FRONTEND_URL}/oauth/success?provider=${provider}&success=true&brokerId=${result.brokerId}`
       };
     } catch (err) {
       // Redirect to error page
       return {
-        url: `${process.env.FRONTEND_URL}/oauth/error?provider=${provider}&success=false&error=${encodeURIComponent(err.message)}`,
+        url: `${process.env.FRONTEND_URL}/oauth/error?provider=${provider}&success=false&error=${encodeURIComponent(err.message)}`
       };
     }
   }
@@ -98,13 +96,12 @@ export class OAuthController {
   @HttpCode(HttpStatus.OK)
   async refreshToken(
     @Param('provider') provider: string,
-    @Query('brokerId') brokerId: string,
-  ): Promise<any> {
+    @Query('brokerId') brokerId: string): Promise<any> {
     await this.oauthService.refreshOAuthToken(brokerId, provider);
 
     return {
       success: true,
-      message: 'OAuth token refreshed successfully',
+      message: 'OAuth token refreshed successfully'
     };
   }
 
@@ -118,13 +115,12 @@ export class OAuthController {
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'OAuth not configured for provider' })
   async revokeAccess(
     @Param('provider') provider: string,
-    @Query('brokerId') brokerId: string,
-  ): Promise<any> {
+    @Query('brokerId') brokerId: string): Promise<any> {
     await this.oauthService.revokeOAuthAccess(brokerId, provider);
 
     return {
       success: true,
-      message: 'OAuth access revoked successfully',
+      message: 'OAuth access revoked successfully'
     };
   }
 
@@ -138,13 +134,12 @@ export class OAuthController {
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Unsupported OAuth provider' })
   async generateOAuthConfig(
     @Param('provider') provider: string,
-    @Query('brokerId') brokerId: string,
-  ): Promise<any> {
+    @Query('brokerId') brokerId: string): Promise<any> {
     const config = await this.oauthService.generateOAuthConfig(brokerId, provider);
 
     return {
       success: true,
-      data: config,
+      data: config
     };
   }
 
@@ -161,31 +156,29 @@ export class OAuthController {
         requiredScopes: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Required OAuth scopes',
-        },
+          description: 'Required OAuth scopes'
+        }
       },
-      required: ['requiredScopes'],
-    },
+      required: ['requiredScopes']
+    }
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'Scopes validation result' })
   async validateScopes(
     @Param('provider') provider: string,
     @Query('brokerId') brokerId: string,
-    @Body() body: { requiredScopes: string[] },
-  ): Promise<any> {
+    @Body() body: { requiredScopes: string[] }): Promise<any> {
     const isValid = await this.oauthService.validateOAuthScopes(
       brokerId,
       provider,
-      body.requiredScopes,
-    );
+      body.requiredScopes);
 
     return {
       success: true,
       data: {
         isValid,
         requiredScopes: body.requiredScopes,
-        provider,
-      },
+        provider
+      }
     };
   }
 
@@ -202,8 +195,8 @@ export class OAuthController {
         provider: 'google',
         status: 'configured',
         clientId: process.env.GOOGLE_CLIENT_ID ? 'configured' : 'missing',
-        callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'not configured',
-      },
+        callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'not configured'
+      }
     };
   }
 
@@ -221,8 +214,8 @@ export class OAuthController {
         clientId: process.env.APPLE_CLIENT_ID ? 'configured' : 'missing',
         teamId: process.env.APPLE_TEAM_ID ? 'configured' : 'missing',
         keyId: process.env.APPLE_KEY_ID ? 'configured' : 'missing',
-        callbackUrl: process.env.APPLE_CALLBACK_URL || 'not configured',
-      },
+        callbackUrl: process.env.APPLE_CALLBACK_URL || 'not configured'
+      }
     };
   }
 
@@ -240,24 +233,24 @@ export class OAuthController {
             displayName: 'Google',
             description: 'Sign in with Google account',
             icon: 'google-icon-url',
-            features: ['email', 'profile', 'drive', 'calendar'],
+            features: ['email', 'profile', 'drive', 'calendar']
           },
           {
             name: 'apple',
             displayName: 'Apple',
             description: 'Sign in with Apple ID',
             icon: 'apple-icon-url',
-            features: ['name', 'email'],
+            features: ['name', 'email']
           },
           {
             name: 'custom',
             displayName: 'Custom OAuth',
             description: 'Configure custom OAuth provider',
             icon: 'custom-icon-url',
-            features: ['read', 'write', 'admin'],
+            features: ['read', 'write', 'admin']
           },
-        ],
-      },
+        ]
+      }
     };
   }
 
@@ -271,15 +264,14 @@ export class OAuthController {
   async handleOAuthWebhook(
     @Param('provider') provider: string,
     @Body() payload: any,
-    @Headers('x-webhook-signature') signature?: string,
-  ): Promise<any> {
+    @Headers('x-webhook-signature') signature?: string): Promise<any> {
     // Handle OAuth provider webhooks (e.g., token revocation, account deletion)
     // For now, return a success response
     return {
       success: true,
       message: 'OAuth webhook received',
       provider,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
   }
 
@@ -288,11 +280,11 @@ export class OAuthController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get current broker OAuth configurations' })
   @ApiResponse({ status: HttpStatus.OK, description: 'OAuth configurations retrieved successfully' })
-  async getMyOAuthProviders(@Request() req): Promise<any> {
+  async getMyOAuthProviders(@Req() req): Promise<any> {
     // This would be implemented when broker authentication is added
     return {
       success: true,
-      message: 'My OAuth providers endpoint - requires broker authentication',
+      message: 'My OAuth providers endpoint - requires broker authentication'
     };
   }
 
@@ -301,10 +293,10 @@ export class OAuthController {
   @ApiOperation({ summary: 'Initiate OAuth for current broker' })
   @ApiParam({ name: 'provider', description: 'OAuth provider' })
   @ApiResponse({ status: HttpStatus.OK, description: 'OAuth initiated successfully' })
-  async authorizeMyOAuth(@Request() req, @Param('provider') provider: string): Promise<any> {
+  async authorizeMyOAuth(@Req() req, @Param('provider') provider: string): Promise<any> {
     return {
       success: true,
-      message: 'Authorize OAuth endpoint - requires broker authentication',
+      message: 'Authorize OAuth endpoint - requires broker authentication'
     };
   }
 
@@ -313,10 +305,10 @@ export class OAuthController {
   @ApiOperation({ summary: 'Revoke OAuth for current broker' })
   @ApiParam({ name: 'provider', description: 'OAuth provider' })
   @ApiResponse({ status: HttpStatus.OK, description: 'OAuth revoked successfully' })
-  async revokeMyOAuth(@Request() req, @Param('provider') provider: string): Promise<any> {
+  async revokeMyOAuth(@Req() req, @Param('provider') provider: string): Promise<any> {
     return {
       success: true,
-      message: 'Revoke OAuth endpoint - requires broker authentication',
+      message: 'Revoke OAuth endpoint - requires broker authentication'
     };
   }
 }

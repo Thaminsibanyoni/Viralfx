@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Post,
@@ -11,28 +11,26 @@ import {
   HttpStatus,
   ParseUUIDPipe,
   ValidationPipe,
-  Request,
-} from '@nestjs/common';
+  Request, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { WebhookService } from '../services/webhook.service';
 import { CreateWebhookDto } from '../dto/create-webhook.dto';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 
 @ApiTags('API Marketplace - Webhooks')
 @Controller('api/v1/api-marketplace/webhooks')
 @UseGuards(JwtAuthGuard)
 export class WebhooksController {
   constructor(
-    private readonly webhookService: WebhookService,
-  ) {}
+    private readonly webhookService: WebhookService) {}
 
   @Get()
   @HttpCode(HttpStatus.OK)
   @Throttle(50, 60)
   @ApiOperation({ summary: 'List user webhooks' })
   @ApiResponse({ status: 200, description: 'Webhooks retrieved successfully' })
-  async listWebhooks(@Request() req: any): Promise<any[]> {
+  async listWebhooks(@Req() req: any): Promise<any[]> {
     const userId = req.user?.id;
     return this.webhookService.listWebhooks(userId);
   }
@@ -44,8 +42,7 @@ export class WebhooksController {
   @ApiResponse({ status: 201, description: 'Webhook created successfully' })
   async createWebhook(
     @Body(ValidationPipe) dto: CreateWebhookDto,
-    @Request() req: any,
-  ): Promise<any> {
+    @Req() req: any): Promise<any> {
     const userId = req.user?.id;
     return this.webhookService.createWebhook(userId, dto);
   }
@@ -58,8 +55,7 @@ export class WebhooksController {
   @ApiResponse({ status: 404, description: 'Webhook not found' })
   async getWebhook(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ): Promise<any> {
+    @Req() req: any): Promise<any> {
     const userId = req.user?.id;
     return this.webhookService.getWebhook(id, userId);
   }
@@ -73,8 +69,7 @@ export class WebhooksController {
   async updateWebhook(
     @Param('id', ParseUUIDPipe) id: string,
     @Body(ValidationPipe) dto: Partial<CreateWebhookDto>,
-    @Request() req: any,
-  ): Promise<any> {
+    @Req() req: any): Promise<any> {
     const userId = req.user?.id;
     return this.webhookService.updateWebhook(id, userId, dto);
   }
@@ -87,8 +82,7 @@ export class WebhooksController {
   @ApiResponse({ status: 404, description: 'Webhook not found' })
   async deleteWebhook(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ): Promise<{ message: string }> {
+    @Req() req: any): Promise<{ message: string }> {
     const userId = req.user?.id;
     await this.webhookService.deleteWebhook(id, userId);
     return { message: 'Webhook deleted successfully' };
@@ -102,9 +96,8 @@ export class WebhooksController {
   @ApiResponse({ status: 404, description: 'Webhook not found' })
   async testWebhook(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-    @Body('event') event?: string,
-  ): Promise<any> {
+    @Req() req: any,
+    @Body('event') event?: string): Promise<any> {
     const userId = req.user?.id;
     return this.webhookService.testWebhook(id, userId, event);
   }
@@ -116,8 +109,7 @@ export class WebhooksController {
   @ApiResponse({ status: 200, description: 'Webhook enabled successfully' })
   async enableWebhook(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ): Promise<any> {
+    @Req() req: any): Promise<any> {
     const userId = req.user?.id;
     return this.webhookService.toggleWebhook(id, userId, true);
   }
@@ -129,8 +121,7 @@ export class WebhooksController {
   @ApiResponse({ status: 200, description: 'Webhook disabled successfully' })
   async disableWebhook(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ): Promise<any> {
+    @Req() req: any): Promise<any> {
     const userId = req.user?.id;
     return this.webhookService.toggleWebhook(id, userId, false);
   }
@@ -142,11 +133,10 @@ export class WebhooksController {
   @ApiResponse({ status: 200, description: 'Webhook logs retrieved successfully' })
   async getWebhookLogs(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
+    @Req() req: any,
     @Query('limit') limit: number = 50,
     @Query('offset') offset: number = 0,
-    @Query('status') status?: 'SUCCESS' | 'FAILED' | 'PENDING',
-  ): Promise<any> {
+    @Query('status') status?: 'SUCCESS' | 'FAILED' | 'PENDING'): Promise<any> {
     const userId = req.user?.id;
     return this.webhookService.getWebhookLogs(id, userId, limit, offset, status);
   }
@@ -158,16 +148,15 @@ export class WebhooksController {
   @ApiResponse({ status: 200, description: 'Webhook statistics retrieved successfully' })
   async getWebhookStats(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
+    @Req() req: any,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ): Promise<any> {
+    @Query('endDate') endDate?: string): Promise<any> {
     const userId = req.user?.id;
     let dateRange;
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
     return this.webhookService.getWebhookStats(id, userId, dateRange);
@@ -189,8 +178,7 @@ export class WebhooksController {
   @ApiResponse({ status: 200, description: 'Webhook secret rotated successfully' })
   async rotateWebhookSecret(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ): Promise<{ secret: string }> {
+    @Req() req: any): Promise<{ secret: string }> {
     const userId = req.user?.id;
     const secret = await this.webhookService.rotateWebhookSecret(id, userId);
     return { secret };
@@ -202,16 +190,15 @@ export class WebhooksController {
   @ApiOperation({ summary: 'Get webhook delivery overview' })
   @ApiResponse({ status: 200, description: 'Delivery overview retrieved successfully' })
   async getDeliveryOverview(
-    @Request() req: any,
+    @Req() req: any,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ): Promise<any> {
+    @Query('endDate') endDate?: string): Promise<any> {
     const userId = req.user?.id;
     let dateRange;
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
     return this.webhookService.getDeliveryOverview(userId, dateRange);

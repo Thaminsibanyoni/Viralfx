@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 
 interface ViralIndexCalculation {
@@ -37,8 +37,7 @@ export class ViralIndexService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly redis: Redis,
-  ) {}
+    private readonly redis: Redis) {}
 
   async calculateTopicViralIndex(
     topicId: string,
@@ -60,10 +59,10 @@ export class ViralIndexService {
           topicId,
           createdAt: {
             gte: startTime,
-            lte: endTime,
-          },
+            lte: endTime
+          }
         },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'asc' }
       });
 
       if (viralContent.length === 0) {
@@ -77,15 +76,15 @@ export class ViralIndexService {
             likes: 0,
             shares: 0,
             comments: 0,
-            views: 0,
+            views: 0
           },
           timeWindow: {
             start: startTime,
             end: endTime,
-            duration: timeWindow,
+            duration: timeWindow
           },
           confidence: 0,
-          lastUpdated: new Date(),
+          lastUpdated: new Date()
         };
 
         await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(emptyResult));
@@ -118,10 +117,10 @@ export class ViralIndexService {
         timeWindow: {
           start: startTime,
           end: endTime,
-          duration: timeWindow,
+          duration: timeWindow
         },
         confidence,
-        lastUpdated: new Date(),
+        lastUpdated: new Date()
       };
 
       // Cache the result
@@ -156,10 +155,10 @@ export class ViralIndexService {
         topicId,
         timestamp: {
           gte: startTime,
-          lte: endTime,
-        },
+          lte: endTime
+        }
       },
-      orderBy: { timestamp: 'asc' },
+      orderBy: { timestamp: 'asc' }
     });
 
     // Group by intervals if needed
@@ -174,7 +173,7 @@ export class ViralIndexService {
       timestamp: h.timestamp,
       index: h.index,
       momentum: h.momentum,
-      changeRate: h.changeRate,
+      changeRate: h.changeRate
     }));
 
     await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(result));
@@ -198,16 +197,16 @@ export class ViralIndexService {
     const trending = await this.prisma.viralIndexHistory.findMany({
       where: {
         timestamp: { gte: timeAgo },
-        index: { gte: minIndex },
+        index: { gte: minIndex }
       },
       include: {
         topic: {
-          select: { name: true },
-        },
+          select: { name: true }
+        }
       },
       orderBy: { momentum: 'desc' },
       take: limit,
-      distinct: ['topicId'],
+      distinct: ['topicId']
     });
 
     // Calculate growth rates
@@ -222,7 +221,7 @@ export class ViralIndexService {
           viralIndex: item.index,
           momentum: item.momentum,
           velocity: item.velocity || 0,
-          growth: Math.round(growth * 100) / 100,
+          growth: Math.round(growth * 100) / 100
         };
       })
     );
@@ -240,9 +239,9 @@ export class ViralIndexService {
     const viralContent = await this.prisma.viralContent.findMany({
       where: {
         topicId,
-        createdAt: { gte: startTime, lte: endTime },
+        createdAt: { gte: startTime, lte: endTime }
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'asc' }
     });
 
     if (viralContent.length < 2) {
@@ -271,16 +270,16 @@ export class ViralIndexService {
     const breakoutCandidates = await this.prisma.viralContent.findMany({
       where: {
         createdAt: {
-          gte: new Date(Date.now() - timeWindow * 60 * 60 * 1000),
+          gte: new Date(Date.now() - timeWindow * 60 * 60 * 1000)
         },
-        viralScore: { gte: threshold },
+        viralScore: { gte: threshold }
       },
       include: {
         topic: {
-          select: { name: true },
-        },
+          select: { name: true }
+        }
       },
-      orderBy: { momentumScore: 'desc' },
+      orderBy: { momentumScore: 'desc' }
     });
 
     const breakouts = breakoutCandidates
@@ -291,7 +290,7 @@ export class ViralIndexService {
         currentScore: item.viralScore,
         momentum: item.momentumScore,
         breakoutTime: item.createdAt,
-        confidence: this.calculateBreakoutConfidence(item),
+        confidence: this.calculateBreakoutConfidence(item)
       }));
 
     return breakouts;
@@ -412,7 +411,7 @@ export class ViralIndexService {
         likes: acc.likes + (content.metadata?.likes || 0),
         shares: acc.shares + (content.metadata?.shares || 0),
         comments: acc.comments + (content.metadata?.comments || 0),
-        views: acc.views + (content.metadata?.views || 0),
+        views: acc.views + (content.metadata?.views || 0)
       }),
       { likes: 0, shares: 0, comments: 0, views: 0 }
     );
@@ -442,8 +441,8 @@ export class ViralIndexService {
           acceleration: calculation.acceleration,
           engagement: calculation.engagement,
           confidence: calculation.confidence,
-          timestamp: new Date(),
-        },
+          timestamp: new Date()
+        }
       });
     } catch (error) {
       this.logger.warn(`Failed to store viral index history for topic ${calculation.topicId}:`, error.message);
@@ -477,7 +476,7 @@ export class ViralIndexService {
         timestamp: new Date(parseInt(timestamp)),
         index: avgIndex,
         momentum: avgMomentum,
-        changeRate,
+        changeRate
       };
     }).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
   }
@@ -488,9 +487,9 @@ export class ViralIndexService {
     const previousEntry = await this.prisma.viralIndexHistory.findFirst({
       where: {
         topicId,
-        timestamp: { lte: targetTime },
+        timestamp: { lte: targetTime }
       },
-      orderBy: { timestamp: 'desc' },
+      orderBy: { timestamp: 'desc' }
     });
 
     return previousEntry?.index || 0;

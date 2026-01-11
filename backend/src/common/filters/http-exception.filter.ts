@@ -4,7 +4,7 @@ import {
   ArgumentsHost,
   HttpException,
   HttpStatus,
-  Logger,
+  Logger
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
@@ -43,14 +43,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
       timestamp: new Date().toISOString(),
       path: request.url,
       method: request.method,
-      statusCode: status,
+      statusCode: status
     };
 
     // Log error for debugging
     this.logger.error(
       `${request.method} ${request.url} - ${status} - ${message}`,
-      exception.stack,
-    );
+      exception.stack);
 
     response
       .status(status)

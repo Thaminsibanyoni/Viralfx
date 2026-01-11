@@ -16,7 +16,7 @@ export class RequestLoggingMiddleware implements NestMiddleware {
       ip: req.ip,
       userAgent: req.get('user-agent'),
       correlationId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     logger.log(`Incoming Request: ${JSON.stringify(requestInfo)}`);
@@ -32,7 +32,7 @@ export class RequestLoggingMiddleware implements NestMiddleware {
         statusCode: res.statusCode,
         duration: `${duration}ms`,
         correlationId,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
 
       logger.log(`Response: ${JSON.stringify(responseInfo)}`);

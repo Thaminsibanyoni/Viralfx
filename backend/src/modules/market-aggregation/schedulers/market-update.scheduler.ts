@@ -2,14 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 
 import { MarketAggregationService } from '../services/market-aggregation.service';
-import { Symbol } from '../entities/symbol.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Symbol } from '../entities/symbol.entity';
 
 @Injectable()
 export class MarketUpdateScheduler {
@@ -21,12 +19,10 @@ export class MarketUpdateScheduler {
     private readonly marketQueue: Queue,
     @InjectQueue('price-calculation')
     private readonly priceQueue: Queue,
-    @InjectRepository(Symbol)
-    private readonly symbolRepository: Repository<Symbol>,
+        private prisma: PrismaService,
     @InjectRedis()
     private readonly redis: Redis,
-    private readonly prismaService: PrismaService,
-  ) {}
+    private readonly prismaService: PrismaService) {}
 
   /**
    * Update active prices every 30 seconds
@@ -46,7 +42,7 @@ export class MarketUpdateScheduler {
           delay,
           priority: 5, // Normal priority
           attempts: 3,
-          backoff: 'exponential',
+          backoff: 'exponential'
         });
       }
 
@@ -70,7 +66,7 @@ export class MarketUpdateScheduler {
         }, {
           priority: 3, // Lower priority
           attempts: 2,
-          backoff: 'exponential',
+          backoff: 'exponential'
         });
       }
 
@@ -89,7 +85,7 @@ export class MarketUpdateScheduler {
       await this.marketQueue.add('calculate-trending', {}, {
         priority: 8, // High priority
         attempts: 3,
-        backoff: 'exponential',
+        backoff: 'exponential'
       });
 
       this.logger.log('Queued trending markets calculation');
@@ -113,8 +109,8 @@ export class MarketUpdateScheduler {
       // 3. Archive data to cold storage if needed
 
       // Example query (would be implemented in PriceRepository)
-      // const deletedCount = await this.priceRepository.delete({
-      //   interval: '1m',
+      // const deletedCount = await this.prisma.pricerepository.delete({
+      //   interval: '1m'
       //   timestamp: { $lt: ninetyDaysAgo }
       // });
 
@@ -136,20 +132,20 @@ export class MarketUpdateScheduler {
       const recentlyUpdated = await this.prismaService.viralIndexSnapshot.findMany({
         where: {
           ts: {
-            gte: new Date(Date.now() - 2 * 60 * 1000), // Last 2 minutes
-          },
+            gte: new Date(Date.now() - 2 * 60 * 1000) // Last 2 minutes
+          }
         },
         distinct: ['topicId'],
         select: {
-          topicId: true,
-        },
+          topicId: true
+        }
       });
 
       for (const { topicId } of recentlyUpdated) {
         await this.marketQueue.add('sync-virality', { topicId }, {
           priority: 10, // Highest priority
           attempts: 3,
-          backoff: 'exponential',
+          backoff: 'exponential'
         });
       }
 

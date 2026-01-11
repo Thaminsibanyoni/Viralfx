@@ -8,8 +8,7 @@ export class RateLimitingMiddleware implements NestMiddleware {
   private readonly logger = new Logger(RateLimitingMiddleware.name);
 
   constructor(
-    @InjectRedis() private readonly redis: Redis,
-  ) {}
+    @InjectRedis() private readonly redis: Redis) {}
 
   async use(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -30,7 +29,7 @@ export class RateLimitingMiddleware implements NestMiddleware {
           res.status(429).json({
             error: 'Too Many Requests',
             message: 'Rate limit exceeded from IP address',
-            retryAfter: Math.ceil(limits.ipTtl / 1000),
+            retryAfter: Math.ceil(limits.ipTtl / 1000)
           });
           return;
         }
@@ -45,7 +44,7 @@ export class RateLimitingMiddleware implements NestMiddleware {
             res.status(429).json({
               error: 'Too Many Requests',
               message: 'Rate limit exceeded for user',
-              retryAfter: Math.ceil(limits.userTtl / 1000),
+              retryAfter: Math.ceil(limits.userTtl / 1000)
             });
             return;
           }
@@ -122,29 +121,29 @@ export class RateLimitingMiddleware implements NestMiddleware {
         ip: 10, // 10 connections per minute per IP
         user: 5, // 5 connections per minute per user
         ipTtl: 60000,
-        userTtl: 60000,
+        userTtl: 60000
       },
       // Order placement limits
       '/api/orders': {
         ip: 100, // 100 requests per minute per IP
         user: 50, // 50 requests per minute per user
         ipTtl: 60000,
-        userTtl: 60000,
+        userTtl: 60000
       },
       // Market data limits
       '/api/market': {
         ip: 1000, // 1000 requests per minute per IP
         user: 500, // 500 requests per minute per user
         ipTtl: 60000,
-        userTtl: 60000,
+        userTtl: 60000
       },
       // General API limits
       '/api/': {
         ip: 200, // 200 requests per minute per IP
         user: 100, // 100 requests per minute per user
         ipTtl: 60000,
-        userTtl: 60000,
-      },
+        userTtl: 60000
+      }
     };
 
     for (const [path, limits] of Object.entries(rateLimits)) {
@@ -158,7 +157,7 @@ export class RateLimitingMiddleware implements NestMiddleware {
       ip: 100,
       user: 50,
       ipTtl: 60000,
-      userTtl: 60000,
+      userTtl: 60000
     };
   }
 }
@@ -168,8 +167,7 @@ export class WsRateLimitingMiddleware {
   private readonly logger = new Logger(WsRateLimitingMiddleware.name);
 
   constructor(
-    @InjectRedis() private readonly redis: Redis,
-  ) {}
+    @InjectRedis() private readonly redis: Redis) {}
 
   async checkConnectionLimit(clientId: string, userId?: string): Promise<boolean> {
     try {
@@ -269,7 +267,7 @@ export class WsRateLimitingMiddleware {
         orders: 1,  // Max 1 order subscription (user's own orders)
         wallets: 1, // Max 1 wallet subscription (user's own wallets)
         notifications: 1, // Max 1 notification subscription
-        marketData: 100, // Max 100 market data subscriptions
+        marketData: 100 // Max 100 market data subscriptions
       };
 
       const limit = limits[subscriptionType] || 10;

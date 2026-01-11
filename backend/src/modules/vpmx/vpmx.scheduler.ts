@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression, SchedulerRegistry } from '@nestjs/schedule';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { VPMXService } from './vpmx.service';
-import { VPMXIndexService } from './vpmx-index.service';
+import { VPMXService } from "./vpmx.service";
+import { VPMXIndexService } from "./vpmx-index.service";
 
 @Injectable()
 export class VPMXScheduler {
@@ -13,18 +13,17 @@ export class VPMXScheduler {
     private readonly schedulerRegistry: SchedulerRegistry,
     private readonly vpmxService: VPMXService,
     private readonly vpmxIndexService: VPMXIndexService,
-    @InjectQueue('vpmx-computation') private readonly vpmxQueue: Queue,
-    @InjectQueue('vpmx-aggregates') private readonly aggregatesQueue: Queue,
-    @InjectQueue('vpmx-regional') private readonly regionalQueue: Queue,
-    @InjectQueue('vpmx-health') private readonly healthQueue: Queue,
-  ) {}
+    @InjectQueue('vpmx-compute') private readonly vpmxQueue: Queue,
+    @InjectQueue('vpmx-analytics') private readonly aggregatesQueue: Queue,
+    @InjectQueue('vpmx-prediction') private readonly regionalQueue: Queue,
+    @InjectQueue('vpmx-breakout') private readonly healthQueue: Queue) {}
 
   /**
    * Main VPMX computation job - runs every 10 seconds
    */
-  @Cron(CronExpression.EVERY_10_SECONDS, {
+  @Cron('*/10 * * * * *', {
     name: 'vpmx-compute-index',
-    timeZone: 'UTC',
+    timeZone: 'UTC'
   })
   async computeVPMXIndex() {
     try {
@@ -39,7 +38,7 @@ export class VPMXScheduler {
           'compute-index',
           {
             vtsSymbol: symbol,
-            force: false,
+            force: false
           },
           {
             removeOnComplete: 100,
@@ -47,10 +46,9 @@ export class VPMXScheduler {
             attempts: 3,
             backoff: {
               type: 'exponential',
-              delay: 1000,
-            },
-          },
-        );
+              delay: 1000
+            }
+          });
       }
 
       this.logger.debug(`Queued VPMX computation for ${activeSymbols.length} symbols`);
@@ -64,7 +62,7 @@ export class VPMXScheduler {
    */
   @Cron(CronExpression.EVERY_MINUTE, {
     name: 'vpmx-update-aggregates',
-    timeZone: 'UTC',
+    timeZone: 'UTC'
   })
   async updateAggregates() {
     try {
@@ -77,15 +75,14 @@ export class VPMXScheduler {
           'refresh-aggregates',
           {
             interval,
-            regions: ['US', 'ZA', 'UK', 'NG', 'GLOBAL'],
+            regions: ['US', 'ZA', 'UK', 'NG', 'GLOBAL']
           },
           {
             removeOnComplete: 50,
             removeOnFail: 25,
             attempts: 2,
-            delay: 1000 * intervals.indexOf(interval), // Stagger jobs
-          },
-        );
+            delay: 1000 * intervals.indexOf(interval) // Stagger jobs
+          });
       }
     } catch (error) {
       this.logger.error('Failed to update VPMX aggregates', error);
@@ -97,7 +94,7 @@ export class VPMXScheduler {
    */
   @Cron('*/5 * * * *', {
     name: 'vpmx-update-regional',
-    timeZone: 'UTC',
+    timeZone: 'UTC'
   })
   async updateRegionalData() {
     try {
@@ -110,15 +107,14 @@ export class VPMXScheduler {
           'regional-index-update',
           {
             region,
-            vtsSymbols: await this.getActiveVTSSymbolsForRegion(region),
+            vtsSymbols: await this.getActiveVTSSymbolsForRegion(region)
           },
           {
             removeOnComplete: 20,
             removeOnFail: 10,
             attempts: 2,
-            delay: Math.random() * 5000, // Random delay to prevent overlap
-          },
-        );
+            delay: Math.random() * 5000 // Random delay to prevent overlap
+          });
       }
     } catch (error) {
       this.logger.error('Failed to update regional VPMX data', error);
@@ -130,7 +126,7 @@ export class VPMXScheduler {
    */
   @Cron('*/15 * * * *', {
     name: 'vpmx-health-check',
-    timeZone: 'UTC',
+    timeZone: 'UTC'
   })
   async performHealthChecks() {
     try {
@@ -142,14 +138,13 @@ export class VPMXScheduler {
         await this.healthQueue.add(
           'health-check',
           {
-            checkType: check,
+            checkType: check
           },
           {
             removeOnComplete: 10,
             removeOnFail: 5,
-            attempts: 1,
-          },
-        );
+            attempts: 1
+          });
       }
     } catch (error) {
       this.logger.error('Failed to perform VPMX health checks', error);
@@ -161,7 +156,7 @@ export class VPMXScheduler {
    */
   @Cron(CronExpression.EVERY_HOUR, {
     name: 'vpmx-cleanup-old-data',
-    timeZone: 'UTC',
+    timeZone: 'UTC'
   })
   async cleanupOldData() {
     try {
@@ -170,14 +165,13 @@ export class VPMXScheduler {
       await this.aggregatesQueue.add(
         'cleanup-old-data',
         {
-          daysToKeep: 30, // Keep 30 days of data
+          daysToKeep: 30 // Keep 30 days of data
         },
         {
           removeOnComplete: 5,
           removeOnFail: 3,
-          attempts: 1,
-        },
-      );
+          attempts: 1
+        });
     } catch (error) {
       this.logger.error('Failed to cleanup old VPMX data', error);
     }
@@ -188,7 +182,7 @@ export class VPMXScheduler {
    */
   @Cron('*/5 * * * *', {
     name: 'vpmx-update-chart-data',
-    timeZone: 'UTC',
+    timeZone: 'UTC'
   })
   async updateChartData() {
     try {
@@ -209,9 +203,8 @@ export class VPMXScheduler {
                 timestamp: currentData.timestamp,
                 value: currentData.value,
                 volume: Math.random() * 1000, // Placeholder volume
-                components: currentData.components,
-              },
-            );
+                components: currentData.components
+              });
           }
         }
       }
@@ -225,7 +218,7 @@ export class VPMXScheduler {
    */
   @Cron('0 0 * * *', {
     name: 'vpmx-daily-report',
-    timeZone: 'UTC',
+    timeZone: 'UTC'
   })
   async generateDailyReport() {
     try {
@@ -247,7 +240,7 @@ export class VPMXScheduler {
    */
   @Cron('0 0 * * 0', {
     name: 'vpmx-weekly-analysis',
-    timeZone: 'UTC',
+    timeZone: 'UTC'
   })
   async performWeeklyAnalysis() {
     try {
@@ -271,7 +264,7 @@ export class VPMXScheduler {
    */
   @Cron('0 0 1 * *', {
     name: 'vpmx-monthly-maintenance',
-    timeZone: 'UTC',
+    timeZone: 'UTC'
   })
   async performMonthlyMaintenance() {
     try {
@@ -304,7 +297,7 @@ export class VPMXScheduler {
           'compute-index',
           {
             vtsSymbol: symbol,
-            force: true,
+            force: true
           },
           {
             priority,
@@ -313,10 +306,9 @@ export class VPMXScheduler {
             attempts: 3,
             backoff: {
               type: 'exponential',
-              delay: 500,
-            },
-          },
-        );
+              delay: 500
+            }
+          });
       }
     } catch (error) {
       this.logger.error('Failed to queue symbol recomputation', error);
@@ -345,7 +337,7 @@ export class VPMXScheduler {
         aggregatesQueue,
         regionalQueue,
         healthQueue,
-        timestamp: new Date(),
+        timestamp: new Date()
       };
     } catch (error) {
       this.logger.error('Failed to get queue status', error);
@@ -420,7 +412,7 @@ export class VPMXScheduler {
         active: active.length,
         completed: completed.length,
         failed: failed.length,
-        isPaused: await queue.isPaused(),
+        isPaused: await queue.isPaused()
       };
     } catch (error) {
       this.logger.error(`Failed to get metrics for queue ${queueName}`, error);
@@ -438,10 +430,10 @@ export class VPMXScheduler {
         totalSymbols: topSymbols.length,
         totalDataPoints,
         averageVPMX: topSymbols.reduce((sum, s) => sum + s.value, 0) / topSymbols.length,
-        topMover: topSymbols[0]?.vtsSymbol,
+        topMover: topSymbols[0]?.vtsSymbol
       },
       topPerformers: topSymbols,
-      regionalBreakdown: await this.getRegionalBreakdown(),
+      regionalBreakdown: await this.getRegionalBreakdown()
     };
   }
 
@@ -452,7 +444,7 @@ export class VPMXScheduler {
       ZA: { count: 23, avgVPMX: 542 },
       UK: { count: 18, avgVPMX: 598 },
       NG: { count: 12, avgVPMX: 487 },
-      GLOBAL: { count: 2, avgVPMX: 756 },
+      GLOBAL: { count: 2, avgVPMX: 756 }
     };
   }
 
@@ -468,13 +460,13 @@ export class VPMXScheduler {
         engagementQualityWeight: 0.10,
         trendStabilityWeight: 0.10,
         deceptionRiskWeight: 0.05,
-        regionalWeightingWeight: 0.05,
+        regionalWeightingWeight: 0.05
       },
       performanceMetrics: {
         accuracy: 0.87,
         volatilityIndex: 0.34,
-        predictionSuccess: 0.72,
-      },
+        predictionSuccess: 0.72
+      }
     };
   }
 

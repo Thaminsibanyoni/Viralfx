@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
-import { VPMXCoreService } from './vpmx-core.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
+import { VPMXCoreService } from "./vpmx-core.service";
 
 @Injectable()
 export class VPMXAnalyticsService {
@@ -11,8 +11,7 @@ export class VPMXAnalyticsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-    private readonly vpmxCoreService: VPMXCoreService,
-  ) {}
+    private readonly vpmxCoreService: VPMXCoreService) {}
 
   /**
    * Get VPMX leaderboards
@@ -21,8 +20,7 @@ export class VPMXAnalyticsService {
     region?: string,
     category?: string,
     timeframe?: string,
-    limit = 10,
-  ): Promise<any> {
+    limit = 10): Promise<any> {
     try {
       this.logger.log(`Getting leaderboards for region: ${region}, category: ${category}`);
 
@@ -39,16 +37,16 @@ export class VPMXAnalyticsService {
       const leaderboard = await this.prisma.vpmxIndex.findMany({
         where: {
           timestamp: { gte: timeCutoff },
-          ...(region && { region }),
+          ...(region && { region })
         },
         select: {
           vtsSymbol: true,
           value: true,
           timestamp: true,
-          metadata: true,
+          metadata: true
         },
         orderBy: { value: 'desc' },
-        take: limit * 3, // Get more to filter by category if needed
+        take: limit * 3 // Get more to filter by category if needed
       });
 
       // Group by VTS symbol and get latest value
@@ -99,7 +97,7 @@ export class VPMXAnalyticsService {
       take: limit,
       include: {
         // Include related VPMX data
-      },
+      }
     });
   }
 
@@ -115,7 +113,7 @@ export class VPMXAnalyticsService {
     return await this.prisma.vpmxAnomaly.findMany({
       where,
       orderBy: { detectedAt: 'desc' },
-      take: 50,
+      take: 50
     });
   }
 
@@ -129,7 +127,7 @@ export class VPMXAnalyticsService {
     return await this.prisma.vpmxInfluencerImpact.findMany({
       where,
       orderBy: { influenceScore: 'desc' },
-      take: 20,
+      take: 20
     });
   }
 
@@ -169,20 +167,20 @@ export class VPMXAnalyticsService {
       symbols: {
         total: totalSymbols,
         active24h: activeSymbols24h,
-        activeRatio: totalSymbols > 0 ? activeSymbols24h / totalSymbols : 0,
+        activeRatio: totalSymbols > 0 ? activeSymbols24h / totalSymbols : 0
       },
       market: {
         averageVPMX,
         topMovers: topMovers.slice(0, 10),
         volumeMetrics,
-        marketCap: this.calculateMarketCap(averageVPMX, totalSymbols),
+        marketCap: this.calculateMarketCap(averageVPMX, totalSymbols)
       },
       regional: regionalBreakdown,
       performance: {
         processingLatency: 125, // ms
         cacheHitRate: 0.87,
-        uptime: '99.9%',
-      },
+        uptime: '99.9%'
+      }
     };
 
     await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(stats));
@@ -196,7 +194,7 @@ export class VPMXAnalyticsService {
   async getWeightConfigurations(): Promise<any[]> {
     return await this.prisma.vpmxWeightConfig.findMany({
       where: { isActive: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' }
     });
   }
 
@@ -224,7 +222,7 @@ export class VPMXAnalyticsService {
     // Deactivate existing configurations
     await this.prisma.vpmxWeightConfig.updateMany({
       where: { isActive: true },
-      data: { isActive: false },
+      data: { isActive: false }
     });
 
     // Create new configuration
@@ -242,8 +240,8 @@ export class VPMXAnalyticsService {
         regionalWeight: weights[7],
         isDefault: config.isDefault || false,
         isActive: true,
-        createdBy: config.createdBy,
-      },
+        createdBy: config.createdBy
+      }
     });
   }
 
@@ -278,8 +276,8 @@ export class VPMXAnalyticsService {
           value: anomaly.value,
           expectedValue: anomaly.expectedValue,
           description: anomaly.description,
-          suggestedAction: anomaly.suggestedAction,
-        },
+          suggestedAction: anomaly.suggestedAction
+        }
       });
     }
 
@@ -288,7 +286,7 @@ export class VPMXAnalyticsService {
       timeWindow,
       anomalies,
       totalAnomalies: anomalies.length,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -303,14 +301,14 @@ export class VPMXAnalyticsService {
       confidence: 0.65 + Math.random() * 0.25,
       expectedMove: Math.random() * 100 - 50,
       timeframe: predictionHorizon,
-      modelVersion: 'v1.0.0',
+      modelVersion: 'v1.0.0'
     };
 
     return {
       vtsSymbol,
       predictionHorizon,
       prediction: mockPrediction,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -336,7 +334,7 @@ export class VPMXAnalyticsService {
       sharpeRatio: this.calculateSharpeRatio(values),
       informationRatio: this.calculateInformationRatio(values),
       sortinoRatio: this.calculateSortinoRatio(values),
-      calmarRatio: this.calculateCalmarRatio(values),
+      calmarRatio: this.calculateCalmarRatio(values)
     };
   }
 
@@ -356,7 +354,7 @@ export class VPMXAnalyticsService {
         expectedProfit: Math.random() * 50 + 10,
         confidence: 0.6 + Math.random() * 0.3,
         timeWindow: '1h',
-        regions: ['US', 'EU'],
+        regions: ['US', 'EU']
       });
     }
 
@@ -380,7 +378,7 @@ export class VPMXAnalyticsService {
         region: this.extractRegion(entry.vtsSymbol),
         breakoutProbability: metadata?.breakoutProbability || 0,
         confidence: metadata?.confidence || 0,
-        riskLevel: metadata?.riskLevel || 'MEDIUM',
+        riskLevel: metadata?.riskLevel || 'MEDIUM'
       });
     }
 
@@ -393,9 +391,9 @@ export class VPMXAnalyticsService {
     const historicalData = await this.prisma.vpmxHistory.findFirst({
       where: {
         vtsSymbol,
-        timestamp: { lte: yesterday },
+        timestamp: { lte: yesterday }
       },
-      orderBy: { timestamp: 'desc' },
+      orderBy: { timestamp: 'desc' }
     });
 
     if (!historicalData) return 0;
@@ -420,7 +418,7 @@ export class VPMXAnalyticsService {
       '6h': 6,
       '24h': 24,
       '7d': 24 * 7,
-      '30d': 24 * 30,
+      '30d': 24 * 30
     };
 
     const hoursBack = hours[timeframe] || 24;
@@ -429,16 +427,16 @@ export class VPMXAnalyticsService {
 
   private async getTotalSymbolCount(): Promise<number> {
     return await this.prisma.vpmxIndex.count({
-      distinct: ['vtsSymbol'],
+      distinct: ['vtsSymbol']
     });
   }
 
   private async getActiveSymbolCount(startDate: Date, endDate: Date): Promise<number> {
     return await this.prisma.vpmxIndex.count({
       where: {
-        timestamp: { gte: startDate, lte: endDate },
+        timestamp: { gte: startDate, lte: endDate }
       },
-      distinct: ['vtsSymbol'],
+      distinct: ['vtsSymbol']
     });
   }
 
@@ -446,8 +444,8 @@ export class VPMXAnalyticsService {
     const result = await this.prisma.vpmxIndex.aggregate({
       _avg: { value: true },
       where: {
-        timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-      },
+        timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+      }
     });
 
     return result._avg.value || 0;
@@ -457,19 +455,19 @@ export class VPMXAnalyticsService {
     const topGainers = await this.prisma.vpmxHistory.findMany({
       where: {
         timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-        change24h: { not: null },
+        change24h: { not: null }
       },
       orderBy: { change24h: 'desc' },
-      take: 5,
+      take: 5
     });
 
     const topLosers = await this.prisma.vpmxHistory.findMany({
       where: {
         timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-        change24h: { not: null },
+        change24h: { not: null }
       },
       orderBy: { change24h: 'asc' },
-      take: 5,
+      take: 5
     });
 
     return [...topGainers, ...topLosers];
@@ -480,28 +478,28 @@ export class VPMXAnalyticsService {
       _sum: { volume: true },
       _avg: { volume: true },
       where: {
-        timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-      },
+        timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+      }
     });
 
     return {
       totalVolume: result._sum.volume || 0,
-      averageVolume: result._avg.volume || 0,
+      averageVolume: result._avg.volume || 0
     };
   }
 
   private async getRegionalBreakdown(): Promise<any> {
     const regionalData = await this.prisma.vpmxRegionIndex.findMany({
       where: {
-        timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
       },
-      distinct: ['region'],
+      distinct: ['region']
     });
 
     return regionalData.map(data => ({
       region: data.region,
       averageValue: data.value,
-      contribution: data.contribution,
+      contribution: data.contribution
     }));
   }
 
@@ -514,7 +512,7 @@ export class VPMXAnalyticsService {
     const units: Record<string, number> = {
       'h': 60 * 60 * 1000,
       'd': 24 * 60 * 60 * 1000,
-      'w': 7 * 24 * 60 * 60 * 1000,
+      'w': 7 * 24 * 60 * 60 * 1000
     };
 
     const value = parseInt(timeWindow.slice(0, -1));
@@ -540,7 +538,7 @@ export class VPMXAnalyticsService {
           value: values[i],
           expectedValue: mean,
           description: `Value deviates ${zScore.toFixed(2)} standard deviations from mean`,
-          suggestedAction: zScore > 4 ? 'IMMEDIATE_REVIEW' : 'MONITOR',
+          suggestedAction: zScore > 4 ? 'IMMEDIATE_REVIEW' : 'MONITOR'
         };
 
         anomalies.push(anomaly);

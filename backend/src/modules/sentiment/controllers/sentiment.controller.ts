@@ -9,7 +9,7 @@ import {
   ParseUUIDPipe,
   HttpStatus,
   HttpCode,
-  BadRequestException,
+  BadRequestException
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,12 +17,12 @@ import {
   ApiResponse,
   ApiParam,
   ApiQuery,
-  ApiBearerAuth,
+  ApiBearerAuth
 } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { SentimentService } from '../services/sentiment.service';
 import { SentimentAggregationService } from '../services/sentiment-aggregation.service';
 
@@ -33,8 +33,7 @@ import { SentimentAggregationService } from '../services/sentiment-aggregation.s
 export class SentimentController {
   constructor(
     private readonly sentimentService: SentimentService,
-    private readonly aggregationService: SentimentAggregationService,
-  ) {}
+    private readonly aggregationService: SentimentAggregationService) {}
 
   @Get('topics/:topicId')
   @ApiOperation({ summary: 'Get sentiment analysis for a topic' })
@@ -44,8 +43,7 @@ export class SentimentController {
   @ApiResponse({ status: 404, description: 'Topic not found' })
   async getTopicSentiment(
     @Param('topicId', ParseUUIDPipe) topicId: string,
-    @Query('timeWindow') timeWindow?: '1h' | '24h' | '7d',
-  ) {
+    @Query('timeWindow') timeWindow?: '1h' | '24h' | '7d') {
     const timeFilter = timeWindow ? this.getTimeFilter(timeWindow) : undefined;
     return this.aggregationService.aggregateSentiment(topicId, timeFilter);
   }
@@ -59,8 +57,7 @@ export class SentimentController {
   async getSentimentHistory(
     @Param('topicId', ParseUUIDPipe) topicId: string,
     @Query('interval') interval: 'hour' | 'day' | 'week' = 'hour',
-    @Query('limit') limit: number = 24,
-  ) {
+    @Query('limit') limit: number = 24) {
     if (limit > 100) {
       throw new BadRequestException('Limit cannot exceed 100 data points');
     }
@@ -80,8 +77,7 @@ export class SentimentController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
     @Query('source') source?: string,
-    @Query('minConfidence') minConfidence?: number,
-  ) {
+    @Query('minConfidence') minConfidence?: number) {
     const validatedLimit = Math.min(limit, 100);
     const validatedPage = Math.max(page, 1);
 
@@ -101,8 +97,7 @@ export class SentimentController {
   @ApiResponse({ status: 200, description: 'Top sentiment topics retrieved successfully' })
   async getTopSentimentTopics(
     @Query('limit') limit: number = 10,
-    @Query('timeWindow') timeWindow: '1h' | '24h' | '7d' = '24h',
-  ) {
+    @Query('timeWindow') timeWindow: '1h' | '24h' | '7d' = '24h') {
     const validatedLimit = Math.min(limit, 50);
     return this.aggregationService.getTopSentimentTopics(validatedLimit, timeWindow);
   }
@@ -112,8 +107,7 @@ export class SentimentController {
   @ApiQuery({ name: 'timeWindow', required: false, enum: ['1h', '24h', '7d'], description: 'Time window (default: 24h)' })
   @ApiResponse({ status: 200, description: 'Sentiment overview retrieved successfully' })
   async getSentimentOverview(
-    @Query('timeWindow') timeWindow: '1h' | '24h' | '7d' = '24h',
-  ) {
+    @Query('timeWindow') timeWindow: '1h' | '24h' | '7d' = '24h') {
     return this.sentimentService.getSentimentOverview(timeWindow);
   }
 
@@ -129,8 +123,7 @@ export class SentimentController {
       topicId?: string;
       source?: string;
       metadata?: any;
-    },
-  ) {
+    }) {
     const { content, topicId, source, metadata } = body;
 
     if (!content || content.trim().length === 0) {
@@ -145,7 +138,7 @@ export class SentimentController {
       content,
       topicId,
       source: source || 'manual',
-      metadata,
+      metadata
     });
   }
 
@@ -159,8 +152,7 @@ export class SentimentController {
     @Body() body: {
       topicIds: string[];
       forceRefresh?: boolean;
-    },
-  ) {
+    }) {
     const { topicIds, forceRefresh = false } = body;
 
     if (!topicIds || topicIds.length === 0) {
@@ -181,8 +173,7 @@ export class SentimentController {
   @ApiResponse({ status: 200, description: 'Sentiment statistics retrieved successfully' })
   async getTopicSentimentStats(
     @Param('topicId', ParseUUIDPipe) topicId: string,
-    @Query('timeWindow') timeWindow: '1h' | '24h' | '7d' = '24h',
-  ) {
+    @Query('timeWindow') timeWindow: '1h' | '24h' | '7d' = '24h') {
     const timeFilter = this.getTimeFilter(timeWindow);
     return this.sentimentService.getTopicSentimentStats(topicId, timeFilter);
   }
@@ -196,8 +187,7 @@ export class SentimentController {
     @Body() body: {
       olderThanDays?: number;
       keepAggregated?: boolean;
-    } = {},
-  ) {
+    } = {}) {
     const { olderThanDays = 30, keepAggregated = true } = body;
 
     return this.sentimentService.cleanupOldData(olderThanDays, keepAggregated);

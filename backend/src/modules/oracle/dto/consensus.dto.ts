@@ -1,4 +1,4 @@
-import { IsNumber, IsString, IsArray, IsNotEmpty } from 'class-validator';
+import { IsNumber, IsString, IsArray, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class ConsensusRequestDto {
   @IsString()

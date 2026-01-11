@@ -3,7 +3,7 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-  Logger,
+  Logger
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
@@ -19,8 +19,7 @@ export class LoggingInterceptor implements NestInterceptor {
     const now = Date.now();
 
     this.logger.log(
-      `Incoming Request: ${method} ${url} - IP: ${ip} - User-Agent: ${userAgent}`,
-    );
+      `Incoming Request: ${method} ${url} - IP: ${ip} - User-Agent: ${userAgent}`);
 
     return next
       .handle()
@@ -32,18 +31,15 @@ export class LoggingInterceptor implements NestInterceptor {
             const delay = Date.now() - now;
 
             this.logger.log(
-              `Outgoing Response: ${method} ${url} - Status: ${statusCode} - Delay: ${delay}ms`,
-            );
+              `Outgoing Response: ${method} ${url} - Status: ${statusCode} - Delay: ${delay}ms`);
           },
           error: (error) => {
             const delay = Date.now() - now;
 
             this.logger.error(
               `Request Error: ${method} ${url} - Error: ${error.message} - Delay: ${delay}ms`,
-              error.stack,
-            );
-          },
-        }),
-      );
+              error.stack);
+          }
+        }));
   }
 }

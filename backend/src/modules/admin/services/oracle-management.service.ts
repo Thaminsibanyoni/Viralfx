@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { OracleCoordinatorService } from '../../oracle/services/oracle-coordinator.service';
-import { AdminWebSocketService } from './admin-websocket.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { OracleCoordinatorService } from "../../oracle/services/oracle-coordinator.service";
+import { AdminWebSocketService } from "./admin-websocket.service";
 import { randomBytes } from 'crypto';
 
 @Injectable()
@@ -11,8 +11,7 @@ export class OracleManagementService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly oracleCoordinatorService: OracleCoordinatorService,
-    private readonly adminWebSocketService: AdminWebSocketService,
-  ) {}
+    private readonly adminWebSocketService: AdminWebSocketService) {}
 
   async getNodes(filters: {
     page: number;
@@ -49,10 +48,10 @@ export class OracleManagementService {
           _count: {
             select: {
               oracleResponses: true,
-              oracleRequests: true,
-            },
-          },
-        },
+              oracleRequests: true
+            }
+          }
+        }
       }),
       this.prisma.validatorNode.count({ where }),
     ]);
@@ -65,7 +64,7 @@ export class OracleManagementService {
           ...node,
           performance: recentPerformance,
           totalRequests: node._count.oracleRequests,
-          totalResponses: node._count.oracleResponses,
+          totalResponses: node._count.oracleResponses
         };
       })
     );
@@ -87,12 +86,12 @@ export class OracleManagementService {
         totalResponses: node.totalResponses,
         responseRate: node.totalRequests > 0 ? (node.totalResponses / node.totalRequests) * 100 : 0,
         createdAt: node.createdAt,
-        updatedAt: node.updatedAt,
+        updatedAt: node.updatedAt
       })),
       total,
       page: filters.page,
       limit: filters.limit,
-      totalPages: Math.ceil(total / filters.limit),
+      totalPages: Math.ceil(total / filters.limit)
     };
   }
 
@@ -109,18 +108,18 @@ export class OracleManagementService {
                 id: true,
                 topicId: true,
                 dataType: true,
-                requestedAt: true,
-              },
-            },
-          },
+                requestedAt: true
+              }
+            }
+          }
         },
         _count: {
           select: {
             oracleResponses: true,
-            oracleRequests: true,
-          },
-        },
-      },
+            oracleRequests: true
+          }
+        }
+      }
     });
 
     if (!node) {
@@ -153,14 +152,14 @@ export class OracleManagementService {
         responseTime: response.responseTime,
         consensusLevel: response.consensusLevel,
         isValid: response.isValid,
-        createdAt: response.createdAt,
+        createdAt: response.createdAt
       })),
       stats: {
         totalRequests: node._count.oracleRequests,
         totalResponses: node._count.oracleResponses,
         responseRate: node._count.oracleRequests > 0 ?
-          (node._count.oracleResponses / node._count.oracleRequests) * 100 : 0,
-      },
+          (node._count.oracleResponses / node._count.oracleRequests) * 100 : 0
+      }
     };
   }
 
@@ -171,8 +170,8 @@ export class OracleManagementService {
         OR: [
           { nodeId: nodeData.nodeId },
           { endpoint: nodeData.endpoint },
-        ],
-      },
+        ]
+      }
     });
 
     if (existingNode) {
@@ -196,9 +195,9 @@ export class OracleManagementService {
         version: nodeData.version || '1.0.0',
         metadata: {
           addedBy: adminId,
-          addedAt: new Date().toISOString(),
-        },
-      },
+          addedAt: new Date().toISOString()
+        }
+      }
     });
 
     // Update consensus threshold if this changes the network
@@ -210,10 +209,10 @@ export class OracleManagementService {
         id: node.id,
         nodeId: node.nodeId,
         endpoint: node.endpoint,
-        region: node.region,
+        region: node.region
       },
       addedBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`Oracle node added by admin ${adminId}: ${node.nodeId}`);
@@ -223,7 +222,7 @@ export class OracleManagementService {
 
   async removeNode(id: string, adminId: string) {
     const node = await this.prisma.validatorNode.findUnique({
-      where: { id },
+      where: { id }
     });
 
     if (!node) {
@@ -233,7 +232,7 @@ export class OracleManagementService {
     // Check if removing this node would compromise consensus
     const totalNodes = await this.prisma.validatorNode.count();
     const activeNodes = await this.prisma.validatorNode.count({
-      where: { status: 'ONLINE' },
+      where: { status: 'ONLINE' }
     });
 
     if (activeNodes <= 2) {
@@ -248,9 +247,9 @@ export class OracleManagementService {
         metadata: {
           ...node.metadata,
           removedBy: adminId,
-          removedAt: new Date().toISOString(),
-        },
-      },
+          removedAt: new Date().toISOString()
+        }
+      }
     });
 
     // Redistribute load if needed
@@ -263,7 +262,7 @@ export class OracleManagementService {
     await this.adminWebSocketService.broadcastToAdmins('oracle:node:removed', {
       nodeId: node.nodeId,
       removedBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`Oracle node removed by admin ${adminId}: ${node.nodeId}`);
@@ -273,7 +272,7 @@ export class OracleManagementService {
 
   async restartNode(id: string, adminId: string) {
     const node = await this.prisma.validatorNode.findUnique({
-      where: { id },
+      where: { id }
     });
 
     if (!node) {
@@ -297,16 +296,16 @@ export class OracleManagementService {
         metadata: {
           ...node.metadata,
           restartedBy: adminId,
-          restartedAt: new Date().toISOString(),
-        },
-      },
+          restartedAt: new Date().toISOString()
+        }
+      }
     });
 
     // Emit WebSocket event
     await this.adminWebSocketService.broadcastToAdmins('oracle:node:restarted', {
       nodeId: node.nodeId,
       restartedBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`Oracle node restarted by admin ${adminId}: ${node.nodeId}`);
@@ -316,7 +315,7 @@ export class OracleManagementService {
 
   async disableNode(id: string, reason: string, adminId: string) {
     const node = await this.prisma.validatorNode.findUnique({
-      where: { id },
+      where: { id }
     });
 
     if (!node) {
@@ -332,9 +331,9 @@ export class OracleManagementService {
           ...node.metadata,
           disabledBy: adminId,
           disabledAt: new Date().toISOString(),
-          disableReason: reason,
-        },
-      },
+          disableReason: reason
+        }
+      }
     });
 
     // Redistribute load
@@ -345,7 +344,7 @@ export class OracleManagementService {
       nodeId: node.nodeId,
       reason,
       disabledBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`Oracle node disabled by admin ${adminId}: ${node.nodeId} - ${reason}`);
@@ -355,7 +354,7 @@ export class OracleManagementService {
 
   async enableNode(id: string, adminId: string) {
     const node = await this.prisma.validatorNode.findUnique({
-      where: { id },
+      where: { id }
     });
 
     if (!node) {
@@ -370,16 +369,16 @@ export class OracleManagementService {
         metadata: {
           ...node.metadata,
           enabledBy: adminId,
-          enabledAt: new Date().toISOString(),
-        },
-      },
+          enabledAt: new Date().toISOString()
+        }
+      }
     });
 
     // Emit WebSocket event
     await this.adminWebSocketService.broadcastToAdmins('oracle:node:enabled', {
       nodeId: node.nodeId,
       enabledBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`Oracle node enabled by admin ${adminId}: ${node.nodeId}`);
@@ -389,7 +388,7 @@ export class OracleManagementService {
 
   async rotateNodeKeys(id: string, adminId: string) {
     const node = await this.prisma.validatorNode.findUnique({
-      where: { id },
+      where: { id }
     });
 
     if (!node) {
@@ -409,16 +408,16 @@ export class OracleManagementService {
           ...node.metadata,
           keysRotatedBy: adminId,
           keysRotatedAt: new Date().toISOString(),
-          previousPublicKey: node.publicKey,
-        },
-      },
+          previousPublicKey: node.publicKey
+        }
+      }
     });
 
     // Emit WebSocket event
     await this.adminWebSocketService.broadcastToAdmins('oracle:node:keys:rotated', {
       nodeId: node.nodeId,
       rotatedBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`Oracle node keys rotated by admin ${adminId}: ${node.nodeId}`);
@@ -458,8 +457,8 @@ export class OracleManagementService {
             select: {
               id: true,
               symbol: true,
-              title: true,
-            },
+              title: true
+            }
           },
           oracleResponses: {
             select: {
@@ -467,15 +466,15 @@ export class OracleManagementService {
               nodeId: true,
               responseTime: true,
               isValid: true,
-              consensusLevel: true,
-            },
+              consensusLevel: true
+            }
           },
           _count: {
             select: {
-              oracleResponses: true,
-            },
-          },
-        },
+              oracleResponses: true
+            }
+          }
+        }
       }),
       this.prisma.oracleRequest.count({ where }),
     ]);
@@ -493,12 +492,12 @@ export class OracleManagementService {
         totalResponses: request._count.oracleResponses,
         validResponses: request.oracleResponses.filter(r => r.isValid).length,
         averageResponseTime: request.oracleResponses.length > 0 ?
-          request.oracleResponses.reduce((sum, r) => sum + r.responseTime, 0) / request.oracleResponses.length : 0,
+          request.oracleResponses.reduce((sum, r) => sum + r.responseTime, 0) / request.oracleResponses.length : 0
       })),
       total,
       page: filters.page,
       limit: filters.limit,
-      totalPages: Math.ceil(total / filters.limit),
+      totalPages: Math.ceil(total / filters.limit)
     };
   }
 
@@ -511,8 +510,8 @@ export class OracleManagementService {
             id: true,
             symbol: true,
             title: true,
-            category: true,
-          },
+            category: true
+          }
         },
         oracleResponses: {
           include: {
@@ -521,12 +520,12 @@ export class OracleManagementService {
                 id: true,
                 nodeId: true,
                 region: true,
-                reputation: true,
-              },
-            },
-          },
-        },
-      },
+                reputation: true
+              }
+            }
+          }
+        }
+      }
     });
 
     if (!request) {
@@ -551,14 +550,14 @@ export class OracleManagementService {
         responseTime: response.responseTime,
         isValid: response.isValid,
         consensusLevel: response.consensusLevel,
-        createdAt: response.createdAt,
+        createdAt: response.createdAt
       })),
       stats: {
         totalResponses: request.oracleResponses.length,
         validResponses: request.oracleResponses.filter(r => r.isValid).length,
         averageResponseTime: request.oracleResponses.length > 0 ?
-          request.oracleResponses.reduce((sum, r) => sum + r.responseTime, 0) / request.oracleResponses.length : 0,
-      },
+          request.oracleResponses.reduce((sum, r) => sum + r.responseTime, 0) / request.oracleResponses.length : 0
+      }
     };
   }
 
@@ -569,9 +568,9 @@ export class OracleManagementService {
       this.prisma.oracleRequest.count({
         where: {
           requestedAt: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
-          },
-        },
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+          }
+        }
       }),
       this.getAverageConsensusLevel(),
     ]);
@@ -590,8 +589,8 @@ export class OracleManagementService {
         nodeAvailability: totalNodes > 0 ? (activeNodes / totalNodes) * 100 : 0,
         recentRequests,
         averageConsensus: Math.round(averageConsensus),
-        consensusThreshold: 67, // Default threshold
-      },
+        consensusThreshold: 67 // Default threshold
+      }
     };
   }
 
@@ -601,7 +600,7 @@ export class OracleManagementService {
       '1h': 1,
       '24h': 24,
       '7d': 7 * 24,
-      '30d': 30 * 24,
+      '30d': 30 * 24
     };
     const hours = timeframes[timeframe] || 24;
     startDate.setHours(startDate.getHours() - hours);
@@ -610,7 +609,7 @@ export class OracleManagementService {
       this.prisma.oracleRequest.findMany({
         where: {
           requestedAt: { gte: startDate },
-          status: 'COMPLETED',
+          status: 'COMPLETED'
         },
         skip: (page - 1) * limit,
         take: limit,
@@ -623,21 +622,21 @@ export class OracleManagementService {
           topic: {
             select: {
               symbol: true,
-              title: true,
-            },
+              title: true
+            }
           },
           _count: {
             select: {
-              oracleResponses: true,
-            },
-          },
-        },
+              oracleResponses: true
+            }
+          }
+        }
       }),
       this.prisma.oracleRequest.count({
         where: {
           requestedAt: { gte: startDate },
-          status: 'COMPLETED',
-        },
+          status: 'COMPLETED'
+        }
       }),
     ]);
 
@@ -648,13 +647,13 @@ export class OracleManagementService {
         consensusLevel: entry.consensusLevel,
         processingTime: entry.processingTime,
         responseCount: entry._count.oracleResponses,
-        timestamp: entry.requestedAt,
+        timestamp: entry.requestedAt
       })),
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
-      timeframe,
+      timeframe
     };
   }
 
@@ -692,10 +691,10 @@ export class OracleManagementService {
           validatorNode: {
             select: {
               nodeId: true,
-              region: true,
-            },
-          },
-        },
+              region: true
+            }
+          }
+        }
       }),
       this.prisma.oracleLog.count({ where }),
     ]);
@@ -708,12 +707,12 @@ export class OracleManagementService {
         nodeId: log.nodeId,
         node: log.validatorNode,
         metadata: log.metadata,
-        timestamp: log.timestamp,
+        timestamp: log.timestamp
       })),
       total,
       page: filters.page,
       limit: filters.limit,
-      totalPages: Math.ceil(total / filters.limit),
+      totalPages: Math.ceil(total / filters.limit)
     };
   }
 
@@ -723,7 +722,7 @@ export class OracleManagementService {
       '1h': 1,
       '24h': 24,
       '7d': 7 * 24,
-      '30d': 30 * 24,
+      '30d': 30 * 24
     };
     const hours = timeframes[timeframe] || 24;
     startDate.setHours(startDate.getHours() - hours);
@@ -731,14 +730,14 @@ export class OracleManagementService {
     const [totalRequests, successfulRequests, averageResponseTime, consensusMetrics] = await Promise.all([
       this.prisma.oracleRequest.count({
         where: {
-          requestedAt: { gte: startDate },
-        },
+          requestedAt: { gte: startDate }
+        }
       }),
       this.prisma.oracleRequest.count({
         where: {
           requestedAt: { gte: startDate },
-          status: 'COMPLETED',
-        },
+          status: 'COMPLETED'
+        }
       }),
       this.getAverageResponseTime(startDate),
       this.getConsensusTimeSeries(startDate),
@@ -753,9 +752,9 @@ export class OracleManagementService {
         successfulRequests,
         failedRequests: totalRequests - successfulRequests,
         successRate,
-        averageResponseTime,
+        averageResponseTime
       },
-      consensus: consensusMetrics,
+      consensus: consensusMetrics
     };
   }
 
@@ -772,7 +771,7 @@ export class OracleManagementService {
       status: healthScore >= 80 ? 'HEALTHY' : healthScore >= 60 ? 'WARNING' : 'CRITICAL',
       consensus: consensusHealth,
       performance: performanceMetrics,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
   }
 
@@ -786,7 +785,7 @@ export class OracleManagementService {
       where: { key: 'ORACLE_CONSENSUS_THRESHOLD' },
       update: {
         value: String(threshold),
-        updatedBy: adminId,
+        updatedBy: adminId
       },
       create: {
         key: 'ORACLE_CONSENSUS_THRESHOLD',
@@ -794,8 +793,8 @@ export class OracleManagementService {
         category: 'oracle',
         type: 'number',
         description: 'Oracle consensus threshold percentage',
-        updatedBy: adminId,
-      },
+        updatedBy: adminId
+      }
     });
 
     // Notify Oracle Coordinator of the change
@@ -805,7 +804,7 @@ export class OracleManagementService {
     await this.adminWebSocketService.broadcastToAdmins('oracle:consensus:threshold:updated', {
       threshold,
       updatedBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`Oracle consensus threshold updated by admin ${adminId}: ${threshold}%`);
@@ -815,7 +814,7 @@ export class OracleManagementService {
 
   async retryRequest(id: string, adminId: string) {
     const request = await this.prisma.oracleRequest.findUnique({
-      where: { id },
+      where: { id }
     });
 
     if (!request) {
@@ -838,9 +837,9 @@ export class OracleManagementService {
         metadata: {
           ...request.metadata,
           retriedBy: adminId,
-          retriedAt: new Date().toISOString(),
-        },
-      },
+          retriedAt: new Date().toISOString()
+        }
+      }
     });
 
     // Resubmit to Oracle Coordinator
@@ -850,7 +849,7 @@ export class OracleManagementService {
     await this.adminWebSocketService.broadcastToAdmins('oracle:request:retried', {
       requestId: id,
       retriedBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`Oracle request retried by admin ${adminId}: ${id}`);
@@ -864,7 +863,7 @@ export class OracleManagementService {
       where: { key: 'ORACLE_MAINTENANCE_MODE' },
       update: {
         value: String(enabled),
-        updatedBy: adminId || 'system',
+        updatedBy: adminId || 'system'
       },
       create: {
         key: 'ORACLE_MAINTENANCE_MODE',
@@ -872,8 +871,8 @@ export class OracleManagementService {
         category: 'oracle',
         type: 'boolean',
         description: 'Oracle maintenance mode status',
-        updatedBy: adminId || 'system',
-      },
+        updatedBy: adminId || 'system'
+      }
     });
 
     if (message) {
@@ -881,7 +880,7 @@ export class OracleManagementService {
         where: { key: 'ORACLE_MAINTENANCE_MESSAGE' },
         update: {
           value: message,
-          updatedBy: adminId || 'system',
+          updatedBy: adminId || 'system'
         },
         create: {
           key: 'ORACLE_MAINTENANCE_MESSAGE',
@@ -889,8 +888,8 @@ export class OracleManagementService {
           category: 'oracle',
           type: 'string',
           description: 'Oracle maintenance mode message',
-          updatedBy: adminId || 'system',
-        },
+          updatedBy: adminId || 'system'
+        }
       });
     }
 
@@ -902,7 +901,7 @@ export class OracleManagementService {
       enabled,
       message,
       changedBy: adminId || 'system',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`Oracle maintenance mode ${enabled ? 'enabled' : 'disabled'} by ${adminId || 'system'}`);
@@ -917,15 +916,15 @@ export class OracleManagementService {
       this.prisma.oracleRequest.count({
         where: {
           requestedAt: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
-          },
-        },
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
+          }
+        }
       }),
       this.prisma.oracleRequest.count({
-        where: { status: 'PENDING' },
+        where: { status: 'PENDING' }
       }),
       this.prisma.platformSetting.findUnique({
-        where: { key: 'ORACLE_MAINTENANCE_MODE' },
+        where: { key: 'ORACLE_MAINTENANCE_MODE' }
       }),
     ]);
 
@@ -936,7 +935,7 @@ export class OracleManagementService {
       totalRequests,
       activeRequests,
       maintenanceMode: maintenanceMode?.value === 'true',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
   }
 
@@ -949,15 +948,15 @@ export class OracleManagementService {
       data: {
         initiatedBy: adminId,
         status: syncResult.success ? 'SUCCESS' : 'FAILED',
-        details: syncResult,
-      },
+        details: syncResult
+      }
     });
 
     // Emit WebSocket event
     await this.adminWebSocketService.broadcastToAdmins('oracle:network:sync', {
       syncResult,
       initiatedBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`Oracle network sync initiated by admin ${adminId}`);
@@ -980,30 +979,30 @@ export class OracleManagementService {
       this.prisma.oracleResponse.count({
         where: {
           nodeId,
-          createdAt: { gte: startDate },
+          createdAt: { gte: startDate }
+        }
+      }),
+      this.prisma.oracleResponse.aggregate({
+        where: {
+          nodeId,
+          createdAt: { gte: startDate }
         },
+        _avg: { responseTime: true }
       }),
       this.prisma.oracleResponse.aggregate({
         where: {
           nodeId,
           createdAt: { gte: startDate },
+          isValid: true
         },
-        _avg: { responseTime: true },
-      }),
-      this.prisma.oracleResponse.aggregate({
-        where: {
-          nodeId,
-          createdAt: { gte: startDate },
-          isValid: true,
-        },
-        _avg: { consensusLevel: true },
+        _avg: { consensusLevel: true }
       }),
     ]);
 
     return {
       recentRequests,
       averageResponseTime: averageResponseTime._avg.responseTime || 0,
-      consensusScore: consensusScore._avg.consensusLevel || 0,
+      consensusScore: consensusScore._avg.consensusLevel || 0
     };
   }
 
@@ -1014,22 +1013,22 @@ export class OracleManagementService {
       this.prisma.oracleResponse.count({
         where: {
           nodeId,
-          createdAt: { gte: startDate },
-        },
+          createdAt: { gte: startDate }
+        }
       }),
       this.prisma.oracleResponse.count({
         where: {
           nodeId,
           createdAt: { gte: startDate },
-          isValid: true,
-        },
+          isValid: true
+        }
       }),
       this.prisma.oracleResponse.aggregate({
         where: {
           nodeId,
-          createdAt: { gte: startDate },
+          createdAt: { gte: startDate }
         },
-        _avg: { responseTime: true },
+        _avg: { responseTime: true }
       }),
     ]);
 
@@ -1037,7 +1036,7 @@ export class OracleManagementService {
       totalResponses,
       validResponses,
       validityRate: totalResponses > 0 ? (validResponses / totalResponses) * 100 : 0,
-      averageResponseTime: averageResponseTime._avg.responseTime || 0,
+      averageResponseTime: averageResponseTime._avg.responseTime || 0
     };
   }
 
@@ -1052,10 +1051,10 @@ export class OracleManagementService {
             id: true,
             topicId: true,
             dataType: true,
-            status: true,
-          },
-        },
-      },
+            status: true
+          }
+        }
+      }
     });
 
     return recentResponses.map(response => ({
@@ -1064,20 +1063,20 @@ export class OracleManagementService {
       responseTime: response.responseTime,
       isValid: response.isValid,
       consensusLevel: response.consensusLevel,
-      createdAt: response.createdAt,
+      createdAt: response.createdAt
     }));
   }
 
   private async updateConsensusThresholdForNewNode() {
     const totalNodes = await this.prisma.validatorNode.count({
-      where: { status: { not: 'DECOMMISSIONED' } },
+      where: { status: { not: 'DECOMMISSIONED' } }
     });
 
     // Calculate minimum threshold based on node count
     const minThreshold = Math.max(51, Math.ceil((totalNodes / 2) + 1));
 
     const currentThreshold = await this.prisma.platformSetting.findUnique({
-      where: { key: 'ORACLE_CONSENSUS_THRESHOLD' },
+      where: { key: 'ORACLE_CONSENSUS_THRESHOLD' }
     });
 
     const currentThresholdValue = currentThreshold ? parseInt(currentThreshold.value) : 67;
@@ -1085,7 +1084,7 @@ export class OracleManagementService {
     if (currentThresholdValue < minThreshold) {
       await this.prisma.platformSetting.update({
         where: { key: 'ORACLE_CONSENSUS_THRESHOLD' },
-        data: { value: String(minThreshold) },
+        data: { value: String(minThreshold) }
       });
 
       await this.oracleCoordinatorService.updateConsensusThreshold(minThreshold);
@@ -1094,7 +1093,7 @@ export class OracleManagementService {
 
   private async updateConsensusThresholdForRemovedNode() {
     const totalNodes = await this.prisma.validatorNode.count({
-      where: { status: { not: 'DECOMMISSIONED' } },
+      where: { status: { not: 'DECOMMISSIONED' } }
     });
 
     if (totalNodes < 2) return;
@@ -1102,7 +1101,7 @@ export class OracleManagementService {
     const maxThreshold = Math.min(99, totalNodes - 1);
 
     const currentThreshold = await this.prisma.platformSetting.findUnique({
-      where: { key: 'ORACLE_CONSENSUS_THRESHOLD' },
+      where: { key: 'ORACLE_CONSENSUS_THRESHOLD' }
     });
 
     const currentThresholdValue = currentThreshold ? parseInt(currentThreshold.value) : 67;
@@ -1110,7 +1109,7 @@ export class OracleManagementService {
     if (currentThresholdValue > maxThreshold) {
       await this.prisma.platformSetting.update({
         where: { key: 'ORACLE_CONSENSUS_THRESHOLD' },
-        data: { value: String(maxThreshold) },
+        data: { value: String(maxThreshold) }
       });
 
       await this.oracleCoordinatorService.updateConsensusThreshold(maxThreshold);
@@ -1123,12 +1122,12 @@ export class OracleManagementService {
       where: {
         nodeId,
         oracleRequest: {
-          status: 'PENDING',
-        },
+          status: 'PENDING'
+        }
       },
       include: {
-        oracleRequest: true,
-      },
+        oracleRequest: true
+      }
     });
 
     // Redistribute requests to other available nodes
@@ -1143,9 +1142,9 @@ export class OracleManagementService {
     const result = await this.prisma.oracleRequest.aggregate({
       where: {
         requestedAt: { gte: startDate },
-        status: 'COMPLETED',
+        status: 'COMPLETED'
       },
-      _avg: { consensusLevel: true },
+      _avg: { consensusLevel: true }
     });
 
     return result._avg.consensusLevel || 0;
@@ -1154,9 +1153,9 @@ export class OracleManagementService {
   private async getAverageResponseTime(startDate: Date): Promise<number> {
     const result = await this.prisma.oracleResponse.aggregate({
       where: {
-        createdAt: { gte: startDate },
+        createdAt: { gte: startDate }
       },
-      _avg: { responseTime: true },
+      _avg: { responseTime: true }
     });
 
     return result._avg.responseTime || 0;

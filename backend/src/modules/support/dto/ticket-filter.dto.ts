@@ -1,7 +1,7 @@
 import { IsOptional, IsString, IsEnum, IsUUID, IsInt, Min, Max, IsDateString, IsArray } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TicketPriority, TicketStatus } from '../entities/ticket.entity';
+import { TicketPriority, TicketStatus } from '../enums/support.enum';
 
 export class TicketFilterDto {
   @ApiPropertyOptional({ description: 'Page number', example: 1, default: 1 })

@@ -1,39 +1,50 @@
-import { Processor, Process } from '@nestjs/bullmq';
+import { Processor } from '@nestjs/bullmq';
+import { Process } from 'bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
 
-import { Order } from '../entities/order.entity';
-import { Portfolio } from '../entities/portfolio.entity';
-import { OrderBookService } from '../../order-matching/services/order-book.service';
+// COMMENTED OUT (TypeORM entity deleted): import { Order } from '../entities/order.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Portfolio } from '../entities/portfolio.entity';
+import { OrderBookService } from "../../order-matching/services/order-book.service";
 import { MarketDataService } from '../services/market-data.service';
-import { WebSocketGateway } from '../../websocket/websocket.gateway';
+import { PrismaService } from "../../../prisma/prisma.service";
 
 @Processor('order-processing')
-export class OrderProcessor {
+export class OrderProcessor extends WorkerHost {
   private readonly logger = new Logger(OrderProcessor.name);
 
   constructor(
-    @InjectRepository(Order)
-    private readonly orderRepository: Repository<Order>,
-    @InjectRepository(Portfolio)
-    private readonly portfolioRepository: Repository<Portfolio>,
+    private readonly prisma: PrismaService,
     private readonly orderBookService: OrderBookService,
     private readonly marketDataService: MarketDataService,
-    private readonly webSocketGateway: WebSocketGateway,
-    private readonly dataSource: DataSource,
-  ) {}
+    private readonly dataSource: DataSource) {
+    super();
+}
 
-  @Process('process-order')
-  async handleProcessOrder(job: Job<{ orderId: string }>): Promise<void> {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'process-order':
+        return this.handleProcessOrder(job);
+      case 'match-orders':
+        return this.handleMatchOrders(job);
+      case 'update-portfolio':
+        return this.handleUpdatePortfolio(job);
+      case 'settle-order':
+        return this.handleSettleOrder(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleProcessOrder(job: Job<{ orderId: string }>): Promise<void> {
     await this.dataSource.transaction(async manager => {
       try {
         const { orderId } = job.data;
 
         // Load Order entity
         const order = await manager.findOne(Order, {
-          where: { id: orderId },
+          where: { id: orderId }
         });
 
         if (!order) {
@@ -78,8 +89,8 @@ export class OrderProcessor {
             orderId: order.id,
             status: order.status,
             filledQuantity: order.filledQuantity,
-            timestamp: new Date().toISOString(),
-          },
+            timestamp: new Date().toISOString()
+          }
         });
 
         await job.progress(100);
@@ -92,8 +103,7 @@ export class OrderProcessor {
     });
   }
 
-  @Process('match-orders')
-  async handleMatchOrders(job: Job<{ symbol: string }>): Promise<void> {
+  private async handleMatchOrders(job: Job<{ symbol: string }>): Promise<void> {
     try {
       const { symbol } = job.data;
 
@@ -116,8 +126,8 @@ export class OrderProcessor {
         data: {
           symbol,
           matches,
-          timestamp: new Date().toISOString(),
-        },
+          timestamp: new Date().toISOString()
+        }
       });
 
       await job.progress(100);
@@ -129,8 +139,7 @@ export class OrderProcessor {
     }
   }
 
-  @Process('update-portfolio')
-  async handleUpdatePortfolio(job: Job<{ userId: string, symbol: string, trade: any }>): Promise<void> {
+  private async handleUpdatePortfolio(job: Job<{ userId: string, symbol: string, trade: any }>): Promise<void> {
     await this.dataSource.transaction(async manager => {
       try {
         const { userId, symbol, trade } = job.data;
@@ -139,7 +148,7 @@ export class OrderProcessor {
 
         // Find or create Portfolio entity
         let portfolio = await manager.findOne(Portfolio, {
-          where: { userId, symbol },
+          where: { userId, symbol }
         });
 
         if (!portfolio) {
@@ -151,7 +160,7 @@ export class OrderProcessor {
             totalCost: 0,
             realizedPnL: 0,
             firstPurchaseAt: trade.tradeDate,
-            lastTradeAt: trade.tradeDate,
+            lastTradeAt: trade.tradeDate
           });
         }
 
@@ -173,8 +182,8 @@ export class OrderProcessor {
             quantity: portfolio.quantity,
             averagePrice: portfolio.averagePrice,
             unrealizedPnL: portfolio.unrealizedPnL,
-            timestamp: new Date().toISOString(),
-          },
+            timestamp: new Date().toISOString()
+          }
         });
 
         await job.progress(100);
@@ -187,8 +196,7 @@ export class OrderProcessor {
     });
   }
 
-  @Process('settle-order')
-  async handleSettleOrder(job: Job<{ orderId: string }>): Promise<void> {
+  private async handleSettleOrder(job: Job<{ orderId: string }>): Promise<void> {
     await this.dataSource.transaction(async manager => {
       try {
         const { orderId } = job.data;
@@ -198,7 +206,7 @@ export class OrderProcessor {
         // Load Order entity
         const order = await manager.findOne(Order, {
           where: { id: orderId },
-          relations: ['user'],
+          relations: ['user']
         });
 
         if (!order) {
@@ -233,8 +241,8 @@ export class OrderProcessor {
             orderId: order.id,
             status: order.status,
             settledAt: order.settledAt,
-            timestamp: new Date().toISOString(),
-          },
+            timestamp: new Date().toISOString()
+          }
         });
 
         await job.progress(100);
@@ -263,11 +271,11 @@ export class OrderProcessor {
       if (manager) {
         await manager.update(Order, match.buyOrder.id, {
           status: 'FILLED',
-          filledQuantity: match.buyOrder.filledQuantity + match.quantity,
+          filledQuantity: match.buyOrder.filledQuantity + match.quantity
         });
         await manager.update(Order, match.sellOrder.id, {
           status: 'FILLED',
-          filledQuantity: match.sellOrder.filledQuantity + match.quantity,
+          filledQuantity: match.sellOrder.filledQuantity + match.quantity
         });
       }
 
@@ -278,7 +286,7 @@ export class OrderProcessor {
 
   private async updatePortfolioFromMatch(match: any): Promise<void> {
     // Update buyer's portfolio
-    await this.portfolioRepository.manager.query(
+    await this.prisma.manager.query(
       `INSERT INTO portfolios (userId, symbol, quantity, averagePrice, totalCost, firstPurchaseAt, lastTradeAt, createdAt, updatedAt)
        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
        ON CONFLICT (userId, symbol) DO UPDATE SET
@@ -298,7 +306,7 @@ export class OrderProcessor {
     );
 
     // Update seller's portfolio
-    await this.portfolioRepository.manager.query(
+    await this.prisma.manager.query(
       `UPDATE portfolios
        SET quantity = portfolios.quantity - $3,
            realizedPnL = portfolios.realizedPnL + ($8 - $4) * $3,
@@ -329,10 +337,10 @@ export class OrderProcessor {
       quantity: order.filledQuantity,
       price: order.price,
       side: order.side,
-      tradeDate: order.updatedAt,
+      tradeDate: order.updatedAt
     };
 
-    await this.portfolioRepository.manager.query(
+    await this.prisma.manager.query(
       `INSERT INTO portfolios (userId, symbol, quantity, averagePrice, totalCost, firstPurchaseAt, lastTradeAt, createdAt, updatedAt)
        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
        ON CONFLICT (userId, symbol) DO UPDATE SET

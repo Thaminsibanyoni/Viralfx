@@ -4,7 +4,7 @@
  * © 2025 ViralFX - Global Intelligence System
  */
 
-import { CategoryCode, RegionCode } from '../../types/vts';
+import { CategoryCode, RegionCode } from "../../types/vts";
 
 export interface NormalizationResult {
   normalizedCategory: CategoryCode;
@@ -165,7 +165,7 @@ export class GlobalCategoryNormalizer {
       // Celebrity names
       /\b[A-Z][a-z]+ [A-Z][a-z]+\b/g,
       // Organizations
-      /\b[A-Z]{2,}\b/g,
+      /\b[A-Z]{2}\b/g,
       // Titles and positions
       /\b(President|Minister|CEO|Director|Dr|Mr|Mrs|Ms)\s+[A-Z][a-z]+\b/g,
       // Brands and products

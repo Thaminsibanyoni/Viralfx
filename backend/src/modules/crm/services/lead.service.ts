@@ -1,40 +1,37 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, Between } from 'typeorm';
-import { Lead, LeadStatus } from '../entities/lead.entity';
-import { ActivityService } from './activity.service';
-import { NotificationService } from '../../notifications/services/notification.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+// COMMENTED OUT (TypeORM entity deleted): import { Lead, LeadStatus } from '../entities/lead.entity';
+import { ActivityService } from "./activity.service";
+import { NotificationService } from "../../notifications/services/notification.service";
 import { CreateLeadDto } from '../dto/create-lead.dto';
 import { UpdateLeadDto } from '../dto/update-lead.dto';
 
 @Injectable()
 export class LeadService {
   constructor(
-    @InjectRepository(Lead)
-    private readonly leadRepository: Repository<Lead>,
+        private prisma: PrismaService,
     private readonly activityService: ActivityService,
-    private readonly notificationService: NotificationService,
-  ) {}
+    private readonly notificationService: NotificationService) {}
 
   async createLead(createLeadDto: CreateLeadDto) {
     // Check if email already exists
-    const existingLead = await this.leadRepository.findOne({
-      where: { email: createLeadDto.email },
+    const existingLead = await this.prisma.lead.findFirst({
+      where: { email: createLeadDto.email }
     });
 
     if (existingLead) {
       throw new BadRequestException('Lead with this email already exists');
     }
 
-    const lead = this.leadRepository.create(createLeadDto);
-    const savedLead = await this.leadRepository.save(lead);
+    const lead = this.prisma.lead.create(createLeadDto);
+    const savedLead = await this.prisma.lead.upsert(lead);
 
     // Log creation activity
     await this.activityService.logActivity('LEAD', savedLead.id, {
       type: 'CREATION',
       subject: 'New lead created',
       description: `Lead created: ${savedLead.firstName} ${savedLead.lastName} from ${savedLead.source}`,
-      assignedTo: savedLead.assignedTo,
+      assignedTo: savedLead.assignedTo
     });
 
     // Send notification if assigned to manager
@@ -48,9 +45,9 @@ export class LeadService {
           leadId: savedLead.id,
           leadName: `${savedLead.firstName} ${savedLead.lastName}`,
           leadCompany: savedLead.company,
-          leadSource: savedLead.source,
+          leadSource: savedLead.source
         },
-        priority: 'MEDIUM',
+        priority: 'MEDIUM'
       });
     }
 
@@ -62,8 +59,8 @@ export class LeadService {
 
     if (lead.email !== updateLeadDto.email) {
       // Check if new email already exists
-      const existingLead = await this.leadRepository.findOne({
-        where: { email: updateLeadDto.email },
+      const existingLead = await this.prisma.lead.findFirst({
+        where: { email: updateLeadDto.email }
       });
 
       if (existingLead) {
@@ -71,7 +68,7 @@ export class LeadService {
       }
     }
 
-    await this.leadRepository.update(id, updateLeadDto);
+    await this.prisma.lead.update(id, updateLeadDto);
     const updatedLead = await this.getLeadById(id);
 
     // Log update activity
@@ -79,7 +76,7 @@ export class LeadService {
       type: 'UPDATE',
       subject: 'Lead updated',
       description: `Lead information updated`,
-      assignedTo: updatedLead.assignedTo,
+      assignedTo: updatedLead.assignedTo
     });
 
     return updatedLead;
@@ -92,13 +89,13 @@ export class LeadService {
       throw new BadRequestException('Cannot delete a converted lead');
     }
 
-    await this.leadRepository.softDelete(id);
+    await this.prisma.softDelete(id);
 
     // Log deletion activity
     await this.activityService.logActivity('LEAD', id, {
       type: 'DELETION',
       subject: 'Lead deleted',
-      description: `Lead deleted: ${lead.firstName} ${lead.lastName}`,
+      description: `Lead deleted: ${lead.firstName} ${lead.lastName}`
     });
 
     return { success: true };
@@ -124,7 +121,7 @@ export class LeadService {
       brokerId,
       search,
       sortBy = 'createdAt',
-      sortOrder = 'DESC',
+      sortOrder = 'DESC'
     } = filters;
 
     const queryBuilder = this.leadRepository
@@ -170,14 +167,14 @@ export class LeadService {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit)
     };
   }
 
   async getLeadById(id: string) {
-    const lead = await this.leadRepository.findOne({
+    const lead = await this.prisma.lead.findFirst({
       where: { id },
-      relations: ['relationshipManager', 'broker', 'activities'],
+      relations: ['relationshipManager', 'broker', 'activities']
     });
 
     if (!lead) {
@@ -194,9 +191,9 @@ export class LeadService {
       throw new BadRequestException('Only new or contacted leads can be qualified');
     }
 
-    await this.leadRepository.update(id, {
+    await this.prisma.lead.update(id, {
       status: LeadStatus.QUALIFIED,
-      leadScore: Math.max(lead.leadScore, 60), // Minimum score for qualified leads
+      leadScore: Math.max(lead.leadScore, 60) // Minimum score for qualified leads
     });
 
     // Log qualification activity
@@ -204,7 +201,7 @@ export class LeadService {
       type: 'QUALIFICATION',
       subject: 'Lead qualified',
       description: `Lead qualified and ready for opportunity creation`,
-      assignedTo: lead.assignedTo,
+      assignedTo: lead.assignedTo
     });
 
     return await this.getLeadById(id);
@@ -217,13 +214,13 @@ export class LeadService {
       throw new BadRequestException('Cannot disqualify a converted lead');
     }
 
-    await this.leadRepository.update(id, {
+    await this.prisma.lead.update(id, {
       status: LeadStatus.UNQUALIFIED,
       metadata: {
         ...lead.metadata,
         disqualificationReason: reason,
-        disqualifiedAt: new Date(),
-      },
+        disqualifiedAt: new Date()
+      }
     });
 
     // Log disqualification activity
@@ -231,7 +228,7 @@ export class LeadService {
       type: 'DISQUALIFICATION',
       subject: 'Lead disqualified',
       description: `Lead disqualified: ${reason}`,
-      assignedTo: lead.assignedTo,
+      assignedTo: lead.assignedTo
     });
 
     return await this.getLeadById(id);
@@ -253,14 +250,14 @@ export class LeadService {
     const results = {
       successful: 0,
       failed: 0,
-      errors: [],
+      errors: []
     };
 
     for (const [index, row] of csvData.entries()) {
       try {
         const leadData = {
           ...row,
-          source: row.source || 'WEBSITE',
+          source: row.source || 'WEBSITE'
         };
 
         await this.createLead(leadData);
@@ -270,7 +267,7 @@ export class LeadService {
         results.errors.push({
           row: index + 1,
           email: row.email,
-          error: error.message,
+          error: error.message
         });
       }
     }
@@ -285,17 +282,17 @@ export class LeadService {
     brokerId?: string;
     dateRange?: { start: Date; end: Date };
   }) {
-    const leads = await this.leadRepository.find({
+    const leads = await this.prisma.lead.findMany({
       where: {
         ...(filters.status && { status: filters.status }),
         ...(filters.source && { source: filters.source }),
         ...(filters.assignedTo && { assignedTo: filters.assignedTo }),
         ...(filters.brokerId && { brokerId: filters.brokerId }),
         ...(filters.dateRange && {
-          createdAt: Between(filters.dateRange.start, filters.dateRange.end),
-        }),
+          createdAt: Between(filters.dateRange.start, filters.dateRange.end)
+        })
       },
-      relations: ['relationshipManager', 'broker'],
+      relations: ['relationshipManager', 'broker']
     });
 
     // Convert to CSV format

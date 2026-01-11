@@ -1,7 +1,7 @@
-import { Processor, Process } from '@nestjs/bullmq';
+import {Processor, WorkerHost} from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -35,7 +35,7 @@ interface AuditRewardJob {
 }
 
 @Processor('reward-distribution')
-export class RewardDistributionProcessor {
+export class RewardDistributionProcessor extends WorkerHost {
   private readonly logger = new Logger(RewardDistributionProcessor.name);
 
   constructor(
@@ -43,11 +43,9 @@ export class RewardDistributionProcessor {
     private readonly configService: ConfigService,
     private readonly rewardService: RewardService,
     @InjectQueue('notifications') private readonly notificationsQueue: Queue,
-    @InjectQueue('wallet') private readonly walletQueue: Queue,
-  ) {}
+    @InjectQueue('wallet') private readonly walletQueue: Queue) {}
 
-  @Process('distribute-reward')
-  async distributeReward(job: Job<DistributeRewardJob>): Promise<void> {
+  private async distributeReward(job: Job<DistributeRewardJob>): Promise<void> {
     this.logger.log(`Processing reward distribution job: ${job.id} for claim: ${job.data.claimId}`);
 
     try {
@@ -62,17 +60,17 @@ export class RewardDistributionProcessor {
               id: true,
               email: true,
               username: true,
-              kycStatus: true,
-            },
+              kycStatus: true
+            }
           },
           referral: {
             include: {
               referrer: {
-                select: { username: true },
-              },
-            },
-          },
-        },
+                select: { username: true }
+              }
+            }
+          }
+        }
       });
 
       if (!claim) {
@@ -95,15 +93,15 @@ export class RewardDistributionProcessor {
               ...claim.metadata,
               error: 'User KYC not verified',
               processedAt: new Date().toISOString(),
-              jobId: job.id,
-            },
-          },
+              jobId: job.id
+            }
+          }
         });
 
         // Queue notification about KYC requirement
         await this.queueNotification(userId, 'REWARD_KYC_REQUIRED', {
           rewardName: claim.reward.name,
-          rewardValue: claim.reward.value,
+          rewardValue: claim.reward.value
         });
 
         return;
@@ -146,9 +144,9 @@ export class RewardDistributionProcessor {
             ...metadata,
             processingResult,
             processedAt: new Date().toISOString(),
-            jobId: job.id,
-          },
-        },
+            jobId: job.id
+          }
+        }
       });
 
       // Queue success notification
@@ -158,15 +156,15 @@ export class RewardDistributionProcessor {
         rewardType: claim.reward.type,
         processingResult,
         referralInfo: referralId ? {
-          referrer: claim.referral?.referrer.username,
-        } : null,
+          referrer: claim.referral?.referrer.username
+        } : null
       });
 
       // Queue audit log
       await this.queueAuditLog(claimId, 'PROCESSED', {
         processingResult,
         newStatus,
-        metadata,
+        metadata
       });
 
       this.logger.log(`Reward distributed successfully: ${claimId}, type: ${claim.reward.type}`);
@@ -182,9 +180,9 @@ export class RewardDistributionProcessor {
             metadata: {
               error: error.message,
               failedAt: new Date().toISOString(),
-              jobId: job.id,
-            },
-          },
+              jobId: job.id
+            }
+          }
         });
       } catch (updateError) {
         this.logger.error('Failed to update claim status to FAILED:', updateError);
@@ -194,8 +192,7 @@ export class RewardDistributionProcessor {
     }
   }
 
-  @Process('process-payout')
-  async processPayout(job: Job<ProcessPayoutJob>): Promise<void> {
+  private async processPayout(job: Job<ProcessPayoutJob>): Promise<void> {
     this.logger.log(`Processing payout job: ${job.id} for claim: ${job.data.claimId}`);
 
     try {
@@ -209,10 +206,10 @@ export class RewardDistributionProcessor {
             select: {
               id: true,
               email: true,
-              username: true,
-            },
-          },
-        },
+              username: true
+            }
+          }
+        }
       });
 
       if (!claim) {
@@ -230,15 +227,15 @@ export class RewardDistributionProcessor {
               ...claim.metadata,
               failedAt: new Date().toISOString(),
               failureReason: 'Max payout attempts exceeded',
-              finalAttempt: attempt,
-            },
-          },
+              finalAttempt: attempt
+            }
+          }
         });
 
         // Queue failure notification
         await this.queueNotification(claim.userId, 'REWARD_PAYOUT_FAILED', {
           rewardName: claim.reward.name,
-          attempts: attempt,
+          attempts: attempt
         });
 
         this.logger.error(`Payout failed after ${attempt} attempts for claim: ${claimId}`);
@@ -257,16 +254,16 @@ export class RewardDistributionProcessor {
               ...claim.metadata,
               payoutResult,
               paidAt: new Date().toISOString(),
-              finalAttempt: attempt,
-            },
-          },
+              finalAttempt: attempt
+            }
+          }
         });
 
         // Queue success notification
         await this.queueNotification(claim.userId, 'REWARD_PAID', {
           rewardName: claim.reward.name,
           payoutAmount: claim.reward.value,
-          payoutMethod: paymentMethod,
+          payoutMethod: paymentMethod
         });
 
         this.logger.log(`Payout successful for claim: ${claimId}, attempt: ${attempt}`);
@@ -282,8 +279,7 @@ export class RewardDistributionProcessor {
     }
   }
 
-  @Process('expire-reward')
-  async expireReward(job: Job<ExpireRewardJob>): Promise<void> {
+  private async expireReward(job: Job<ExpireRewardJob>): Promise<void> {
     this.logger.log(`Processing reward expiration job: ${job.id} for claim: ${job.data.claimId}`);
 
     try {
@@ -297,10 +293,10 @@ export class RewardDistributionProcessor {
             select: {
               id: true,
               email: true,
-              username: true,
-            },
-          },
-        },
+              username: true
+            }
+          }
+        }
       });
 
       if (!claim) {
@@ -320,15 +316,15 @@ export class RewardDistributionProcessor {
             ...claim.metadata,
             expiredAt: new Date().toISOString(),
             expirationReason: reason || 'Expiration job processed',
-            jobId: job.id,
-          },
-        },
+            jobId: job.id
+          }
+        }
       });
 
       // Queue expiration notification
       await this.queueNotification(claim.userId, 'REWARD_EXPIRED', {
         rewardName: claim.reward.name,
-        reason: reason || 'Reward expired due to inactivity',
+        reason: reason || 'Reward expired due to inactivity'
       });
 
       // Queue audit log
@@ -341,8 +337,7 @@ export class RewardDistributionProcessor {
     }
   }
 
-  @Process('batch-expire-rewards')
-  async batchExpireRewards(job: Job<{ daysUnclaimed: number }>): Promise<void> {
+  private async batchExpireRewards(job: Job<{ daysUnclaimed: number }>): Promise<void> {
     this.logger.log(`Processing batch reward expiration job: ${job.id}`);
 
     try {
@@ -354,12 +349,12 @@ export class RewardDistributionProcessor {
       const claimsToExpire = await this.prisma.referralRewardClaim.findMany({
         where: {
           status: { in: [RewardStatus.PENDING, RewardStatus.PROCESSED] },
-          createdAt: { lt: cutoffDate },
+          createdAt: { lt: cutoffDate }
         },
         include: {
           reward: true,
-          user: { select: { id: true, email: true } },
-        },
+          user: { select: { id: true, email: true } }
+        }
       });
 
       for (const claim of claimsToExpire) {
@@ -371,15 +366,15 @@ export class RewardDistributionProcessor {
               ...claim.metadata,
               expiredAt: new Date().toISOString(),
               expirationReason: `Unclaimed for ${daysUnclaimed} days`,
-              batchJobId: job.id,
-            },
-          },
+              batchJobId: job.id
+            }
+          }
         });
 
         // Queue expiration notification
         await this.queueNotification(claim.user.id, 'REWARD_EXPIRED', {
           rewardName: claim.reward.name,
-          reason: `Unclaimed for ${daysUnclaimed} days`,
+          reason: `Unclaimed for ${daysUnclaimed} days`
         });
       }
 
@@ -400,15 +395,15 @@ export class RewardDistributionProcessor {
       metadata: {
         claimId: claim.id,
         rewardId: claim.rewardId,
-        referralId: claim.referralId,
-      },
+        referralId: claim.referralId
+      }
     });
 
     return {
       method: 'wallet_credit',
       amount: claim.reward.value,
       currency: 'USD',
-      transactionId: `pending_${claim.id}_${Date.now()}`,
+      transactionId: `pending_${claim.id}_${Date.now()}`
     };
   }
 
@@ -426,9 +421,9 @@ export class RewardDistributionProcessor {
         expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days
         metadata: {
           claimId: claim.id,
-          rewardId: claim.rewardId,
-        },
-      },
+          rewardId: claim.rewardId
+        }
+      }
     });
 
     return {
@@ -436,7 +431,7 @@ export class RewardDistributionProcessor {
       code: discountCode,
       type: 'PERCENTAGE',
       value: claim.reward.value,
-      expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
     };
   }
 
@@ -452,16 +447,16 @@ export class RewardDistributionProcessor {
         expiresAt: claim.reward.metadata?.expiresAt || null,
         metadata: {
           claimId: claim.id,
-          rewardId: claim.rewardId,
-        },
-      },
+          rewardId: claim.rewardId
+        }
+      }
     });
 
     return {
       method: 'feature_unlock',
       featureName,
       grantedAt: new Date(),
-      expiresAt: claim.reward.metadata?.expiresAt,
+      expiresAt: claim.reward.metadata?.expiresAt
     };
   }
 
@@ -479,9 +474,9 @@ export class RewardDistributionProcessor {
         expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000), // 180 days
         metadata: {
           claimId: claim.id,
-          rewardId: claim.rewardId,
-        },
-      },
+          rewardId: claim.rewardId
+        }
+      }
     });
 
     return {
@@ -489,7 +484,7 @@ export class RewardDistributionProcessor {
       code: voucherCode,
       value: claim.reward.value,
       type: 'REWARD',
-      expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000)
     };
   }
 
@@ -500,12 +495,12 @@ export class RewardDistributionProcessor {
     if (isSuccess) {
       return {
         success: true,
-        transactionId: `txn_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
+        transactionId: `txn_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
       };
     } else {
       return {
         success: false,
-        error: 'Payment gateway temporarily unavailable',
+        error: 'Payment gateway temporarily unavailable'
       };
     }
   }
@@ -518,11 +513,11 @@ export class RewardDistributionProcessor {
         attempt,
         maxAttempts,
         paymentMethod,
-        lastError: error,
+        lastError: error
       },
       {
         delay: Math.pow(2, attempt) * 1000, // Exponential backoff
-        attempts: 1,
+        attempts: 1
       }
     );
   }
@@ -534,14 +529,14 @@ export class RewardDistributionProcessor {
         userId,
         type,
         data,
-        channels: ['in_app', 'email'],
+        channels: ['in_app', 'email']
       },
       {
         attempts: 3,
         backoff: {
           type: 'exponential',
-          delay: 2000,
-        },
+          delay: 2000
+        }
       }
     );
   }
@@ -556,11 +551,11 @@ export class RewardDistributionProcessor {
         userId: metadata?.userId,
         metadata: {
           ...metadata,
-          timestamp: new Date().toISOString(),
-        },
+          timestamp: new Date().toISOString()
+        }
       },
       {
-        attempts: 3,
+        attempts: 3
       }
     );
   }

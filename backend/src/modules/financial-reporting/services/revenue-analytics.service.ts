@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
 
 @Injectable()
 export class RevenueAnalyticsService {
@@ -9,8 +9,7 @@ export class RevenueAnalyticsService {
 
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly redisService: RedisService,
-  ) {}
+    private readonly redisService: RedisService) {}
 
   async getRevenueByRegion(period: { start: Date; end: Date }): Promise<{
     regions: Array<{
@@ -37,18 +36,18 @@ export class RevenueAnalyticsService {
           status: 'PAID',
           createdAt: {
             gte: period.start,
-            lte: period.end,
-          },
+            lte: period.end
+          }
         },
         include: {
           broker: {
             select: {
               id: true,
               region: true,
-              businessName: true,
-            },
-          },
-        },
+              businessName: true
+            }
+          }
+        }
       });
 
       const regionMap = new Map();
@@ -61,7 +60,7 @@ export class RevenueAnalyticsService {
           regionMap.set(region, {
             region,
             totalRevenue: 0,
-            brokerCount: new Set(),
+            brokerCount: new Set()
           });
         }
 
@@ -75,7 +74,7 @@ export class RevenueAnalyticsService {
         totalRevenue: regionData.totalRevenue,
         brokerCount: regionData.brokerCount.size,
         averageRevenue: regionData.totalRevenue / regionData.brokerCount.size,
-        growth: 0, // Would need previous period data for accurate growth
+        growth: 0 // Would need previous period data for accurate growth
       }));
 
       const totalRevenue = regions.reduce((sum, region) => sum + region.totalRevenue, 0);
@@ -86,7 +85,7 @@ export class RevenueAnalyticsService {
       const result = {
         regions,
         totalRevenue,
-        topRegion,
+        topRegion
       };
 
       await this.redisService.setex(cacheKey, this.CACHE_TTL, JSON.stringify(result));
@@ -125,17 +124,17 @@ export class RevenueAnalyticsService {
           status: 'PAID',
           createdAt: {
             gte: period.start,
-            lte: period.end,
-          },
+            lte: period.end
+          }
         },
         include: {
           broker: {
             select: {
               id: true,
-              tier: true,
-            },
-          },
-        },
+              tier: true
+            }
+          }
+        }
       });
 
       const tierMap = new Map();
@@ -148,7 +147,7 @@ export class RevenueAnalyticsService {
           tierMap.set(tier, {
             tier,
             totalRevenue: 0,
-            brokerCount: new Set(),
+            brokerCount: new Set()
           });
         }
 
@@ -163,7 +162,7 @@ export class RevenueAnalyticsService {
         brokerCount: tierData.brokerCount.size,
         averageRevenue: tierData.totalRevenue / tierData.brokerCount.size,
         revenuePerBroker: tierData.totalRevenue / tierData.brokerCount.size,
-        growth: 0, // Would need previous period data
+        growth: 0 // Would need previous period data
       }));
 
       const totalRevenue = tiers.reduce((sum, tier) => sum + tier.totalRevenue, 0);
@@ -176,7 +175,7 @@ export class RevenueAnalyticsService {
       const result = {
         tiers,
         totalRevenue,
-        tierDistribution,
+        tierDistribution
       };
 
       await this.redisService.setex(cacheKey, this.CACHE_TTL, JSON.stringify(result));
@@ -211,15 +210,15 @@ export class RevenueAnalyticsService {
           status: 'PAID',
           createdAt: {
             gte: period.start,
-            lte: period.end,
-          },
-        },
+            lte: period.end
+          }
+        }
       });
 
       const products = {
         'Base Fees': revenueData.reduce((sum, bill) => sum + bill.baseFee, 0),
         'Transaction Fees': revenueData.reduce((sum, bill) => sum + bill.transactionFees, 0),
-        'Additional Services': revenueData.reduce((sum, bill) => sum + bill.additionalServices, 0),
+        'Additional Services': revenueData.reduce((sum, bill) => sum + bill.additionalServices, 0)
       };
 
       const totalRevenue = Object.values(products).reduce((sum, val) => sum + val, 0);
@@ -228,13 +227,13 @@ export class RevenueAnalyticsService {
         product,
         totalRevenue: revenue,
         percentage: totalRevenue > 0 ? (revenue / totalRevenue) * 100 : 0,
-        growth: 0, // Would need previous period data
+        growth: 0 // Would need previous period data
       }));
 
       const result = {
         products: productArray,
         totalRevenue,
-        productMix: products,
+        productMix: products
       };
 
       await this.redisService.setex(cacheKey, this.CACHE_TTL, JSON.stringify(result));
@@ -268,7 +267,7 @@ export class RevenueAnalyticsService {
 
       const previousPeriodRevenue = await this.getTotalRevenue({
         start: previousPeriodStart,
-        end: previousPeriodEnd,
+        end: previousPeriodEnd
       });
 
       const growthRate = previousPeriodRevenue > 0
@@ -281,7 +280,7 @@ export class RevenueAnalyticsService {
 
       const yearAgoRevenue = await this.getTotalRevenue({
         start: yearAgoStart,
-        end: yearAgoEnd,
+        end: yearAgoEnd
       });
 
       const yearOverYear = yearAgoRevenue > 0
@@ -301,7 +300,7 @@ export class RevenueAnalyticsService {
         growthRate,
         yearOverYear,
         monthOverMonth,
-        trend,
+        trend
       };
 
     } catch (error) {
@@ -346,7 +345,7 @@ export class RevenueAnalyticsService {
         overall,
         byTier,
         byRegion,
-        trend,
+        trend
       };
 
     } catch (error) {
@@ -358,27 +357,26 @@ export class RevenueAnalyticsService {
   async generateRevenueReport(
     startDate: Date,
     endDate: Date,
-    format: 'json' | 'csv' | 'pdf' = 'json',
-  ): Promise<any> {
+    format: 'json' | 'csv' | 'pdf' = 'json'): Promise<any> {
     try {
       const period = { start: startDate, end: endDate };
 
       const reportData = {
         period: {
           start: startDate.toISOString(),
-          end: endDate.toISOString(),
+          end: endDate.toISOString()
         },
         generatedAt: new Date().toISOString(),
         summary: {
           totalRevenue: await this.getTotalRevenue(period),
           activeBrokers: await this.getActiveBrokers(period),
-          arpu: 0, // Will be calculated below
+          arpu: 0 // Will be calculated below
         },
         revenueByRegion: await this.getRevenueByRegion(period),
         revenueByTier: await this.getRevenueByTier(period),
         revenueByProduct: await this.getRevenueByProduct(period),
         growth: await this.getRevenueGrowth(period),
-        arpu: await this.getARPU(period),
+        arpu: await this.getARPU(period)
       };
 
       // Calculate overall ARPU
@@ -406,14 +404,14 @@ export class RevenueAnalyticsService {
         status: 'PAID',
         createdAt: {
           gte: period.start,
-          lte: period.end,
-        },
+          lte: period.end
+        }
       },
       select: {
         baseFee: true,
         transactionFees: true,
-        additionalServices: true,
-      },
+        additionalServices: true
+      }
     });
 
     return revenueData.reduce((sum, bill) => {
@@ -427,13 +425,13 @@ export class RevenueAnalyticsService {
         status: 'PAID',
         createdAt: {
           gte: period.start,
-          lte: period.end,
-        },
+          lte: period.end
+        }
       },
       select: {
-        brokerId: true,
+        brokerId: true
       },
-      distinct: ['brokerId'],
+      distinct: ['brokerId']
     });
 
     return activeBrokers.length;
@@ -456,7 +454,7 @@ export class RevenueAnalyticsService {
       trend.push({
         period: periodDate.toISOString().slice(0, 7),
         revenue,
-        growth,
+        growth
       });
     }
 
@@ -479,7 +477,7 @@ export class RevenueAnalyticsService {
 
       trend.push({
         period: periodDate.toISOString().slice(0, 7),
-        arpu,
+        arpu
       });
     }
 

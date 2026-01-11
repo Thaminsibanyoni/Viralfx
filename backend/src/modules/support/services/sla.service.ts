@@ -1,36 +1,28 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
-import { SLA } from '../entities/sla.entity';
-import { TicketSLA } from '../entities/ticket-sla.entity';
-import { Ticket } from '../entities/ticket.entity';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class SlaService {
   constructor(
-    @InjectRepository(SLA)
-    private readonly slaRepository: Repository<SLA>,
-    @InjectRepository(TicketSLA)
-    private readonly ticketSLARepository: Repository<TicketSLA>,
-    @InjectRepository(Ticket)
-    private readonly ticketRepository: Repository<Ticket>,
+    private readonly prisma: PrismaService,
     @InjectQueue('support-tickets')
-    private readonly supportQueue: Queue,
-  ) {}
+    private readonly supportQueue: Queue) {}
 
   async getSLAs() {
-    return await this.slaRepository.find({
-      relations: ['categories'],
-      order: { name: 'ASC' },
+    return await this.prisma.sLA.findMany({
+      include: {
+        categories: true
+      },
+      orderBy: { name: 'asc' }
     });
   }
 
-  async getSLAById(id: string): Promise<SLA> {
-    return await this.slaRepository.findOne({
+  async getSLAById(id: string) {
+    return await this.prisma.sLA.findFirst({
       where: { id },
-      relations: ['categories'],
+      include: { categories: true }
     });
   }
 
@@ -53,13 +45,27 @@ export class SlaService {
     }>;
     isActive: boolean;
   }) {
-    const sla = this.slaRepository.create(createSLADto);
-    return await this.slaRepository.save(sla);
+    return await this.prisma.sLA.create({
+      data: createSLADto,
+      include: { categories: true }
+    });
   }
 
-  async updateSLA(id: string, updateSLADto: Partial<SLA>) {
-    await this.slaRepository.update(id, updateSLADto);
-    return this.getSLAById(id);
+  async updateSLA(id: string, updateSLADto: any) {
+    // Check if SLA is being used by any categories
+    const sla = await this.getSLAById(id);
+    if (sla && sla.categories.length > 0) {
+      // Can still update, but warn if deactivating
+      if (updateSLADto.isActive === false) {
+        console.warn('Deactivating SLA that is assigned to categories');
+      }
+    }
+
+    return await this.prisma.sLA.update({
+      where: { id },
+      data: updateSLADto,
+      include: { categories: true }
+    });
   }
 
   async deleteSLA(id: string) {
@@ -69,7 +75,7 @@ export class SlaService {
       throw new Error('Cannot delete SLA that is assigned to categories');
     }
 
-    await this.slaRepository.delete(id);
+    await this.prisma.sLA.delete({ where: { id } });
     return { success: true, message: 'SLA deleted successfully' };
   }
 
@@ -80,48 +86,52 @@ export class SlaService {
     risk?: 'low' | 'medium' | 'high';
   }) {
     const { page = 1, limit = 20, status, risk } = filters;
+    const now = new Date();
 
-    const queryBuilder = this.ticketSLARepository
-      .createQueryBuilder('ticketSLA')
-      .leftJoinAndSelect('ticketSLA.ticket', 'ticket')
-      .leftJoinAndSelect('ticketSLA.sla', 'sla')
-      .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
-      .where('ticket.status NOT IN (:...closedStatuses)', {
-        closedStatuses: ['RESOLVED', 'CLOSED'],
-      });
+    const where: any = {
+      ticket: {
+        status: { notIn: ['RESOLVED', 'CLOSED'] }
+      }
+    };
 
     if (status === 'pending') {
-      queryBuilder.andWhere('ticketSLA.responseDueAt > :now', { now: new Date() });
-      queryBuilder.andWhere('ticketSLA.resolutionDueAt > :now', { now: new Date() });
+      where.responseDueAt = { gt: now };
+      where.resolutionDueAt = { gt: now };
     } else if (status === 'breached') {
-      queryBuilder.andWhere(
-        '(ticketSLA.responseDueAt < :now OR ticketSLA.resolutionDueAt < :now)',
-        { now: new Date() }
-      );
+      where.OR = [
+        { responseDueAt: { lt: now } },
+        { resolutionDueAt: { lt: now } }
+      ];
     } else if (status === 'met') {
-      queryBuilder.andWhere('ticketSLA.responseMetAt IS NOT NULL');
-      queryBuilder.andWhere('ticketSLA.resolutionMetAt IS NOT NULL');
+      where.responseMetAt = { not: null };
+      where.resolutionMetAt = { not: null };
     }
 
     if (risk === 'high') {
-      queryBuilder.andWhere('ticketSLA.resolutionDueAt < :highRisk', {
-        highRisk: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
-      });
+      where.resolutionDueAt = { lt: new Date(Date.now() + 60 * 60 * 1000) }; // 1 hour
     } else if (risk === 'medium') {
-      queryBuilder.andWhere('ticketSLA.resolutionDueAt < :mediumRisk', {
-        mediumRisk: new Date(Date.now() + 4 * 60 * 60 * 1000), // 4 hours
-      });
+      where.resolutionDueAt = { lt: new Date(Date.now() + 4 * 60 * 60 * 1000) }; // 4 hours
     } else if (risk === 'low') {
-      queryBuilder.andWhere('ticketSLA.resolutionDueAt >= :lowRisk', {
-        lowRisk: new Date(Date.now() + 4 * 60 * 60 * 1000), // 4 hours
-      });
+      where.resolutionDueAt = { gte: new Date(Date.now() + 4 * 60 * 60 * 1000) }; // 4 hours
     }
 
-    const [ticketSLAs, total] = await queryBuilder
-      .orderBy('ticketSLA.resolutionDueAt', 'ASC')
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
+    const [ticketSLAs, total] = await Promise.all([
+      this.prisma.ticketSLA.findMany({
+        where,
+        include: {
+          ticket: {
+            include: {
+              assignedTo: true
+            }
+          },
+          sla: true
+        },
+        orderBy: { resolutionDueAt: 'asc' },
+        skip: (page - 1) * limit,
+        take: limit
+      }),
+      this.prisma.ticketSLA.count({ where })
+    ]);
 
     return {
       ticketSLAs,
@@ -129,9 +139,9 @@ export class SlaService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limit)
       },
-      filters,
+      filters
     };
   }
 
@@ -140,24 +150,32 @@ export class SlaService {
     const thirtyMinutesFromNow = new Date(now.getTime() + 30 * 60 * 1000);
 
     // Find tickets that are about to breach or have already breached
-    const atRiskTickets = await this.ticketSLARepository
-      .createQueryBuilder('ticketSLA')
-      .leftJoinAndSelect('ticketSLA.ticket', 'ticket')
-      .leftJoinAndSelect('ticketSLA.sla', 'sla')
-      .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
-      .where('ticket.status NOT IN (:...closedStatuses)', {
-        closedStatuses: ['RESOLVED', 'CLOSED'],
-      })
-      .andWhere(
-        '(ticketSLA.responseDueAt < :now OR ticketSLA.resolutionDueAt < :now OR ticketSLA.responseDueAt < :thirtyMinutes OR ticketSLA.resolutionDueAt < :thirtyMinutes)',
-        { now, thirtyMinutes: thirtyMinutesFromNow }
-      )
-      .getMany();
+    const atRiskTicketSLAs = await this.prisma.ticketSLA.findMany({
+      where: {
+        ticket: {
+          status: { notIn: ['RESOLVED', 'CLOSED'] }
+        },
+        OR: [
+          { responseDueAt: { lt: now } },
+          { resolutionDueAt: { lt: now } },
+          { responseDueAt: { lt: thirtyMinutesFromNow } },
+          { resolutionDueAt: { lt: thirtyMinutesFromNow } }
+        ]
+      },
+      include: {
+        ticket: {
+          include: {
+            assignedTo: true
+          }
+        },
+        sla: true
+      }
+    });
 
     const breachedTickets = [];
     const atRiskTicketsSoon = [];
 
-    for (const ticketSLA of atRiskTickets) {
+    for (const ticketSLA of atRiskTicketSLAs) {
       const isResponseBreached = ticketSLA.responseDueAt < now && !ticketSLA.responseMetAt;
       const isResolutionBreached = ticketSLA.resolutionDueAt < now && !ticketSLA.resolutionMetAt;
 
@@ -167,19 +185,21 @@ export class SlaService {
       if (isResponseBreached || isResolutionBreached) {
         breachedTickets.push({
           ticketSLA,
-          breachType: isResponseBreached ? 'response' : 'resolution',
+          breachType: isResponseBreached ? 'response' : 'resolution'
         });
 
         // Mark as breached
         if (isResponseBreached && !ticketSLA.responseBreachedAt) {
-          await this.ticketSLARepository.update(ticketSLA.id, {
-            responseBreachedAt: now,
+          await this.prisma.ticketSLA.update({
+            where: { id: ticketSLA.id },
+            data: { responseBreachedAt: now }
           });
         }
 
         if (isResolutionBreached && !ticketSLA.resolutionBreachedAt) {
-          await this.ticketSLARepository.update(ticketSLA.id, {
-            resolutionBreachedAt: now,
+          await this.prisma.ticketSLA.update({
+            where: { id: ticketSLA.id },
+            data: { resolutionBreachedAt: now }
           });
         }
 
@@ -190,21 +210,21 @@ export class SlaService {
       if (isResponseAtRisk || isResolutionAtRisk) {
         atRiskTicketsSoon.push({
           ticketSLA,
-          riskType: isResponseAtRisk ? 'response' : 'resolution',
+          riskType: isResponseAtRisk ? 'response' : 'resolution'
         });
 
         // Queue at-risk notifications
         await this.supportQueue.add('sla-at-risk', {
           ticketSLAId: ticketSLA.id,
           riskType: isResponseAtRisk ? 'response' : 'resolution',
-          dueAt: isResponseAtRisk ? ticketSLA.responseDueAt : ticketSLA.resolutionDueAt,
+          dueAt: isResponseAtRisk ? ticketSLA.responseDueAt : ticketSLA.resolutionDueAt
         });
       }
     }
 
     return {
       breachedTickets,
-      atRiskTicketsSoon,
+      atRiskTicketsSoon
     };
   }
 
@@ -212,7 +232,10 @@ export class SlaService {
     responseMetAt?: Date;
     resolutionMetAt?: Date;
   }) {
-    await this.ticketSLARepository.update(ticketSLAId, metrics);
+    await this.prisma.ticketSLA.update({
+      where: { id: ticketSLAId },
+      data: metrics
+    });
   }
 
   async getSLAStats(period: 'day' | 'week' | 'month' | 'year' = 'month') {
@@ -234,6 +257,8 @@ export class SlaService {
         break;
     }
 
+    const dateFilter = { gte: startDate, lte: now };
+
     const [
       totalTickets,
       responseMetCount,
@@ -243,32 +268,32 @@ export class SlaService {
       avgResponseTime,
       avgResolutionTime,
     ] = await Promise.all([
-      this.ticketSLARepository.count({
-        where: { createdAt: Between(startDate, now) },
+      this.prisma.ticketSLA.count({
+        where: { createdAt: dateFilter }
       }),
-      this.ticketSLARepository.count({
+      this.prisma.ticketSLA.count({
         where: {
-          createdAt: Between(startDate, now),
-          responseMetAt: Between(startDate, now),
-        },
+          createdAt: dateFilter,
+          responseMetAt: dateFilter
+        }
       }),
-      this.ticketSLARepository.count({
+      this.prisma.ticketSLA.count({
         where: {
-          createdAt: Between(startDate, now),
-          resolutionMetAt: Between(startDate, now),
-        },
+          createdAt: dateFilter,
+          resolutionMetAt: dateFilter
+        }
       }),
-      this.ticketSLARepository.count({
+      this.prisma.ticketSLA.count({
         where: {
-          createdAt: Between(startDate, now),
-          responseBreachedAt: Between(startDate, now),
-        },
+          createdAt: dateFilter,
+          responseBreachedAt: dateFilter
+        }
       }),
-      this.ticketSLARepository.count({
+      this.prisma.ticketSLA.count({
         where: {
-          createdAt: Between(startDate, now),
-          resolutionBreachedAt: Between(startDate, now),
-        },
+          createdAt: dateFilter,
+          resolutionBreachedAt: dateFilter
+        }
       }),
       this.getAverageResponseTime(startDate, now),
       this.getAverageResolutionTime(startDate, now),
@@ -284,23 +309,23 @@ export class SlaService {
       responseComplianceRate: totalTickets > 0 ? (responseMetCount / totalTickets) * 100 : 0,
       resolutionComplianceRate: totalTickets > 0 ? (resolutionMetCount / totalTickets) * 100 : 0,
       avgResponseTime,
-      avgResolutionTime,
+      avgResolutionTime
     };
   }
 
-  private async handleSLABreach(ticketSLA: TicketSLA, breachType: 'response' | 'resolution') {
+  private async handleSLABreach(ticketSLA: any, breachType: 'response' | 'resolution') {
     const now = new Date();
 
     // Queue breach notification
     await this.supportQueue.add('sla-breached', {
       ticketSLAId: ticketSLA.id,
       breachType,
-      ticketId: ticketSLA.ticketId,
+      ticketId: ticketSLA.ticketId
     });
 
     // Check escalation rules
-    const sla = await this.slaRepository.findOne({
-      where: { id: ticketSLA.slaId },
+    const sla = await this.prisma.sLA.findFirst({
+      where: { id: ticketSLA.slaId }
     });
 
     if (sla && sla.escalationRules) {
@@ -308,14 +333,14 @@ export class SlaService {
         // Find if this breach matches any escalation rule
         const breachTime = breachType === 'response' ? ticketSLA.responseBreachedAt : ticketSLA.resolutionBreachedAt;
         if (breachTime) {
-          const minutesSinceBreach = (now.getTime() - breachTime.getTime()) / (1000 * 60);
+          const minutesSinceBreach = (now.getTime() - new Date(breachTime).getTime()) / (1000 * 60);
 
           if (minutesSinceBreach >= rule.delay) {
             await this.supportQueue.add('escalate-ticket', {
               ticketId: ticketSLA.ticketId,
               assignedTo: rule.assignedTo,
               notify: rule.notify,
-              reason: `SLA ${breachType} breach escalation`,
+              reason: `SLA ${breachType} breach escalation`
             });
           }
         }
@@ -324,24 +349,24 @@ export class SlaService {
   }
 
   private async getAverageResponseTime(startDate: Date, endDate: Date): Promise<number> {
-    const result = await this.ticketSLARepository
-      .createQueryBuilder('ticketSLA')
-      .leftJoin('ticketSLA.ticket', 'ticket')
-      .select('AVG(EXTRACT(EPOCH FROM (ticketSLA.responseMetAt - ticket.createdAt)) / 60)', 'avgMinutes')
-      .where('ticketSLA.responseMetAt BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .getRawOne();
+    const result = await this.prisma.$queryRaw<Array<{ avgMinutes: string }>>`
+      SELECT AVG(EXTRACT(EPOCH FROM (ts."responseMetAt" - t."createdAt")) / 60) as "avgMinutes"
+      FROM "TicketSLA" ts
+      INNER JOIN "Ticket" t ON t.id = ts."ticketId"
+      WHERE ts."responseMetAt" >= ${startDate} AND ts."responseMetAt" <= ${endDate}
+    `;
 
-    return Math.round(parseFloat(result?.avgMinutes || 0));
+    return Math.round(parseFloat(result[0]?.avgMinutes || '0'));
   }
 
   private async getAverageResolutionTime(startDate: Date, endDate: Date): Promise<number> {
-    const result = await this.ticketSLARepository
-      .createQueryBuilder('ticketSLA')
-      .leftJoin('ticketSLA.ticket', 'ticket')
-      .select('AVG(EXTRACT(EPOCH FROM (ticketSLA.resolutionMetAt - ticket.createdAt)) / 60)', 'avgMinutes')
-      .where('ticketSLA.resolutionMetAt BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .getRawOne();
+    const result = await this.prisma.$queryRaw<Array<{ avgMinutes: string }>>`
+      SELECT AVG(EXTRACT(EPOCH FROM (ts."resolutionMetAt" - t."createdAt")) / 60) as "avgMinutes"
+      FROM "TicketSLA" ts
+      INNER JOIN "Ticket" t ON t.id = ts."ticketId"
+      WHERE ts."resolutionMetAt" >= ${startDate} AND ts."resolutionMetAt" <= ${endDate}
+    `;
 
-    return Math.round(parseFloat(result?.avgMinutes || 0));
+    return Math.round(parseFloat(result[0]?.avgMinutes || '0'));
   }
 }

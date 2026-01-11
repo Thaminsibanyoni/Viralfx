@@ -7,7 +7,7 @@ import {
   Min,
   Max,
   IsObject,
-  ValidateNested,
+  ValidateNested
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Exclude } from 'class-transformer';
@@ -44,6 +44,20 @@ export class GetNotificationsDto {
   readonly priority?: string;
 }
 
+export class QuietHoursDto {
+  @IsOptional()
+  @IsBoolean()
+  readonly enabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  readonly start?: string; // Format: "HH:MM"
+
+  @IsOptional()
+  @IsString()
+  readonly end?: string; // Format: "HH:MM"
+}
+
 export class UpdatePreferencesDto {
   @IsOptional()
   @IsBoolean()
@@ -67,20 +81,6 @@ export class UpdatePreferencesDto {
   readonly quietHours?: QuietHoursDto;
 }
 
-export class QuietHoursDto {
-  @IsOptional()
-  @IsBoolean()
-  readonly enabled?: boolean;
-
-  @IsOptional()
-  @IsString()
-  readonly start?: string; // Format: "HH:MM"
-
-  @IsOptional()
-  @IsString()
-  readonly end?: string; // Format: "HH:MM"
-}
-
 export class NotificationResponseDto {
   id: string;
   type: string;
@@ -95,11 +95,9 @@ export class NotificationResponseDto {
   createdAt: Date;
 
   // Exclude sensitive fields from responses
-  @Exclude()
-  userId: string;
+    userId: string;
 
-  @Exclude()
-  deletedAt?: Date;
+    deletedAt?: Date;
 }
 
 export class PaginatedNotificationResponseDto {

@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -39,17 +39,15 @@ export class MarketsService {
     @InjectQueue('bet-processing')
     private readonly betProcessingQueue: Queue,
     @InjectQueue('market-closure')
-    private readonly marketClosureQueue: Queue,
-  ) {}
+    private readonly marketClosureQueue: Queue) {}
 
   async createMarket(
     createData: CreateMarketData,
-    createdBy: string,
-  ): Promise<any> {
+    createdBy: string): Promise<any> {
     try {
       // Validate topic exists
       const topic = await this.prisma.topic.findUnique({
-        where: { id: createData.topicId },
+        where: { id: createData.topicId }
       });
 
       if (!topic) {
@@ -60,8 +58,8 @@ export class MarketsService {
       const existingMarket = await this.prisma.market.findFirst({
         where: {
           topicId: createData.topicId,
-          status: 'ACTIVE',
-        },
+          status: 'ACTIVE'
+        }
       });
 
       if (existingMarket) {
@@ -99,9 +97,9 @@ export class MarketsService {
             ...createData.metadata,
             initialSentiment: initialProbabilities.sentiment,
             initialViralIndex: initialProbabilities.viralIndex,
-            calculatedProbabilities: initialProbabilities.probabilities,
-          },
-        },
+            calculatedProbabilities: initialProbabilities.probabilities
+          }
+        }
       });
 
       // Create market outcomes based on market type
@@ -112,10 +110,10 @@ export class MarketsService {
         where: { id: market.id },
         data: {
           outcomes: {
-            connect: outcomes.map(o => ({ id: o.id })),
+            connect: outcomes.map(o => ({ id: o.id }))
           },
-          status: 'ACTIVE',
-        },
+          status: 'ACTIVE'
+        }
       });
 
       // Schedule market closure
@@ -128,7 +126,7 @@ export class MarketsService {
 
       return {
         ...market,
-        outcomes,
+        outcomes
       };
     } catch (error) {
       this.logger.error('Failed to create market:', error);
@@ -153,16 +151,16 @@ export class MarketsService {
             probability: true,
             totalVolume: true,
             payouts: true,
-            isWinning: true,
+            isWinning: true
           },
-          orderBy: { probability: 'desc' },
+          orderBy: { probability: 'desc' }
         },
         topic: {
           select: {
             id: true,
             name: true,
-            category: true,
-          },
+            category: true
+          }
         },
         bets: {
           select: {
@@ -170,12 +168,12 @@ export class MarketsService {
             userId: true,
             amount: true,
             outcomeId: true,
-            createdAt: true,
+            createdAt: true
           },
           orderBy: { createdAt: 'desc' },
-          take: 100,
-        },
-      },
+          take: 100
+        }
+      }
     });
 
     if (!market) {
@@ -188,7 +186,7 @@ export class MarketsService {
       currentOdds: this.calculateCurrentOdds(market.outcomes),
       totalBets: market.bets.length,
       uniqueBettors: new Set(market.bets.map(b => b.userId)).size,
-      timeRemaining: this.calculateTimeRemaining(market.endDate),
+      timeRemaining: this.calculateTimeRemaining(market.endDate)
     };
 
     await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(enrichedMarket));
@@ -205,8 +203,7 @@ export class MarketsService {
     pagination: {
       page: number;
       limit: number;
-    } = { page: 1, limit: 20 },
-  ): Promise<any> {
+    } = { page: 1, limit: 20 }): Promise<any> {
     const skip = (pagination.page - 1) * pagination.limit;
     const where: any = {};
 
@@ -231,22 +228,22 @@ export class MarketsService {
             select: {
               id: true,
               name: true,
-              category: true,
-            },
+              category: true
+            }
           },
           outcomes: {
             select: {
               id: true,
               title: true,
               probability: true,
-              totalVolume: true,
+              totalVolume: true
             },
-            orderBy: { probability: 'desc' },
-          },
+            orderBy: { probability: 'desc' }
+          }
         },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: pagination.limit,
+        take: pagination.limit
       }),
       this.prisma.market.count({ where }),
     ]);
@@ -257,8 +254,8 @@ export class MarketsService {
         page: pagination.page,
         limit: pagination.limit,
         total,
-        totalPages: Math.ceil(total / pagination.limit),
-      },
+        totalPages: Math.ceil(total / pagination.limit)
+      }
     };
   }
 
@@ -266,7 +263,7 @@ export class MarketsService {
     try {
       const market = await this.prisma.market.findUnique({
         where: { id: marketId },
-        include: { outcomes: true },
+        include: { outcomes: true }
       });
 
       if (!market) {
@@ -286,8 +283,8 @@ export class MarketsService {
           this.prisma.marketOutcome.update({
             where: { id: outcome.id },
             data: {
-              probability: updatedProbabilities[outcome.id],
-            },
+              probability: updatedProbabilities[outcome.id]
+            }
           })
         )
       );
@@ -299,8 +296,8 @@ export class MarketsService {
         where: { id: marketId },
         data: {
           currentPrice: newCurrentPrice,
-          lastPriceUpdate: new Date(),
-        },
+          lastPriceUpdate: new Date()
+        }
       });
 
       // Invalidate cache
@@ -316,7 +313,7 @@ export class MarketsService {
     try {
       const market = await this.prisma.market.findUnique({
         where: { id: marketId },
-        include: { outcomes: true },
+        include: { outcomes: true }
       });
 
       if (!market) {
@@ -336,15 +333,15 @@ export class MarketsService {
           metadata: {
             ...market.metadata,
             closedReason: reason || 'Manual closure',
-            closedAt: new Date().toISOString(),
-          },
-        },
+            closedAt: new Date().toISOString()
+          }
+        }
       });
 
       // Queue settlement processing
       await this.marketClosureQueue.add('process-market-settlement', {
         marketId,
-        reason: reason || 'Manual closure',
+        reason: reason || 'Manual closure'
       });
 
       // Invalidate cache
@@ -364,9 +361,9 @@ export class MarketsService {
       where: { id: marketId },
       include: {
         priceHistory: {
-          orderBy: { timestamp: 'asc' },
-        },
-      },
+          orderBy: { timestamp: 'asc' }
+        }
+      }
     });
 
     if (!market) {
@@ -377,7 +374,7 @@ export class MarketsService {
       timestamp: entry.timestamp,
       price: entry.price,
       volume: entry.volume,
-      change: entry.change,
+      change: entry.change
     }));
   }
 
@@ -389,11 +386,11 @@ export class MarketsService {
         bets: {
           include: {
             user: {
-              select: { id: true, username: true },
-            },
-          },
-        },
-      },
+              select: { id: true, username: true }
+            }
+          }
+        }
+      }
     });
 
     if (!market) {
@@ -412,7 +409,7 @@ export class MarketsService {
       probability: outcome.probability,
       volume: outcome.totalVolume,
       bets: market.bets.filter(b => b.outcomeId === outcome.id).length,
-      payouts: outcome.payouts,
+      payouts: outcome.payouts
     }));
 
     return {
@@ -425,7 +422,7 @@ export class MarketsService {
       averageBetSize,
       createdAt: market.createdAt,
       endDate: market.endDate,
-      outcomePerformance,
+      outcomePerformance
     };
   }
 
@@ -437,23 +434,23 @@ export class MarketsService {
           { description: { contains: query, mode: 'insensitive' } },
           { category: { contains: query, mode: 'insensitive' } },
         ],
-        status: 'ACTIVE',
+        status: 'ACTIVE'
       },
       include: {
         topic: {
-          select: { id: true, name: true },
+          select: { id: true, name: true }
         },
         outcomes: {
           select: {
             id: true,
             title: true,
-            probability: true,
+            probability: true
           },
-          orderBy: { probability: 'desc' },
-        },
+          orderBy: { probability: 'desc' }
+        }
       },
       orderBy: { totalVolume: 'desc' },
-      take: limit,
+      take: limit
     });
 
     return markets;
@@ -480,8 +477,8 @@ export class MarketsService {
         viralIndex,
         probabilities: {
           YES: positiveProbability,
-          NO: negativeProbability,
-        },
+          NO: negativeProbability
+        }
       };
     } catch (error) {
       this.logger.warn('Failed to calculate initial probabilities, using defaults:', error.message);
@@ -490,8 +487,8 @@ export class MarketsService {
         viralIndex: 0.5,
         probabilities: {
           YES: 0.5,
-          NO: 0.5,
-        },
+          NO: 0.5
+        }
       };
     }
   }
@@ -506,16 +503,16 @@ export class MarketsService {
               title: 'YES',
               probability: 0.5,
               totalVolume: 0,
-              payouts: 0,
+              payouts: 0
             },
             {
               marketId,
               title: 'NO',
               probability: 0.5,
               totalVolume: 0,
-              payouts: 0,
+              payouts: 0
             },
-          ],
+          ]
         });
 
       case 'MULTIPLE_CHOICE':
@@ -525,8 +522,8 @@ export class MarketsService {
             title: option,
             probability: 1 / settlementConditions.options.length,
             totalVolume: 0,
-            payouts: 0,
-          })),
+            payouts: 0
+          }))
         });
 
       default:
@@ -539,9 +536,9 @@ export class MarketsService {
     if (delay > 0) {
       await this.marketClosureQueue.add('auto-close-market', {
         marketId,
-        scheduledCloseTime: endDate.toISOString(),
+        scheduledCloseTime: endDate.toISOString()
       }, {
-        delay,
+        delay
       });
     }
   }
@@ -583,7 +580,7 @@ export class MarketsService {
       outcomeId: outcome.id,
       title: outcome.title,
       probability: outcome.probability,
-      odds: this.probabilityToOdds(outcome.probability),
+      odds: this.probabilityToOdds(outcome.probability)
     }));
   }
 
@@ -635,7 +632,7 @@ export class MarketsService {
     // For now, return mock data
     return {
       averageScore: 0.5,
-      confidence: 0.8,
+      confidence: 0.8
     };
   }
 
@@ -644,7 +641,7 @@ export class MarketsService {
     // For now, return mock data
     return {
       index: 0.6,
-      momentum: 0.4,
+      momentum: 0.4
     };
   }
 }

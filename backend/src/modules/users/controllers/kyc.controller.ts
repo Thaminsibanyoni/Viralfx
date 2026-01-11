@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Post,
   Get,
@@ -12,21 +12,20 @@ import {
   ParseUUIDPipe,
   HttpStatus,
   HttpCode,
-  BadRequestException,
-} from '@nestjs/common';
+  BadRequestException, Req } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
   ApiConsumes,
-  ApiBearerAuth,
+  ApiBearerAuth
 } from '@nestjs/swagger';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { KYCService } from '../services/kyc.service';
 
 @ApiTags('KYC')
@@ -45,7 +44,7 @@ export class KYCController {
       { name: 'businessRegistration', maxCount: 1 },
     ], {
       limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB per file
+        fileSize: 10 * 1024 * 1024 // 10MB per file
       },
       fileFilter: (req, file, cb) => {
         // Accept common document formats
@@ -63,29 +62,27 @@ export class KYCController {
         } else {
           cb(new Error('Invalid file type. Only images and PDF documents are allowed.'), false);
         }
-      },
-    }),
-  )
+      }
+    }))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Submit KYC documents' })
   @ApiResponse({ status: 201, description: 'KYC documents submitted successfully' })
   @ApiResponse({ status: 400, description: 'Invalid file format or missing required documents' })
   @ApiResponse({ status: 409, description: 'KYC already approved' })
   async submitKYCDocuments(
-    @Request() req,
+    @Req() req,
     @UploadedFiles() files: {
       identity?: Express.Multer.File[];
       proofOfAddress?: Express.Multer.File[];
       selfie?: Express.Multer.File[];
       businessRegistration?: Express.Multer.File[];
-    },
-  ) {
+    }) {
     // Organize files by field name
     const fileMap: any = {
       identity: files.identity?.[0],
       proofOfAddress: files.proofOfAddress?.[0],
       selfie: files.selfie?.[0],
-      businessRegistration: files.businessRegistration?.[0],
+      businessRegistration: files.businessRegistration?.[0]
     };
 
     return this.kycService.submitKYCDocuments(req.user.userId, fileMap);
@@ -94,7 +91,7 @@ export class KYCController {
   @Get('status')
   @ApiOperation({ summary: 'Get KYC verification status' })
   @ApiResponse({ status: 200, description: 'KYC status retrieved successfully' })
-  async getKYCStatus(@Request() req) {
+  async getKYCStatus(@Req() req) {
     return this.kycService.getKYCStatus(req.user.userId);
   }
 
@@ -109,8 +106,7 @@ export class KYCController {
   async approveKYC(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { notes?: string },
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.kycService.approveKYC(id, req.user.userId, body.notes);
   }
 
@@ -125,8 +121,7 @@ export class KYCController {
   async rejectKYC(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { rejectionReason: string; notes?: string },
-    @Request() req,
-  ) {
+    @Req() req) {
     const { rejectionReason, notes } = body;
 
     if (!rejectionReason) {
@@ -151,13 +146,12 @@ export class KYCController {
   @ApiOperation({ summary: 'Initiate identity verification' })
   @ApiResponse({ status: 200, description: 'Identity verification initiated' })
   async verifyIdentity(
-    @Request() req,
+    @Req() req,
     @Body() body: {
       idNumber?: string;
       passportNumber?: string;
       nationality?: string;
-    },
-  ) {
+    }) {
     return this.kycService.verifyIdentity(req.user.userId, body);
   }
 
@@ -172,8 +166,7 @@ export class KYCController {
     @Body() body: {
       requestedDocuments: string[];
       reason: string;
-    },
-  ) {
+    }) {
     const { requestedDocuments, reason } = body;
 
     if (!requestedDocuments || requestedDocuments.length === 0) {

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
-import { MrrService } from './mrr.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
+import { MrrService } from "./mrr.service";
 
 @Injectable()
 export class NrrService {
@@ -11,13 +11,11 @@ export class NrrService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly redisService: RedisService,
-    private readonly mrrService: MrrService,
-  ) {}
+    private readonly mrrService: MrrService) {}
 
   async calculateNRR(
     startDate: Date,
-    endDate: Date,
-  ): Promise<{
+    endDate: Date): Promise<{
     startingMRR: number;
     endingMRR: number;
     expansionMRR: number;
@@ -63,7 +61,7 @@ export class NrrService {
         churnedMRR,
         contractionMRR,
         nrr,
-        nrrPercentage: nrr,
+        nrrPercentage: nrr
       };
 
       await this.redisService.setex(cacheKey, this.CACHE_TTL, JSON.stringify(nrrData));
@@ -80,8 +78,7 @@ export class NrrService {
   async getNRRBySegment(
     segment: 'tier' | 'region' | 'acquisitionChannel',
     startDate: Date,
-    endDate: Date,
-  ): Promise<{
+    endDate: Date): Promise<{
     segment: string;
     nrr: number;
     startingMRR: number;
@@ -133,7 +130,7 @@ export class NrrService {
         expansionMRR: totalExpansionMRR,
         churnedMRR: totalChurnedMRR,
         contractionMRR: totalContractionMRR,
-        segments,
+        segments
       };
 
     } catch (error) {
@@ -169,12 +166,11 @@ export class NrrService {
         const periodDate = new Date(endDate.getFullYear(), endDate.getMonth() - i, 1);
         const nrrData = await this.calculateNRR(
           new Date(periodDate.getFullYear(), periodDate.getMonth(), 1),
-          new Date(periodDate.getFullYear(), periodDate.getMonth() + 1, 0),
-        );
+          new Date(periodDate.getFullYear(), periodDate.getMonth() + 1, 0));
 
         trend.push({
           period: periodDate.toISOString().slice(0, 7), // YYYY-MM
-          ...nrrData,
+          ...nrrData
         });
       }
 
@@ -189,7 +185,7 @@ export class NrrService {
         trend,
         averageNRR,
         bestMonth,
-        worstMonth,
+        worstMonth
       };
 
     } catch (error) {
@@ -209,17 +205,17 @@ export class NrrService {
         status: 'PAID',
         createdAt: {
           gte: previousMonth,
-          lte: previousMonthEnd,
-        },
+          lte: previousMonthEnd
+        }
       },
       include: {
         broker: {
           select: {
             id: true,
-            tier: true,
-          },
-        },
-      },
+            tier: true
+          }
+        }
+      }
     });
 
     // Get broker bills for current period
@@ -228,17 +224,17 @@ export class NrrService {
         status: 'PAID',
         createdAt: {
           gte: startDate,
-          lte: endDate,
-        },
+          lte: endDate
+        }
       },
       include: {
         broker: {
           select: {
             id: true,
-            tier: true,
-          },
-        },
-      },
+            tier: true
+          }
+        }
+      }
     });
 
     // Create maps of MRR by broker
@@ -277,7 +273,7 @@ export class NrrService {
     for (const tier of tiers) {
       const brokersWithTier = await this.prismaService.broker.findMany({
         where: { tier },
-        select: { id: true },
+        select: { id: true }
       });
 
       const brokerIds = brokersWithTier.map(b => b.id);
@@ -287,7 +283,7 @@ export class NrrService {
 
       segments.push({
         value: tier,
-        ...tierMRR,
+        ...tierMRR
       });
     }
 
@@ -299,11 +295,11 @@ export class NrrService {
     const brokers = await this.prismaService.broker.findMany({
       where: {
         region: {
-          not: null,
-        },
+          not: null
+        }
       },
       select: { id: true, region: true },
-      distinct: ['region'],
+      distinct: ['region']
     });
 
     const regions = [...new Set(brokers.map(b => b.region))];
@@ -312,7 +308,7 @@ export class NrrService {
     for (const region of regions) {
       const brokersWithRegion = await this.prismaService.broker.findMany({
         where: { region },
-        select: { id: true },
+        select: { id: true }
       });
 
       const brokerIds = brokersWithRegion.map(b => b.id);
@@ -322,7 +318,7 @@ export class NrrService {
 
       segments.push({
         value: region,
-        ...regionMRR,
+        ...regionMRR
       });
     }
 
@@ -343,9 +339,9 @@ export class NrrService {
         status: 'PAID',
         createdAt: {
           gte: startDate,
-          lte: endDate,
-        },
-      },
+          lte: endDate
+        }
+      }
     });
 
     const endBills = await this.prismaService.brokerBill.findMany({
@@ -354,9 +350,9 @@ export class NrrService {
         status: 'PAID',
         createdAt: {
           gte: new Date(endDate.getFullYear(), endDate.getMonth(), 1),
-          lte: new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0),
-        },
-      },
+          lte: new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0)
+        }
+      }
     });
 
     const startingMRR = startBills.reduce((sum, bill) => sum + bill.baseFee + bill.additionalServices, 0);
@@ -369,7 +365,7 @@ export class NrrService {
       expansionMRR: 0,
       churnedMRR: 0,
       contractionMRR: 0,
-      nrr: startingMRR > 0 ? (endingMRR / startingMRR) * 100 : 100,
+      nrr: startingMRR > 0 ? (endingMRR / startingMRR) * 100 : 100
     };
   }
 }

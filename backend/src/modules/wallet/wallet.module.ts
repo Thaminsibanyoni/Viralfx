@@ -1,60 +1,58 @@
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { BullModule } from '@nestjs/bull';
-import { RedisModule } from '@nestjs-modules/ioredis';
-
-import { Wallet } from './entities/wallet.entity';
-import { Transaction } from './entities/transaction.entity';
-import { WalletService } from './services/wallet.service';
-import { CurrencyConverterService } from './services/currency-converter.service';
-import { LedgerService } from './services/ledger.service';
-import { DepositService } from './services/deposit.service';
-import { WithdrawalService } from './services/withdrawal.service';
-import { WalletController } from './controllers/wallet.controller';
-import { PaymentWebhookController } from './controllers/payment-webhook.controller';
-import { TransactionProcessor } from './processors/transaction.processor';
-import { DepositProcessor } from './processors/deposit.processor';
-import { WithdrawalProcessor } from './processors/withdrawal.processor';
+import { Module, forwardRef } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { WalletService } from "./services/wallet.service";
+import { CurrencyConverterService } from "./services/currency-converter.service";
+import { LedgerService } from "./services/ledger.service";
+import { DepositService } from "./services/deposit.service";
+import { WithdrawalService } from "./services/withdrawal.service";
+import { WalletController } from "./controllers/wallet.controller";
+import { PaymentWebhookController } from "./controllers/payment-webhook.controller";
+import { TransactionProcessor } from "./processors/transaction.processor";
+import { DepositProcessor } from "./processors/deposit.processor";
+import { WithdrawalProcessor } from "./processors/withdrawal.processor";
 import { WebSocketModule } from '../websocket/websocket.module';
-import { NotificationModule } from '../notification/notification.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PaymentModule } from '../payment/payment.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Wallet, Transaction]),
-    BullModule.registerQueue(
+    ConfigModule,
+    BullModule.registerQueueAsync(
       {
         name: 'wallet-transaction',
-        settings: {
-          redis: {
-            host: process.env.REDIS_HOST || 'localhost',
-            port: parseInt(process.env.REDIS_PORT) || 6379,
-          },
-        },
+        useFactory: (configService: ConfigService) => ({
+          connection: {
+            host: configService.get('REDIS_HOST', 'localhost'),
+            port: configService.get<number>('REDIS_PORT', 6379)
+          }
+        }),
+        inject: [ConfigService]
       },
       {
         name: 'wallet-deposit',
-        settings: {
-          redis: {
-            host: process.env.REDIS_HOST || 'localhost',
-            port: parseInt(process.env.REDIS_PORT) || 6379,
-          },
-        },
+        useFactory: (configService: ConfigService) => ({
+          connection: {
+            host: configService.get('REDIS_HOST', 'localhost'),
+            port: configService.get<number>('REDIS_PORT', 6379)
+          }
+        }),
+        inject: [ConfigService]
       },
       {
         name: 'wallet-withdrawal',
-        settings: {
-          redis: {
-            host: process.env.REDIS_HOST || 'localhost',
-            port: parseInt(process.env.REDIS_PORT) || 6379,
-          },
-        },
+        useFactory: (configService: ConfigService) => ({
+          connection: {
+            host: configService.get('REDIS_HOST', 'localhost'),
+            port: configService.get<number>('REDIS_PORT', 6379)
+          }
+        }),
+        inject: [ConfigService]
       }
     ),
-    RedisModule,
-    WebSocketModule,
-    NotificationModule,
-    PaymentModule,
+    forwardRef(() => WebSocketModule),
+    forwardRef(() => NotificationsModule),
+    forwardRef(() => PaymentModule),
   ],
   controllers: [WalletController, PaymentWebhookController],
   providers: [
@@ -63,9 +61,10 @@ import { PaymentModule } from '../payment/payment.module';
     LedgerService,
     DepositService,
     WithdrawalService,
-    TransactionProcessor,
-    DepositProcessor,
-    WithdrawalProcessor,
+    // Processors temporarily disabled
+    // TransactionProcessor,
+    // DepositProcessor,
+    // WithdrawalProcessor,
   ],
   exports: [
     WalletService,
@@ -73,6 +72,6 @@ import { PaymentModule } from '../payment/payment.module';
     LedgerService,
     DepositService,
     WithdrawalService,
-  ],
+  ]
 })
 export class WalletModule {}

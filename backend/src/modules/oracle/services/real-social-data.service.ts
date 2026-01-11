@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SocialMediaPost, PlatformType } from '../interfaces/social-data-integration.interface';
-import { TwitterConnector } from '../../ingest/connectors/twitter.connector';
-import { TikTokConnector } from '../../ingest/connectors/tiktok.connector';
-import { InstagramConnector } from '../../ingest/connectors/instagram.connector';
-import { YouTubeConnector } from '../../ingest/connectors/youtube.connector';
-import { FacebookConnector } from '../../ingest/connectors/facebook.connector';
-import { Content } from '../../ingest/interfaces/ingest.interface';
+import { TwitterConnector } from "../../ingest/connectors/twitter.connector";
+import { TikTokConnector } from "../../ingest/connectors/tiktok.connector";
+import { InstagramConnector } from "../../ingest/connectors/instagram.connector";
+import { YouTubeConnector } from "../../ingest/connectors/youtube.connector";
+import { FacebookConnector } from "../../ingest/connectors/facebook.connector";
+import { Content } from "../../ingest/interfaces/ingest.interface";
 
 /**
  * Real Social Data Service - Oracle Phase 2 (Real APIs)
@@ -28,8 +28,7 @@ export class RealSocialDataService {
     private readonly tiktokConnector: TikTokConnector,
     private readonly instagramConnector: InstagramConnector,
     private readonly youtubeConnector: YouTubeConnector,
-    private readonly facebookConnector: FacebookConnector,
-  ) {}
+    private readonly facebookConnector: FacebookConnector) {}
 
   async getTrendingTikTokVideos(limit: number = 50): Promise<SocialMediaPost[]> {
     this.logger.log(`📱 Fetching ${limit} trending TikTok videos`);

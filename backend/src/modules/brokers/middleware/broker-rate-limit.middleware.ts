@@ -2,8 +2,7 @@ import { Injectable, NestMiddleware, HttpException, HttpStatus, Logger } from '@
 import { Request, Response, NextFunction } from 'express';
 import Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
-import { Broker } from '../entities/broker.entity';
-import { BrokerTier } from '../entities/broker.entity';
+import { Broker, BrokerTier } from '@prisma/client';
 
 export interface BrokerRateLimitRequest extends Request {
   broker?: Broker;
@@ -19,27 +18,27 @@ export class BrokerRateLimitMiddleware implements NestMiddleware {
     this.redis = new Redis({
       host: this.configService.get('REDIS_HOST', 'localhost'),
       port: this.configService.get('REDIS_PORT', 6379),
-      password: this.configService.get('REDIS_PASSWORD'),
+      password: this.configService.get('REDIS_PASSWORD')
     });
 
     // Define rate limits by broker tier
     this.rateLimits = {
       [BrokerTier.STARTER]: {
         requests: 100, // 100 requests per minute
-        window: 60 * 1000, // 1 minute
+        window: 60 * 1000 // 1 minute
       },
       [BrokerTier.VERIFIED]: {
         requests: 500, // 500 requests per minute
-        window: 60 * 1000, // 1 minute
+        window: 60 * 1000 // 1 minute
       },
       [BrokerTier.PREMIUM]: {
         requests: 2000, // 2000 requests per minute
-        window: 60 * 1000, // 1 minute
+        window: 60 * 1000 // 1 minute
       },
       [BrokerTier.ENTERPRISE]: {
         requests: -1, // Unlimited
-        window: 60 * 1000, // 1 minute
-      },
+        window: 60 * 1000 // 1 minute
+      }
     };
   }
 
@@ -92,11 +91,10 @@ export class BrokerRateLimitMiddleware implements NestMiddleware {
             details: {
               limit: rateLimitConfig.requests,
               windowMs: rateLimitConfig.window,
-              retryAfter: Math.ceil(resetTime / 1000),
-            },
+              retryAfter: Math.ceil(resetTime / 1000)
+            }
           },
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
+          HttpStatus.TOO_MANY_REQUESTS);
       }
 
       next();
@@ -135,8 +133,7 @@ export class BrokerRateLimitMiddleware implements NestMiddleware {
     res: Response,
     limit: number,
     remaining: number,
-    resetTime?: number,
-  ): void {
+    resetTime?: number): void {
     if (limit === -1) {
       res.setHeader('X-RateLimit-Limit', 'unlimited');
       res.setHeader('X-RateLimit-Remaining', 'unlimited');
@@ -156,8 +153,7 @@ export class BrokerRateLimitMiddleware implements NestMiddleware {
     broker: Broker,
     clientIp: string,
     path: string,
-    method: string,
-  ): Promise<void> {
+    method: string): Promise<void> {
     try {
       const violationLog = {
         brokerId: broker.id,
@@ -166,7 +162,7 @@ export class BrokerRateLimitMiddleware implements NestMiddleware {
         path,
         method,
         tier: broker.tier,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
 
       // Log to Redis for monitoring
@@ -198,7 +194,7 @@ export class BrokerRateLimitMiddleware implements NestMiddleware {
         windowMs: rateLimitConfig.window,
         remaining: Math.max(0, rateLimitConfig.requests - parseInt(currentCount || '0')),
         resetTime: resetTime > 0 ? Date.now() + resetTime : null,
-        isUnlimited: rateLimitConfig.requests === -1,
+        isUnlimited: rateLimitConfig.requests === -1
       };
     } catch (error) {
       throw new Error('Failed to get rate limit stats');
@@ -260,7 +256,7 @@ export class BrokerRateLimitMiddleware implements NestMiddleware {
         topViolators: Object.entries(violationsByBroker)
           .sort(([, a], [, b]) => b - a)
           .slice(0, 10)
-          .map(([brokerId, count]) => ({ brokerId, count })),
+          .map(([brokerId, count]) => ({ brokerId, count }))
       };
     } catch (error) {
       throw new Error('Failed to get violation stats');

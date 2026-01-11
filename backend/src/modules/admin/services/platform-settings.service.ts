@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { AdminWebSocketService } from '../services/admin-websocket.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { AdminWebSocketService } from "./admin-websocket.service";
 import { Redis } from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 
@@ -12,8 +12,7 @@ export class PlatformSettingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly adminWebSocketService: AdminWebSocketService,
-    @InjectRedis() private readonly redis: Redis,
-  ) {}
+    @InjectRedis() private readonly redis: Redis) {}
 
   async getAllSettings() {
     const cacheKey = 'platform:settings:all';
@@ -56,7 +55,7 @@ export class PlatformSettingsService {
         value,
         type: setting.type,
         description: setting.description,
-        updatedAt: setting.updatedAt,
+        updatedAt: setting.updatedAt
       };
 
       return acc;
@@ -104,7 +103,7 @@ export class PlatformSettingsService {
       type: setting.type,
       category: setting.category,
       description: setting.description,
-      updatedAt: setting.updatedAt,
+      updatedAt: setting.updatedAt
     };
 
     // Cache the result
@@ -144,7 +143,7 @@ export class PlatformSettingsService {
       data: {
         value: stringValue,
         updatedBy: adminId,
-        updatedAt: new Date(),
+        updatedAt: new Date()
       }
     });
 
@@ -159,7 +158,7 @@ export class PlatformSettingsService {
       type: setting.type,
       category: setting.category,
       updatedBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`Setting ${key} updated by admin ${adminId}`);
@@ -201,7 +200,7 @@ export class PlatformSettingsService {
         key: true,
         value: true,
         description: true,
-        updatedAt: true,
+        updatedAt: true
       }
     });
 
@@ -209,7 +208,7 @@ export class PlatformSettingsService {
       acc[flag.key] = {
         enabled: flag.value === 'true',
         description: flag.description,
-        lastUpdated: flag.updatedAt,
+        lastUpdated: flag.updatedAt
       };
       return acc;
     }, {} as Record<string, any>);
@@ -245,7 +244,7 @@ export class PlatformSettingsService {
     await this.adminWebSocketService.broadcastToAdmins('admin:maintenance:changed', {
       enabled,
       message,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     return maintenanceResult;
@@ -281,7 +280,7 @@ export class PlatformSettingsService {
     await this.adminWebSocketService.broadcastToAdmins('admin:branding:updated', {
       branding,
       updatedBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     return results;
@@ -317,7 +316,7 @@ export class PlatformSettingsService {
     await this.adminWebSocketService.broadcastToAdmins('admin:trading:rules:updated', {
       tradingRules,
       updatedBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     return results;
@@ -333,7 +332,7 @@ export class PlatformSettingsService {
         key: true,
         value: true,
         description: true,
-        updatedAt: true,
+        updatedAt: true
       }
     });
 
@@ -342,7 +341,7 @@ export class PlatformSettingsService {
         acc[template.key] = {
           ...JSON.parse(template.value),
           description: template.description,
-          lastUpdated: template.updatedAt,
+          lastUpdated: template.updatedAt
         };
       } catch (e) {
         this.logger.warn(`Failed to parse notification template ${template.key}:`, e);
@@ -412,7 +411,7 @@ export class PlatformSettingsService {
         value,
         type: setting.type,
         description: setting.description,
-        updatedAt: setting.updatedAt,
+        updatedAt: setting.updatedAt
       };
       return acc;
     }, {} as Record<string, any>);
@@ -488,7 +487,7 @@ export class PlatformSettingsService {
         await this.prisma.platformSetting.create({
           data: {
             ...setting,
-            updatedBy: 'system',
+            updatedBy: 'system'
           }
         });
       }

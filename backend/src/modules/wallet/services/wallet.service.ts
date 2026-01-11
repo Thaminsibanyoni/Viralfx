@@ -1,41 +1,30 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
-
-import { Wallet } from '../entities/wallet.entity';
-import { Transaction } from '../entities/transaction.entity';
 import { WalletTransactionDto } from '../dto/wallet-transaction.dto';
-import { LedgerService } from './ledger.service';
-import { CurrencyConverterService } from './currency-converter.service';
-import { WebSocketGateway } from '../../websocket/gateways/websocket.gateway';
-import { RecordTransactionParams, ConversionResult, PortfolioValue } from '../../order-matching/interfaces/order-matching.interface';
+import { LedgerService } from "./ledger.service";
+import { CurrencyConverterService } from "./currency-converter.service";
+import { RecordTransactionParams, ConversionResult, PortfolioValue } from "../../order-matching/interfaces/order-matching.interface";
 
 @Injectable()
 export class WalletService {
   private readonly logger = new Logger(WalletService.name);
 
   constructor(
-    @InjectRepository(Wallet)
-    private readonly walletRepository: Repository<Wallet>,
-    @InjectRepository(Transaction)
-    private readonly transactionRepository: Repository<Transaction>,
-    private readonly dataSource: DataSource,
+    private readonly prisma: PrismaService,
     @InjectRedis() private readonly redis: Redis,
     private readonly ledgerService: LedgerService,
-    private readonly currencyConverterService: CurrencyConverterService,
-    private readonly webSocketGateway: WebSocketGateway,
-  ) {}
+    private readonly currencyConverterService: CurrencyConverterService) {}
 
   /**
    * Create a new wallet for a user
    */
-  async createWallet(userId: string, currency: string, type: 'TRADING' | 'SAVINGS' = 'TRADING'): Promise<Wallet> {
+  async createWallet(userId: string, currency: string, type: 'TRADING' | 'SAVINGS' = 'TRADING'): Promise<any> {
     try {
       // Check if wallet already exists
-      const existingWallet = await this.walletRepository.findOne({
-        where: { userId, currency, wallet_type: type }
+      const existingWallet = await this.prisma.wallet.findFirst({
+        where: { userId, currency, walletType: type }
       });
 
       if (existingWallet) {
@@ -43,19 +32,19 @@ export class WalletService {
       }
 
       // Create new wallet
-      const wallet = this.walletRepository.create({
-        userId,
-        currency: currency as any,
-        wallet_type: type,
-        is_default: type === 'TRADING', // Make trading wallet default
-        daily_reset: this.getNextDayStart(),
-        monthly_reset: this.getNextMonthStart()
+      const wallet = await this.prisma.wallet.create({
+        data: {
+          userId,
+          currency,
+          walletType: type,
+          isDefault: type === 'TRADING',
+          dailyReset: this.getNextDayStart(),
+          monthlyReset: this.getNextMonthStart()
+        }
       });
 
-      const savedWallet = await this.walletRepository.save(wallet);
-
       this.logger.log(`Created new ${type} wallet for user ${userId} in ${currency}`);
-      return savedWallet;
+      return wallet;
     } catch (error) {
       this.logger.error('Failed to create wallet:', error);
       throw error;
@@ -65,11 +54,11 @@ export class WalletService {
   /**
    * Get or create wallet for user and currency
    */
-  async getOrCreateWallet(userId: string, currency: string): Promise<Wallet> {
+  async getOrCreateWallet(userId: string, currency: string): Promise<any> {
     try {
       // Try to get existing wallet
-      let wallet = await this.walletRepository.findOne({
-        where: { userId, currency: currency as any }
+      let wallet = await this.prisma.wallet.findFirst({
+        where: { userId, currency }
       });
 
       // Create if doesn't exist
@@ -87,11 +76,11 @@ export class WalletService {
   /**
    * Get all wallets for a user with balances
    */
-  async getWalletsByUserId(userId: string): Promise<Wallet[]> {
+  async getWalletsByUserId(userId: string): Promise<any[]> {
     try {
-      return await this.walletRepository.find({
+      return await this.prisma.wallet.findMany({
         where: { userId },
-        order: { created_at: 'ASC' }
+        orderBy: { createdAt: 'asc' }
       });
     } catch (error) {
       this.logger.error(`Failed to get wallets for user ${userId}:`, error);
@@ -107,112 +96,103 @@ export class WalletService {
     toWalletId: string,
     amount: number
   ): Promise<ConversionResult> {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
     try {
-      // Get both wallets
-      const [fromWallet, toWallet] = await Promise.all([
-        queryRunner.manager.findOne(Wallet, { where: { id: fromWalletId } }),
-        queryRunner.manager.findOne(Wallet, { where: { id: toWalletId } }),
-      ]);
+      return await this.prisma.$transaction(async (tx) => {
+        // Get both wallets
+        const [fromWallet, toWallet] = await Promise.all([
+          tx.wallet.findUnique({ where: { id: fromWalletId } }),
+          tx.wallet.findUnique({ where: { id: toWalletId } }),
+        ]);
 
-      if (!fromWallet || !toWallet) {
-        throw new Error('One or both wallets not found');
-      }
+        if (!fromWallet || !toWallet) {
+          throw new Error('One or both wallets not found');
+        }
 
-      // Check if same wallet
-      if (fromWalletId === toWalletId) {
-        throw new Error('Cannot transfer to the same wallet');
-      }
+        // Check if same wallet
+        if (fromWalletId === toWalletId) {
+          throw new Error('Cannot transfer to the same wallet');
+        }
 
-      // Convert currency if different
-      if (fromWallet.currency !== toWallet.currency) {
-        const exchangeRate = await this.currencyConverterService.getExchangeRate(
-          fromWallet.currency,
-          toWallet.currency
-        );
+        // Convert currency if different
+        if (fromWallet.currency !== toWallet.currency) {
+          const exchangeRate = await this.currencyConverterService.getExchangeRate(
+            fromWallet.currency,
+            toWallet.currency
+          );
 
-        const conversionFee = amount * 0.005; // 0.5% conversion fee
-        const netAmount = amount - conversionFee;
-        const convertedAmount = netAmount * exchangeRate;
+          const conversionFee = amount * 0.005; // 0.5% conversion fee
+          const netAmount = amount - conversionFee;
+          const convertedAmount = netAmount * exchangeRate;
 
-        // Create withdrawal transaction
-        const withdrawalTx = await this.ledgerService.recordTransaction({
-          walletId: fromWalletId,
-          userId: fromWallet.userId,
-          type: 'TRANSFER_OUT',
-          amount: amount,
-          currency: fromWallet.currency,
-          description: `Currency conversion to ${toWallet.currency}`,
-          metadata: {
+          // Create withdrawal transaction
+          const withdrawalTx = await this.ledgerService.recordTransaction({
+            walletId: fromWalletId,
+            userId: fromWallet.userId,
+            type: 'TRANSFER_OUT',
+            amount: amount,
+            currency: fromWallet.currency,
+            description: `Currency conversion to ${toWallet.currency}`,
+            metadata: {
+              exchangeRate,
+              conversionFee,
+              targetCurrency: toWallet.currency,
+              targetAmount: convertedAmount
+            },
+            referenceId: fromWalletId,
+            referenceType: 'CURRENCY_CONVERSION'
+          });
+
+          // Create deposit transaction
+          const depositTx = await this.ledgerService.recordTransaction({
+            walletId: toWalletId,
+            userId: toWallet.userId,
+            type: 'TRANSFER_IN',
+            amount: convertedAmount,
+            currency: toWallet.currency,
+            description: `Currency conversion from ${fromWallet.currency}`,
+            metadata: {
+              exchangeRate,
+              conversionFee,
+              sourceCurrency: fromWallet.currency,
+              sourceAmount: netAmount
+            },
+            referenceId: toWalletId,
+            referenceType: 'CURRENCY_CONVERSION'
+          });
+
+          return {
+            fromWalletId,
+            toWalletId,
+            fromAmount: amount,
+            toAmount: convertedAmount,
             exchangeRate,
-            conversionFee,
-            targetCurrency: toWallet.currency,
-            targetAmount: convertedAmount,
-          },
-          referenceId: fromWalletId,
-          referenceType: 'CURRENCY_CONVERSION',
-        });
+            fee: conversionFee,
+            transactions: [withdrawalTx, depositTx]
+          };
+        } else {
+          // Simple transfer between same currency wallets
+          const transactions = await this.ledgerService.recordDoubleEntry(
+            fromWalletId,
+            toWalletId,
+            amount,
+            fromWallet.currency,
+            'Wallet transfer'
+          );
 
-        // Create deposit transaction
-        const depositTx = await this.ledgerService.recordTransaction({
-          walletId: toWalletId,
-          userId: toWallet.userId,
-          type: 'TRANSFER_IN',
-          amount: convertedAmount,
-          currency: toWallet.currency,
-          description: `Currency conversion from ${fromWallet.currency}`,
-          metadata: {
-            exchangeRate,
-            conversionFee,
-            sourceCurrency: fromWallet.currency,
-            sourceAmount: netAmount,
-          },
-          referenceId: toWalletId,
-          referenceType: 'CURRENCY_CONVERSION',
-        });
-
-        await queryRunner.commitTransaction();
-
-        return {
-          fromWalletId,
-          toWalletId,
-          fromAmount: amount,
-          toAmount: convertedAmount,
-          exchangeRate,
-          fee: conversionFee,
-          transactions: [withdrawalTx, depositTx],
-        };
-      } else {
-        // Simple transfer between same currency wallets
-        const transactions = await this.ledgerService.recordDoubleEntry(
-          fromWalletId,
-          toWalletId,
-          amount,
-          fromWallet.currency,
-          'Wallet transfer'
-        );
-
-        await queryRunner.commitTransaction();
-
-        return {
-          fromWalletId,
-          toWalletId,
-          fromAmount: amount,
-          toAmount: amount,
-          exchangeRate: 1,
-          fee: 0,
-          transactions,
-        };
-      }
+          return {
+            fromWalletId,
+            toWalletId,
+            fromAmount: amount,
+            toAmount: amount,
+            exchangeRate: 1,
+            fee: 0,
+            transactions
+          };
+        }
+      });
     } catch (error) {
-      await queryRunner.rollbackTransaction();
       this.logger.error('Failed to convert and transfer:', error);
       throw error;
-    } finally {
-      await queryRunner.release();
     }
   }
 
@@ -236,7 +216,7 @@ export class WalletService {
       const walletDetails = [];
 
       for (const wallet of wallets) {
-        const walletValue = wallet.total_balance;
+        const walletValue = Number(wallet.totalBalance) || 0;
 
         // Convert to ZAR and USD
         const [valueZAR, valueUSD] = await Promise.all([
@@ -253,9 +233,9 @@ export class WalletService {
 
         walletDetails.push({
           currency: wallet.currency,
-          balance: wallet.total_balance,
+          balance: walletValue,
           valueZAR,
-          valueUSD,
+          valueUSD
         });
       }
 
@@ -263,7 +243,7 @@ export class WalletService {
         totalValueZAR,
         totalValueUSD,
         wallets: walletDetails,
-        lastUpdated: new Date(),
+        lastUpdated: new Date()
       };
 
       // Cache for 1 minute
@@ -277,13 +257,13 @@ export class WalletService {
   }
 
   /**
-   * Process transaction using ledger service (ledger-based implementation)
+   * Process transaction using ledger service
    */
-  async processTransaction(params: RecordTransactionParams): Promise<Transaction>;
-  async processTransaction(transactionDto: WalletTransactionDto): Promise<Transaction>;
-  async processTransaction(params: RecordTransactionParams | WalletTransactionDto): Promise<Transaction> {
+  async processTransaction(params: RecordTransactionParams): Promise<any>;
+  async processTransaction(transactionDto: WalletTransactionDto): Promise<any>;
+  async processTransaction(params: RecordTransactionParams | WalletTransactionDto): Promise<any> {
     try {
-      let transaction: Transaction;
+      let transaction: any;
 
       if ('walletId' in params && 'userId' in params) {
         // New ledger-based implementation
@@ -302,7 +282,7 @@ export class WalletService {
   }
 
   /**
-   * Lock funds for an order (ledger-based implementation)
+   * Lock funds for an order
    */
   async lockFunds(
     userId: string,
@@ -314,18 +294,18 @@ export class WalletService {
   async lockFunds(
     param1: string,
     amount: number,
-    param3: string | number,
+    param3: string,
     description?: string
   ): Promise<{ success: boolean; message?: string } | void> {
     try {
-      // New ledger-based implementation (userId + amount + currency + description)
+      // New ledger-based implementation
       if (description !== undefined && typeof param3 === 'string') {
         const userId = param1;
         const currency = param3;
 
         const wallet = await this.getOrCreateWallet(userId, currency);
 
-        if (wallet.available_balance < amount) {
+        if (Number(wallet.availableBalance) < amount) {
           return { success: false, message: 'Insufficient available balance' };
         }
 
@@ -337,50 +317,52 @@ export class WalletService {
           currency,
           description,
           referenceId: wallet.id,
-          referenceType: 'ORDER_LOCK',
+          referenceType: 'ORDER_LOCK'
         });
 
         return { success: true };
       } else {
-        // Legacy implementation (walletId + amount + orderId)
+        // Legacy implementation
         const walletId = param1;
         const orderId = param3 as string;
 
-        return await this.dataSource.transaction(async manager => {
-          const wallet = await manager.findOne(Wallet, {
-            where: { id: walletId }
-          });
+        await this.prisma.$transaction(async (tx) => {
+          const wallet = await tx.wallet.findUnique({ where: { id: walletId } });
 
           if (!wallet) {
             throw new NotFoundException('Wallet not found');
           }
 
-          if (wallet.available_balance < amount) {
+          if (Number(wallet.availableBalance) < amount) {
             throw new BadRequestException('Insufficient available balance');
           }
 
           // Update wallet
-          wallet.available_balance -= amount;
-          wallet.locked_balance += amount;
-          wallet.last_activity = new Date();
-          await manager.save(wallet);
-
-          // Create lock transaction
-          const lockTransaction = manager.create(Transaction, {
-            walletId,
-            userId: wallet.userId,
-            type: 'LOCK',
-            amount,
-            currency: wallet.currency,
-            status: 'COMPLETED',
-            description: `Funds locked for order ${orderId}`,
-            metadata: { orderId }
+          await tx.wallet.update({
+            where: { id: walletId },
+            data: {
+              availableBalance: { decrement: amount },
+              lockedBalance: { increment: amount },
+              lastActivity: new Date()
+            }
           });
 
-          await manager.save(lockTransaction);
+          // Create lock transaction
+          await tx.transaction.create({
+            data: {
+              walletId,
+              userId: wallet.userId,
+              type: 'LOCK',
+              amount,
+              currency: wallet.currency,
+              status: 'COMPLETED',
+              description: `Funds locked for order ${orderId}`,
+              metadata: { orderId }
+            }
+          });
 
           // Cache updated balance
-          await this.cacheWalletBalance(walletId, wallet.available_balance);
+          await this.cacheWalletBalance(walletId, Number(wallet.availableBalance) - amount);
         });
       }
     } catch (error) {
@@ -390,7 +372,7 @@ export class WalletService {
   }
 
   /**
-   * Unlock funds from cancelled/failed order (ledger-based implementation)
+   * Unlock funds from cancelled/failed order
    */
   async unlockFunds(
     userId: string,
@@ -406,7 +388,7 @@ export class WalletService {
     description?: string
   ): Promise<void> {
     try {
-      // New ledger-based implementation (userId + amount + currency + description)
+      // New ledger-based implementation
       if (description !== undefined) {
         const userId = param1;
         const currency = param3;
@@ -421,44 +403,46 @@ export class WalletService {
           currency,
           description,
           referenceId: wallet.id,
-          referenceType: 'ORDER_UNLOCK',
+          referenceType: 'ORDER_UNLOCK'
         });
       } else {
-        // Legacy implementation (walletId + amount + orderId)
+        // Legacy implementation
         const walletId = param1;
         const orderId = param3;
 
-        return await this.dataSource.transaction(async manager => {
-          const wallet = await manager.findOne(Wallet, {
-            where: { id: walletId }
-          });
+        await this.prisma.$transaction(async (tx) => {
+          const wallet = await tx.wallet.findUnique({ where: { id: walletId } });
 
           if (!wallet) {
             throw new NotFoundException('Wallet not found');
           }
 
           // Update wallet
-          wallet.available_balance += amount;
-          wallet.locked_balance -= amount;
-          wallet.last_activity = new Date();
-          await manager.save(wallet);
-
-          // Create unlock transaction
-          const unlockTransaction = manager.create(Transaction, {
-            walletId,
-            userId: wallet.userId,
-            type: 'UNLOCK',
-            amount,
-            currency: wallet.currency,
-            status: 'COMPLETED',
-            description: `Funds unlocked for order ${orderId}`,
-            metadata: { orderId }
+          await tx.wallet.update({
+            where: { id: walletId },
+            data: {
+              availableBalance: { increment: amount },
+              lockedBalance: { decrement: amount },
+              lastActivity: new Date()
+            }
           });
 
-          await manager.save(unlockTransaction);
+          // Create unlock transaction
+          await tx.transaction.create({
+            data: {
+              walletId,
+              userId: wallet.userId,
+              type: 'UNLOCK',
+              amount,
+              currency: wallet.currency,
+              status: 'COMPLETED',
+              description: `Funds unlocked for order ${orderId}`,
+              metadata: { orderId }
+            }
+          });
 
           // Cache updated balance
-          await this.cacheWalletBalance(walletId, wallet.available_balance);
+          await this.cacheWalletBalance(walletId, Number(wallet.availableBalance) + amount);
         });
       }
     } catch (error) {
@@ -470,8 +454,8 @@ export class WalletService {
   /**
    * Get wallet by ID
    */
-  async getWallet(walletId: string): Promise<Wallet> {
-    const wallet = await this.walletRepository.findOne({ where: { id: walletId } });
+  async getWallet(walletId: string): Promise<any> {
+    const wallet = await this.prisma.wallet.findFirst({ where: { id: walletId } });
     if (!wallet) {
       throw new NotFoundException('Wallet not found');
     }
@@ -479,11 +463,25 @@ export class WalletService {
   }
 
   /**
+   * Get a single transaction by ID for a wallet
+   */
+  async getTransaction(walletId: string, transactionId: string): Promise<any> {
+    const transaction = await this.prisma.transaction.findFirst({
+      where: {
+        id: transactionId,
+        walletId: walletId
+      }
+    });
+
+    return transaction;
+  }
+
+  /**
    * Get user's wallet by currency
    */
-  async getUserWallet(userId: string, currency: string): Promise<Wallet> {
-    const wallet = await this.walletRepository.findOne({
-      where: { userId, currency: currency as any }
+  async getUserWallet(userId: string, currency: string): Promise<any> {
+    const wallet = await this.prisma.wallet.findFirst({
+      where: { userId, currency }
     });
     if (!wallet) {
       throw new NotFoundException(`Wallet not found for user ${userId} and currency ${currency}`);
@@ -494,19 +492,19 @@ export class WalletService {
   /**
    * Get all wallets for a user
    */
-  async getUserWallets(userId: string): Promise<Wallet[]> {
-    return this.walletRepository.find({
+  async getUserWallets(userId: string): Promise<any[]> {
+    return this.prisma.wallet.findMany({
       where: { userId },
-      order: { created_at: 'ASC' }
+      orderBy: { createdAt: 'asc' }
     });
   }
 
   /**
    * Process legacy wallet transaction using WalletTransactionDto
    */
-  private async processLegacyTransaction(transactionDto: WalletTransactionDto): Promise<Transaction> {
-    return await this.dataSource.transaction(async manager => {
-      const wallet = await manager.findOne(Wallet, {
+  private async processLegacyTransaction(transactionDto: WalletTransactionDto): Promise<any> {
+    return await this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.wallet.findUnique({
         where: { id: transactionDto.walletId }
       });
 
@@ -518,37 +516,41 @@ export class WalletService {
       this.validateTransaction(wallet, transactionDto);
 
       // Create transaction record
-      const transaction = manager.create(Transaction, {
-        walletId: transactionDto.walletId,
-        userId: wallet.userId,
-        type: transactionDto.type,
-        amount: transactionDto.amount,
-        currency: wallet.currency,
-        status: 'PROCESSING',
-        description: transactionDto.description,
-        metadata: transactionDto.metadata
+      const transaction = await tx.transaction.create({
+        data: {
+          walletId: transactionDto.walletId,
+          userId: wallet.userId,
+          type: transactionDto.type,
+          amount: transactionDto.amount,
+          currency: wallet.currency,
+          status: 'PROCESSING',
+          description: transactionDto.description,
+          metadata: transactionDto.metadata
+        }
       });
 
-      const savedTransaction = await manager.save(transaction);
-
       // Update wallet balance
-      await this.updateWalletBalance(manager, wallet, transactionDto);
+      await this.updateWalletBalance(tx, wallet, transactionDto);
 
       // Update transaction status
-      savedTransaction.status = 'COMPLETED';
-      savedTransaction.completed_at = new Date();
-      await manager.save(savedTransaction);
+      await tx.transaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date()
+        }
+      });
 
       // Update daily/monthly usage for withdrawals
       if (transactionDto.type === 'WITHDRAWAL') {
-        await this.updateUsageLimits(manager, wallet, transactionDto.amount);
+        await this.updateUsageLimits(tx, wallet, transactionDto.amount);
       }
 
       // Cache wallet balance for quick access
-      await this.cacheWalletBalance(wallet.id, wallet.available_balance);
+      await this.cacheWalletBalance(wallet.id, Number(wallet.availableBalance));
 
-      this.logger.log(`Processed ${transactionDto.type} transaction: ${savedTransaction.id}`);
-      return savedTransaction;
+      this.logger.log(`Processed ${transactionDto.type} transaction: ${transaction.id}`);
+      return transaction;
     });
   }
 
@@ -562,18 +564,18 @@ export class WalletService {
       if (cachedBalance) {
         const balance = JSON.parse(cachedBalance);
         return {
-          available: balance.available,
-          locked: balance.locked,
-          total: balance.total
+          available: Number(balance.available),
+          locked: Number(balance.locked),
+          total: Number(balance.total)
         };
       }
 
       // Get from database
       const wallet = await this.getWallet(walletId);
       return {
-        available: wallet.available_balance,
-        locked: wallet.locked_balance,
-        total: wallet.total_balance
+        available: Number(wallet.availableBalance),
+        locked: Number(wallet.lockedBalance),
+        total: Number(wallet.totalBalance)
       };
     } catch (error) {
       this.logger.error('Failed to get wallet balance:', error);
@@ -590,30 +592,29 @@ export class WalletService {
     type?: string;
     fromDate?: Date;
     toDate?: Date;
-  } = {}): Promise<{ transactions: Transaction[]; total: number }> {
+  } = {}): Promise<{ transactions: any[]; total: number }> {
     try {
-      const query = this.transactionRepository.createQueryBuilder('transaction')
-        .where('walletId = :walletId', { walletId });
+      const where: any = { walletId };
 
       if (options.type) {
-        query.andWhere('type = :type', { type: options.type });
+        where.type = options.type;
       }
 
-      if (options.fromDate) {
-        query.andWhere('created_at >= :fromDate', { fromDate: options.fromDate });
+      if (options.fromDate || options.toDate) {
+        where.createdAt = {};
+        if (options.fromDate) where.createdAt.gte = options.fromDate;
+        if (options.toDate) where.createdAt.lte = options.toDate;
       }
 
-      if (options.toDate) {
-        query.andWhere('created_at <= :toDate', { toDate: options.toDate });
-      }
-
-      const total = await query.getCount();
-
-      query.orderBy('created_at', 'DESC')
-        .limit(options.limit || 50)
-        .offset(options.offset || 0);
-
-      const transactions = await query.getMany();
+      const [total, transactions] = await Promise.all([
+        this.prisma.transaction.count({ where }),
+        this.prisma.transaction.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          take: options.limit || 50,
+          skip: options.offset || 0
+        })
+      ]);
 
       return { transactions, total };
     } catch (error) {
@@ -630,20 +631,14 @@ export class WalletService {
       const wallet = await this.getWallet(walletId);
 
       // Check daily limit
-      if (wallet.is_daily_limit_exceeded) {
-        return { allowed: false, reason: 'Daily withdrawal limit exceeded' };
-      }
+      const dailyRemaining = Number(wallet.dailyLimit) - Number(wallet.dailyUsed);
+      const monthlyRemaining = Number(wallet.monthlyLimit) - Number(wallet.monthlyUsed);
 
-      if (wallet.daily_limit_remaining < amount) {
+      if (dailyRemaining < amount) {
         return { allowed: false, reason: 'Insufficient daily limit remaining' };
       }
 
-      // Check monthly limit
-      if (wallet.is_monthly_limit_exceeded) {
-        return { allowed: false, reason: 'Monthly withdrawal limit exceeded' };
-      }
-
-      if (wallet.monthly_limit_remaining < amount) {
+      if (monthlyRemaining < amount) {
         return { allowed: false, reason: 'Insufficient monthly limit remaining' };
       }
 
@@ -657,16 +652,14 @@ export class WalletService {
   /**
    * Update wallet settings
    */
-  async updateWalletSettings(walletId: string, settings: Partial<Wallet['settings']>): Promise<Wallet> {
+  async updateWalletSettings(walletId: string, settings: any): Promise<any> {
     try {
-      const wallet = await this.getWallet(walletId);
-
-      wallet.settings = {
-        ...wallet.settings,
-        ...settings
-      };
-
-      await this.walletRepository.save(wallet);
+      const wallet = await this.prisma.wallet.update({
+        where: { id: walletId },
+        data: {
+          settings: settings
+        }
+      });
 
       this.logger.log(`Updated settings for wallet ${walletId}`);
       return wallet;
@@ -679,18 +672,18 @@ export class WalletService {
   /**
    * Freeze wallet (admin function)
    */
-  async freezeWallet(walletId: string, reason: string): Promise<Wallet> {
+  async freezeWallet(walletId: string, reason: string): Promise<any> {
     try {
-      const wallet = await this.getWallet(walletId);
-
-      wallet.status = 'FROZEN';
-      wallet.metadata = {
-        ...wallet.metadata,
-        freeze_reason: reason,
-        frozen_at: new Date()
-      };
-
-      await this.walletRepository.save(wallet);
+      const wallet = await this.prisma.wallet.update({
+        where: { id: walletId },
+        data: {
+          status: 'FROZEN',
+          metadata: {
+            freezeReason: reason,
+            frozenAt: new Date()
+          }
+        }
+      });
 
       this.logger.log(`Froze wallet ${walletId}: ${reason}`);
       return wallet;
@@ -703,19 +696,18 @@ export class WalletService {
   /**
    * Unfreeze wallet (admin function)
    */
-  async unfreezeWallet(walletId: string): Promise<Wallet> {
+  async unfreezeWallet(walletId: string): Promise<any> {
     try {
-      const wallet = await this.getWallet(walletId);
-
-      wallet.status = 'ACTIVE';
-      wallet.metadata = {
-        ...wallet.metadata,
-        freeze_reason: null,
-        frozen_at: null,
-        unfrozen_at: new Date()
-      };
-
-      await this.walletRepository.save(wallet);
+      const wallet = await this.prisma.wallet.update({
+        where: { id: walletId },
+        data: {
+          status: 'ACTIVE',
+          metadata: {
+            freezeReason: null,
+            unfrozenAt: new Date()
+          }
+        }
+      });
 
       this.logger.log(`Unfroze wallet ${walletId}`);
       return wallet;
@@ -728,7 +720,7 @@ export class WalletService {
   /**
    * Validate transaction
    */
-  private validateTransaction(wallet: Wallet, transaction: WalletTransactionDto): void {
+  private validateTransaction(wallet: any, transaction: WalletTransactionDto): void {
     // Check wallet status
     if (wallet.status !== 'ACTIVE') {
       throw new BadRequestException('Wallet is not active');
@@ -736,7 +728,7 @@ export class WalletService {
 
     // Check withdrawal limits
     if (transaction.type === 'WITHDRAWAL') {
-      if (wallet.available_balance < transaction.amount) {
+      if (Number(wallet.availableBalance) < transaction.amount) {
         throw new BadRequestException('Insufficient available balance');
       }
     }
@@ -754,55 +746,55 @@ export class WalletService {
   /**
    * Update wallet balance
    */
-  private async updateWalletBalance(manager: any, wallet: Wallet, transaction: WalletTransactionDto): Promise<void> {
+  private async updateWalletBalance(tx: any, wallet: any, transaction: WalletTransactionDto): Promise<void> {
+    let availableChange = 0;
+    let totalChange = 0;
+
     switch (transaction.type) {
       case 'DEPOSIT':
-        wallet.available_balance += transaction.amount;
-        wallet.total_balance += transaction.amount;
+        availableChange = transaction.amount;
+        totalChange = transaction.amount;
         break;
       case 'WITHDRAWAL':
-        wallet.available_balance -= transaction.amount;
-        wallet.total_balance -= transaction.amount;
+        availableChange = -transaction.amount;
+        totalChange = -transaction.amount;
         break;
       case 'TRANSFER_IN':
-        wallet.available_balance += transaction.amount;
-        wallet.total_balance += transaction.amount;
+        availableChange = transaction.amount;
+        totalChange = transaction.amount;
         break;
       case 'TRANSFER_OUT':
-        if (wallet.available_balance < transaction.amount) {
+        if (Number(wallet.availableBalance) < transaction.amount) {
           throw new BadRequestException('Insufficient available balance');
         }
-        wallet.available_balance -= transaction.amount;
-        wallet.total_balance -= transaction.amount;
+        availableChange = -transaction.amount;
+        totalChange = -transaction.amount;
         break;
       default:
         throw new BadRequestException(`Unsupported transaction type: ${transaction.type}`);
     }
 
-    wallet.last_activity = new Date();
-    await manager.save(wallet);
+    await tx.wallet.update({
+      where: { id: wallet.id },
+      data: {
+        availableBalance: { increment: availableChange },
+        totalBalance: { increment: totalChange },
+        lastActivity: new Date()
+      }
+    });
   }
 
   /**
    * Update usage limits
    */
-  private async updateUsageLimits(manager: any, wallet: Wallet, amount: number): Promise<void> {
-    // Reset limits if needed
-    if (this.shouldResetDailyLimit(wallet)) {
-      wallet.daily_used = 0;
-      wallet.daily_reset = this.getNextDayStart();
-    }
-
-    if (this.shouldResetMonthlyLimit(wallet)) {
-      wallet.monthly_used = 0;
-      wallet.monthly_reset = this.getNextMonthStart();
-    }
-
-    // Update usage
-    wallet.daily_used += amount;
-    wallet.monthly_used += amount;
-
-    await manager.save(wallet);
+  private async updateUsageLimits(tx: any, wallet: any, amount: number): Promise<void> {
+    await tx.wallet.update({
+      where: { id: wallet.id },
+      data: {
+        dailyUsed: { increment: amount },
+        monthlyUsed: { increment: amount }
+      }
+    });
   }
 
   /**
@@ -814,22 +806,6 @@ export class WalletService {
       60, // Cache for 1 minute
       JSON.stringify({ available: balance })
     );
-  }
-
-  /**
-   * Check if daily limit should be reset
-   */
-  private shouldResetDailyLimit(wallet: Wallet): boolean {
-    if (!wallet.daily_reset) return true;
-    return new Date() >= wallet.daily_reset;
-  }
-
-  /**
-   * Check if monthly limit should be reset
-   */
-  private shouldResetMonthlyLimit(wallet: Wallet): boolean {
-    if (!wallet.monthly_reset) return true;
-    return new Date() >= wallet.monthly_reset;
   }
 
   /**

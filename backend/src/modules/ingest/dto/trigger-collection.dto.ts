@@ -12,14 +12,14 @@ enum Platform {
   REDDIT = 'REDDIT',
   DISCORD = 'DISCORD',
   TELEGRAM = 'TELEGRAM',
-  CUSTOM = 'CUSTOM',
+  CUSTOM = 'CUSTOM'
 }
 
 export class TriggerCollectionDto {
   @ApiPropertyOptional({
     description: 'Platform to collect from. Use "all" for all platforms, or specify a specific platform',
     enum: Platform,
-    example: 'all',
+    example: 'all'
   })
   @IsOptional()
   @IsEnum(Platform)
@@ -29,7 +29,7 @@ export class TriggerCollectionDto {
     description: 'Maximum number of posts to collect',
     default: 100,
     minimum: 1,
-    maximum: 1000,
+    maximum: 1000
   })
   @IsOptional()
   @IsNumber()
@@ -40,7 +40,7 @@ export class TriggerCollectionDto {
   @ApiPropertyOptional({
     description: 'Override default keywords for filtering',
     type: [String],
-    example: ['South Africa', 'Mzansi', 'SA'],
+    example: ['South Africa', 'Mzansi', 'SA']
   })
   @IsOptional()
   @IsArray()
@@ -50,7 +50,7 @@ export class TriggerCollectionDto {
   @ApiPropertyOptional({
     description: 'Override default hashtags for filtering',
     type: [String],
-    example: ['SouthAfrica', 'Mzansi', '#SA'],
+    example: ['SouthAfrica', 'Mzansi', '#SA']
   })
   @IsOptional()
   @IsArray()
@@ -60,7 +60,7 @@ export class TriggerCollectionDto {
   @ApiPropertyOptional({
     description: 'Override default regions for filtering',
     type: [String],
-    example: ['ZA'],
+    example: ['ZA']
   })
   @IsOptional()
   @IsArray()
@@ -70,7 +70,7 @@ export class TriggerCollectionDto {
   @ApiPropertyOptional({
     description: 'Override default languages for filtering',
     type: [String],
-    example: ['en', 'af'],
+    example: ['en', 'af']
   })
   @IsOptional()
   @IsArray()

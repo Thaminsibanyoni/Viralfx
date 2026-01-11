@@ -1,13 +1,11 @@
-import { Processor, Process } from '@nestjs/bull';
-import { Job } from 'bull';
+import {Processor, WorkerHost} from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Ticket } from '../entities/ticket.entity';
-import { TicketMessage } from '../entities/ticket-message.entity';
-import { TicketAssignment } from '../entities/ticket-assignment.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Ticket } from '../entities/ticket.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { TicketMessage } from '../entities/ticket-message.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { TicketAssignment } from '../entities/ticket-assignment.entity';
 import { SupportService } from '../services/support.service';
-import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationService } from "../../notifications/notifications.service";
 
 interface SLACheckJob {
   ticketIds: string[];
@@ -37,22 +35,37 @@ interface EscalationJob {
 }
 
 @Processor('crm-support')
-export class CrmSupportProcessor {
+export class CrmSupportProcessor extends WorkerHost {
   private readonly logger = new Logger(CrmSupportProcessor.name);
 
   constructor(
-    @InjectRepository(Ticket)
-    private readonly ticketRepository: Repository<Ticket>,
-    @InjectRepository(TicketMessage)
-    private readonly ticketMessageRepository: Repository<TicketMessage>,
-    @InjectRepository(TicketAssignment)
-    private readonly ticketAssignmentRepository: Repository<TicketAssignment>,
+    private readonly prisma: PrismaService,
     private readonly supportService: SupportService,
-    private readonly notificationsService: NotificationsService,
-  ) {}
+    private readonly notificationsService: NotificationService) {
+    super();
+}
 
-  @Process('check-sla-compliance')
-  async handleSLAComplianceCheck(job: Job<SLACheckJob>) {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'check-sla-compliance':
+        return this.handleSLAComplianceCheck(job);
+      case 'auto-assign-tickets':
+        return this.handleAutoAssignTicket(job);
+      case 'auto-close-resolved-tickets':
+        return this.handleAutoCloseTickets(job);
+      case 'send-satisfaction-survey':
+        return this.handleSatisfactionSurvey(job);
+      case 'escalate-ticket':
+        return this.handleTicketEscalation(job);
+      case 'cleanup-old-tickets':
+        return this.handleOldTicketCleanup(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleSLAComplianceCheck(job: Job<SLACheckJob>) {
     try {
       this.logger.log(`Processing SLA compliance check for ${job.data.ticketIds.length} tickets`);
 
@@ -127,10 +140,10 @@ export class CrmSupportProcessor {
         }
 
         // Update ticket SLA status
-        await this.ticketRepository.update(ticket.id, {
+        await this.prisma.ticket.update(ticket.id, {
           slaStatus,
           responseTime: Math.round(responseTimeHours * 100) / 100,
-          resolutionTime: Math.round(resolutionTimeHours * 100) / 100,
+          resolutionTime: Math.round(resolutionTimeHours * 100) / 100
         });
 
         results.push({
@@ -139,7 +152,7 @@ export class CrmSupportProcessor {
           slaStatus,
           alerts,
           responseTime: responseTimeHours,
-          resolutionTime: resolutionTimeHours,
+          resolutionTime: resolutionTimeHours
         });
 
         // Send notifications for SLA breaches and warnings
@@ -164,17 +177,16 @@ export class CrmSupportProcessor {
     }
   }
 
-  @Process('auto-assign-tickets')
-  async handleAutoAssignTicket(job: Job<AutoAssignJob>) {
+  private async handleAutoAssignTicket(job: Job<AutoAssignJob>) {
     try {
       this.logger.log(`Processing auto-assignment for ticket ${job.data.ticketId}`);
 
       const { ticketId, category, priority } = job.data;
 
       // Get ticket details
-      const ticket = await this.ticketRepository.findOne({
+      const ticket = await this.prisma.ticket.findFirst({
         where: { id: ticketId },
-        relations: ['category', 'priority', 'client'],
+        relations: ['category', 'priority', 'client']
       });
 
       if (!ticket) {
@@ -208,7 +220,7 @@ export class CrmSupportProcessor {
       // Assign ticket
       await this.supportService.assignTicket(ticketId, {
         assignedToId: suitableAssignee.id,
-        reason: 'Auto-assigned based on workload and expertise',
+        reason: 'Auto-assigned based on workload and expertise'
       });
 
       // Send notification to assignee
@@ -223,8 +235,8 @@ export class CrmSupportProcessor {
           ticketNumber: ticket.ticketNumber,
           title: ticket.title,
           category: ticket.category?.name,
-          priority: ticket.priority?.name,
-        },
+          priority: ticket.priority?.name
+        }
       });
 
       this.logger.log(`Auto-assigned ticket ${ticketId} to ${suitableAssignee.fullName}`);
@@ -236,17 +248,16 @@ export class CrmSupportProcessor {
     }
   }
 
-  @Process('auto-close-resolved-tickets')
-  async handleAutoCloseTickets(job: Job<AutoCloseJob>) {
+  private async handleAutoCloseTickets(job: Job<AutoCloseJob>) {
     try {
       this.logger.log(`Processing auto-close for ticket ${job.data.ticketId}`);
 
       const { ticketId, reason } = job.data;
 
       // Get ticket details
-      const ticket = await this.ticketRepository.findOne({
+      const ticket = await this.prisma.ticket.findFirst({
         where: { id: ticketId },
-        relations: ['client', 'client.user'],
+        relations: ['client', 'client.user']
       });
 
       if (!ticket) {
@@ -272,12 +283,12 @@ export class CrmSupportProcessor {
       }
 
       // Check if there are any recent customer messages
-      const lastCustomerMessage = await this.ticketMessageRepository.findOne({
+      const lastCustomerMessage = await this.prisma.ticketMessage.findFirst({
         where: {
           ticketId,
-          isInternal: false,
+          isInternal: false
         },
-        order: { createdAt: 'DESC' },
+        order: { createdAt: 'DESC' }
       });
 
       const lastCustomerMessageTime = lastCustomerMessage ?
@@ -293,7 +304,7 @@ export class CrmSupportProcessor {
       // Close the ticket
       await this.supportService.closeTicket(ticketId, {
         reason: reason || 'Auto-closed after 72 hours of resolution without customer response',
-        sendSatisfactionSurvey: true,
+        sendSatisfactionSurvey: true
       });
 
       // Send notification to customer
@@ -305,8 +316,8 @@ export class CrmSupportProcessor {
           type: 'INFO',
           metadata: {
             ticketId: ticket.id,
-            ticketNumber: ticket.ticketNumber,
-          },
+            ticketNumber: ticket.ticketNumber
+          }
         });
       }
 
@@ -319,17 +330,16 @@ export class CrmSupportProcessor {
     }
   }
 
-  @Process('send-satisfaction-survey')
-  async handleSatisfactionSurvey(job: Job<SatisfactionSurveyJob>) {
+  private async handleSatisfactionSurvey(job: Job<SatisfactionSurveyJob>) {
     try {
       this.logger.log(`Processing satisfaction survey for ticket ${job.data.ticketId}`);
 
       const { ticketId, clientId, ticketRating } = job.data;
 
       // Get ticket details
-      const ticket = await this.ticketRepository.findOne({
+      const ticket = await this.prisma.ticket.findFirst({
         where: { id: ticketId },
-        relations: ['client', 'client.user'],
+        relations: ['client', 'client.user']
       });
 
       if (!ticket || !ticket.client?.user) {
@@ -349,15 +359,15 @@ export class CrmSupportProcessor {
         metadata: {
           ticketId: ticket.id,
           ticketNumber: ticket.ticketNumber,
-          surveyLink,
+          surveyLink
         },
         actions: [
           {
             label: 'Take Survey',
             url: surveyLink,
-            type: 'PRIMARY',
+            type: 'PRIMARY'
           },
-        ],
+        ]
       });
 
       this.logger.log(`Sent satisfaction survey for ticket ${ticketId}`);
@@ -369,17 +379,16 @@ export class CrmSupportProcessor {
     }
   }
 
-  @Process('escalate-ticket')
-  async handleTicketEscalation(job: Job<EscalationJob>) {
+  private async handleTicketEscalation(job: Job<EscalationJob>) {
     try {
       this.logger.log(`Processing escalation for ticket ${job.data.ticketId}`);
 
       const { ticketId, escalationReason, escalateTo } = job.data;
 
       // Get ticket details
-      const ticket = await this.ticketRepository.findOne({
+      const ticket = await this.prisma.ticket.findFirst({
         where: { id: ticketId },
-        relations: ['category', 'priority', 'client', 'assignee'],
+        relations: ['category', 'priority', 'client', 'assignee']
       });
 
       if (!ticket) {
@@ -388,11 +397,11 @@ export class CrmSupportProcessor {
       }
 
       // Update ticket escalation status
-      await this.ticketRepository.update(ticketId, {
+      await this.prisma.ticket.update(ticketId, {
         escalated: true,
         escalatedAt: new Date(),
         escalationReason,
-        escalatedTo: escalateTo,
+        escalatedTo: escalateTo
       });
 
       // Send escalation notifications
@@ -411,8 +420,8 @@ export class CrmSupportProcessor {
             category: ticket.category?.name,
             priority: ticket.priority?.name,
             escalationReason,
-            escalateTo,
-          },
+            escalateTo
+          }
         });
       }
 
@@ -426,8 +435,8 @@ export class CrmSupportProcessor {
           metadata: {
             ticketId: ticket.id,
             escalationReason,
-            escalateTo,
-          },
+            escalateTo
+          }
         });
       }
 
@@ -440,8 +449,7 @@ export class CrmSupportProcessor {
     }
   }
 
-  @Process('cleanup-old-tickets')
-  async handleOldTicketCleanup(job: Job) {
+  private async handleOldTicketCleanup(job: Job) {
     try {
       this.logger.log('Processing old ticket cleanup');
 
@@ -450,11 +458,11 @@ export class CrmSupportProcessor {
       cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
 
       // Find old tickets to archive
-      const oldTickets = await this.ticketRepository.find({
+      const oldTickets = await this.prisma.ticket.findMany({
         where: {
           status,
-          createdAt: { $lt: cutoffDate },
-        },
+          createdAt: { $lt: cutoffDate }
+        }
       });
 
       // Archive old tickets
@@ -477,7 +485,7 @@ export class CrmSupportProcessor {
       'URGENT': 1,
       'HIGH': 4,
       'NORMAL': 8,
-      'LOW': 24,
+      'LOW': 24
     };
     return responseTimes[priorityName] || 24;
   }
@@ -487,7 +495,7 @@ export class CrmSupportProcessor {
       'URGENT': 4,
       'HIGH': 12,
       'NORMAL': 24,
-      'LOW': 72,
+      'LOW': 72
     };
     return resolutionTimes[priorityName] || 72;
   }
@@ -500,7 +508,7 @@ export class CrmSupportProcessor {
         title: 'SLA Breach Alert',
         message: `Ticket ${ticket.ticketNumber} has breached SLA requirements: ${alerts.join(', ')}`,
         type: 'ERROR' as const,
-        priority: 'HIGH' as const,
+        priority: 'HIGH' as const
       },
     ];
 
@@ -510,8 +518,8 @@ export class CrmSupportProcessor {
           ...notification,
           metadata: {
             ticketId: ticket.id,
-            alerts,
-          },
+            alerts
+          }
         });
       }
     }
@@ -538,8 +546,8 @@ export class CrmSupportProcessor {
         priority: 'MEDIUM',
         metadata: {
           ticketId: ticket.id,
-          alerts,
-        },
+          alerts
+        }
       });
     }
   }
@@ -555,8 +563,8 @@ export class CrmSupportProcessor {
         priority: 'MEDIUM',
         metadata: {
           ticketId: ticket.id,
-          hoursSinceLastMessage: Math.floor(hoursSinceLastMessage),
-        },
+          hoursSinceLastMessage: Math.floor(hoursSinceLastMessage)
+        }
       });
     }
   }
@@ -582,8 +590,8 @@ export class CrmSupportProcessor {
       priority: 'HIGH',
       metadata: {
         ticketId: ticket.id,
-        escalationReason: reason,
-      },
+        escalationReason: reason
+      }
     });
   }
 }

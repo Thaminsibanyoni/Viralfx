@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
-import { WebSocketGateway } from '../../websocket/websocket.gateway';
-import { SentimentService } from '../../sentiment/services/sentiment.service';
-import { ViralIndexService } from '../../viral/services/viral-index.service';
-import { DeceptionService } from '../../deception/services/deception.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
+import { WebSocketGatewayHandler } from "../../websocket/gateways/websocket.gateway";
+import { SentimentService } from "../../sentiment/services/sentiment.service";
+import { ViralIndexService } from "../../viral/services/viral-index.service";
+import { DeceptionService } from "../../deception/services/deception.service";
 
 @Injectable()
 export class VPMXCoreService {
@@ -14,11 +14,10 @@ export class VPMXCoreService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-    private readonly wsGateway: WebSocketGateway,
+    private readonly wsGateway: WebSocketGatewayHandler,
     private readonly sentimentService: SentimentService,
     private readonly viralIndexService: ViralIndexService,
-    private readonly deceptionService: DeceptionService,
-  ) {}
+    private readonly deceptionService: DeceptionService) {}
 
   /**
    * Compute VPMX using the 8-factor weighted formula
@@ -83,20 +82,20 @@ export class VPMXCoreService {
       const breakoutProbability = this.calculateBreakoutProbability({
         viralMomentum,
         trendVelocity,
-        engagementQuality,
+        engagementQuality
       });
 
       const confidence = this.calculateConfidenceScore({
         globalSentiment,
         viralMomentum,
         engagementQuality,
-        deceptionRisk,
+        deceptionRisk
       });
 
       const riskLevel = this.calculateRiskLevel({
         deceptionRisk,
         trendStability,
-        value,
+        value
       });
 
       const result = {
@@ -110,13 +109,13 @@ export class VPMXCoreService {
           engagementQuality,
           trendStability,
           deceptionRisk,
-          regionalWeight,
+          regionalWeight
         },
         metadata: {
           breakoutProbability,
           confidence,
-          riskLevel,
-        },
+          riskLevel
+        }
       };
 
       // Step 4: Cache result
@@ -170,7 +169,7 @@ export class VPMXCoreService {
     return await this.prisma.vpmxHistory.findMany({
       where,
       orderBy: { timestamp: 'desc' },
-      take: limit,
+      take: limit
     });
   }
 
@@ -331,7 +330,7 @@ export class VPMXCoreService {
         'UK': 0.8,
         'EU': 0.7,
         'ZA': 0.6,
-        'NG': 0.5,
+        'NG': 0.5
       };
 
       return regionalWeights[region] || 0.5;
@@ -392,8 +391,8 @@ export class VPMXCoreService {
         value: result.value,
         components: result.components,
         metadata: result.metadata,
-        timestamp: new Date().toISOString(),
-      },
+        timestamp: new Date().toISOString()
+      }
     });
   }
 
@@ -412,9 +411,9 @@ export class VPMXCoreService {
           OR: [
             { name: { contains: identifier, mode: 'insensitive' } },
             { slug: { contains: identifier, mode: 'insensitive' } },
-          ],
+          ]
         },
-        select: { id: true },
+        select: { id: true }
       });
 
       return topic?.id || null;

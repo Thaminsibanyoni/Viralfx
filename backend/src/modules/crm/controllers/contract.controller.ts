@@ -12,12 +12,12 @@ import {
   HttpStatus,
   ValidationPipe
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ContractService } from '../services/contract.service';
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from "../../../common/enums/user-role.enum";
 import { CreateContractDto } from '../dto/create-contract.dto';
 import { UpdateContractDto } from '../dto/update-contract.dto';
 import { ContractFiltersDto } from '../dto/contract-filters.dto';
@@ -45,7 +45,7 @@ export class ContractController {
       success: true,
       data: result.contracts,
       pagination: result.pagination,
-      filters: result.filters,
+      filters: result.filters
     };
   }
 
@@ -59,7 +59,7 @@ export class ContractController {
 
     return {
       success: true,
-      data: contract,
+      data: contract
     };
   }
 
@@ -73,7 +73,7 @@ export class ContractController {
     return {
       success: true,
       message: 'Contract created successfully',
-      data: contract,
+      data: contract
     };
   }
 
@@ -91,7 +91,7 @@ export class ContractController {
     return {
       success: true,
       message: 'Contract updated successfully',
-      data: contract,
+      data: contract
     };
   }
 
@@ -105,7 +105,7 @@ export class ContractController {
 
     return {
       success: true,
-      message: 'Contract deleted successfully',
+      message: 'Contract deleted successfully'
     };
   }
 
@@ -123,7 +123,7 @@ export class ContractController {
     return {
       success: true,
       message: 'Contract status updated successfully',
-      data: contract,
+      data: contract
     };
   }
 
@@ -146,7 +146,7 @@ export class ContractController {
     return {
       success: true,
       message: 'Contract signed successfully',
-      data: contract,
+      data: contract
     };
   }
 
@@ -169,7 +169,7 @@ export class ContractController {
     return {
       success: true,
       message: 'Contract terminated successfully',
-      data: contract,
+      data: contract
     };
   }
 
@@ -192,7 +192,7 @@ export class ContractController {
     return {
       success: true,
       message: 'Contract renewed successfully',
-      data: contract,
+      data: contract
     };
   }
 
@@ -205,7 +205,7 @@ export class ContractController {
 
     return {
       success: true,
-      data: documents,
+      data: documents
     };
   }
 
@@ -221,13 +221,13 @@ export class ContractController {
       name: body.name,
       url: body.url,
       type: body.type,
-      size: body.size,
+      size: body.size
     });
 
     return {
       success: true,
       message: 'Document uploaded successfully',
-      data: document,
+      data: document
     };
   }
 
@@ -243,7 +243,7 @@ export class ContractController {
 
     return {
       success: true,
-      message: 'Document deleted successfully',
+      message: 'Document deleted successfully'
     };
   }
 
@@ -260,14 +260,14 @@ export class ContractController {
       ...(query.status && { status: query.status }),
       ...(query.assignedTo && { assignedTo: query.assignedTo }),
       ...(query.brokerId && { brokerId: query.brokerId }),
-      ...(query.dateRange && { dateRange: JSON.parse(query.dateRange) }),
+      ...(query.dateRange && { dateRange: JSON.parse(query.dateRange) })
     };
 
     const csvData = await this.contractService.exportContracts(filters);
 
     return {
       success: true,
-      data: csvData,
+      data: csvData
     };
   }
 
@@ -281,7 +281,7 @@ export class ContractController {
 
     return {
       success: true,
-      data: stats,
+      data: stats
     };
   }
 
@@ -295,7 +295,7 @@ export class ContractController {
 
     return {
       success: true,
-      data: contracts,
+      data: contracts
     };
   }
 }

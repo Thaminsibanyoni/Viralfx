@@ -1,14 +1,14 @@
-import { Processor, Process } from '@nestjs/bullmq';
+import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { BillingService } from '../services/billing.service';
-import { NotificationService } from '../../notifications/services/notification.service';
+import { NotificationService } from "../../notifications/services/notification.service";
 import { WebhookService } from '../services/webhook.service';
 
 @Processor('api-billing')
-export class BillingProcessor {
+export class BillingProcessor extends WorkerHost {
   private readonly logger = new Logger(BillingProcessor.name);
 
   constructor(
@@ -16,24 +16,39 @@ export class BillingProcessor {
     private prisma: PrismaService,
     private billingService: BillingService,
     private notificationService: NotificationService,
-    private webhookService: WebhookService,
-  ) {}
+    private webhookService: WebhookService) {
+    super();
+  }
 
-  @Process('generate-invoice')
-  async handleInvoiceGeneration(job: Job): Promise<void> {
+  async process(job: Job): Promise<void> {
+    switch (job.name) {
+      case 'generate-invoice':
+        return this.handleInvoiceGeneration(job);
+      case 'process-payment':
+        return this.handlePaymentProcessing(job);
+      case 'retry-failed-payments':
+        return this.handleFailedPaymentsRetry(job);
+      case 'send-payment-reminders':
+        return this.handlePaymentReminders(job);
+      case 'monthly-billing-cycle':
+        return this.handleMonthlyBillingCycle(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+  private async handleInvoiceGeneration(job: Job): Promise<void> {
     const { customerId, customerType, period } = job.data;
 
     try {
       this.logger.log(
-        `Generating invoice for ${customerType} ${customerId} for period ${period.start} to ${period.end}`,
-      );
+        `Generating invoice for ${customerType} ${customerId} for period ${period.start} to ${period.end}`);
 
       // Generate the invoice (includes email sending via BillingService.sendInvoiceEmail)
       const invoice = await this.billingService.generateInvoice(
         customerId,
         customerType,
-        period,
-      );
+        period);
 
       const invoiceDueDays = parseInt(this.config.get<string>('API_INVOICE_DUE_DAYS', '7'));
 
@@ -48,44 +63,37 @@ export class BillingProcessor {
           currency: invoice.currency,
           billingPeriod: {
             start: invoice.billingPeriodStart,
-            end: invoice.billingPeriodEnd,
+            end: invoice.billingPeriodEnd
           },
-          dueDate: new Date(invoice.billingPeriodEnd.getTime() + invoiceDueDays * 24 * 60 * 60 * 1000), // Configurable days after period end
+          dueDate: new Date(invoice.billingPeriodEnd.getTime() + invoiceDueDays * 24 * 60 * 60 * 1000) // Configurable days after period end
         },
-        customerId,
-      );
+        customerId);
 
       this.logger.log(
-        `Invoice generated successfully: ${invoice.id} for ${customerType} ${customerId}`,
-      );
+        `Invoice generated successfully: ${invoice.id} for ${customerType} ${customerId}`);
     } catch (error) {
       this.logger.error(
         `Failed to generate invoice for ${customerType} ${customerId}`,
-        error.stack,
-      );
+        error.stack);
       throw error;
     }
   }
 
-  @Process('process-payment')
-  async handlePaymentProcessing(job: Job): Promise<void> {
+  private async handlePaymentProcessing(job: Job): Promise<void> {
     const { invoiceId, gateway, retryCount = 0 } = job.data;
 
     try {
       this.logger.log(
-        `Processing payment for invoice ${invoiceId} using ${gateway} (attempt ${retryCount + 1})`,
-      );
+        `Processing payment for invoice ${invoiceId} using ${gateway} (attempt ${retryCount + 1})`);
 
       const result = await this.billingService.processPayment(invoiceId, gateway);
 
       this.logger.log(
-        `Payment initiated for invoice ${invoiceId}: ${result.reference}`,
-      );
+        `Payment initiated for invoice ${invoiceId}: ${result.reference}`);
     } catch (error) {
       this.logger.error(
         `Failed to process payment for invoice ${invoiceId}`,
-        error.stack,
-      );
+        error.stack);
 
       // Schedule retry if configured
       if (retryCount < 3) {
@@ -95,33 +103,31 @@ export class BillingProcessor {
           {
             invoiceId,
             gateway,
-            retryCount: retryCount + 1,
+            retryCount: retryCount + 1
           },
           {
             delay,
-            attempts: 1,
-          },
-        );
+            attempts: 1
+          });
       }
 
       throw error;
     }
   }
 
-  @Process('retry-failed-payments')
-  async handleFailedPaymentsRetry(job: Job): Promise<void> {
+  private async handleFailedPaymentsRetry(job: Job): Promise<void> {
     try {
       // Get all failed invoices that are eligible for retry
       const failedInvoices = await this.prisma.apiInvoice.findMany({
         where: {
           status: 'FAILED',
           createdAt: {
-            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
-          },
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
+          }
         },
         include: {
           // We don't have direct relations, so we'll need to fetch separately if needed
-        },
+        }
       });
 
       let retriedCount = 0;
@@ -145,17 +151,16 @@ export class BillingProcessor {
             data: {
               metadata: {
                 ...invoice.metadata,
-                lastRetryAt: new Date(),
-              },
-            },
+                lastRetryAt: new Date()
+              }
+            }
           });
 
           retriedCount++;
         } catch (error) {
           this.logger.warn(
             `Failed to retry payment for invoice ${invoice.id}`,
-            error.message,
-          );
+            error.message);
         }
       }
 
@@ -163,14 +168,12 @@ export class BillingProcessor {
     } catch (error) {
       this.logger.error(
         'Failed to process failed payments retry job',
-        error.stack,
-      );
+        error.stack);
       throw error;
     }
   }
 
-  @Process('send-payment-reminders')
-  async handlePaymentReminders(job: Job): Promise<void> {
+  private async handlePaymentReminders(job: Job): Promise<void> {
     try {
       // Read reminder days from environment or use default
       const reminderDaysStr = this.config.get<string>('API_INVOICE_REMINDER_DAYS', '3,7,14');
@@ -184,8 +187,8 @@ export class BillingProcessor {
         // Get all pending invoices and calculate overdue status in application logic
         const pendingInvoices = await this.prisma.apiInvoice.findMany({
           where: {
-            status: 'PENDING',
-          },
+            status: 'PENDING'
+          }
         });
 
         // Filter invoices that are overdue by X days based on calculated due date
@@ -223,8 +226,8 @@ export class BillingProcessor {
                     daysOverdue: actualDaysOverdue,
                     dueDate: new Date(invoice.billingPeriodEnd.getTime() + invoiceDueDays * 24 * 60 * 60 * 1000).toLocaleDateString(),
                     pdfUrl: invoice.invoicePdfUrl,
-                    paymentUrl: this.buildPaymentUrl(invoice.id),
-                  },
+                    paymentUrl: this.buildPaymentUrl(invoice.id)
+                  }
                 });
                 this.logger.log(`Payment reminder sent for invoice ${invoice.id} (${actualDaysOverdue} days overdue)`);
               } catch (error) {
@@ -243,34 +246,28 @@ export class BillingProcessor {
                 currency: invoice.currency,
                 daysOverdue: actualDaysOverdue,
                 dueDate: new Date(
-                  invoice.billingPeriodEnd.getTime() + invoiceDueDays * 24 * 60 * 60 * 1000,
-                ),
+                  invoice.billingPeriodEnd.getTime() + invoiceDueDays * 24 * 60 * 60 * 1000)
               },
-              invoice.customerId || undefined,
-            );
+              invoice.customerId || undefined);
 
             this.logger.log(
-              `Sent payment reminder for invoice ${invoice.id} (${actualDaysOverdue} days overdue)`,
-            );
+              `Sent payment reminder for invoice ${invoice.id} (${actualDaysOverdue} days overdue)`);
           } catch (error) {
             this.logger.warn(
               `Failed to send reminder for invoice ${invoice.id}`,
-              error.message,
-            );
+              error.message);
           }
         }
       }
     } catch (error) {
       this.logger.error(
         'Failed to process payment reminders',
-        error.stack,
-      );
+        error.stack);
       throw error;
     }
   }
 
-  @Process('monthly-billing-cycle')
-  async handleMonthlyBillingCycle(job: Job): Promise<void> {
+  private async handleMonthlyBillingCycle(job: Job): Promise<void> {
     const { targetMonth } = job.data;
     const targetDate = targetMonth ? new Date(targetMonth) : new Date();
 
@@ -281,8 +278,7 @@ export class BillingProcessor {
       periodEnd.setHours(23, 59, 59, 999);
 
       this.logger.log(
-        `Starting monthly billing cycle: ${periodStart.toISOString()} to ${periodEnd.toISOString()}`,
-      );
+        `Starting monthly billing cycle: ${periodStart.toISOString()} to ${periodEnd.toISOString()}`);
 
       // Get all users with API keys
       const usersWithKeys = await this.prisma.apiKey.findMany({
@@ -290,13 +286,13 @@ export class BillingProcessor {
           userId: { not: null },
           revoked: false,
           createdAt: {
-            lt: periodEnd,
-          },
+            lt: periodEnd
+          }
         },
         select: {
-          userId: true,
+          userId: true
         },
-        distinct: ['userId'],
+        distinct: ['userId']
       });
 
       // Get all brokers with API keys
@@ -305,13 +301,13 @@ export class BillingProcessor {
           brokerId: { not: null },
           revoked: false,
           createdAt: {
-            lt: periodEnd,
-          },
+            lt: periodEnd
+          }
         },
         select: {
-          brokerId: true,
+          brokerId: true
         },
-        distinct: ['brokerId'],
+        distinct: ['brokerId']
       });
 
       // Queue invoice generation for all customers
@@ -325,15 +321,14 @@ export class BillingProcessor {
             customerType: 'USER',
             period: {
               start: periodStart,
-              end: periodEnd,
-            },
+              end: periodEnd
+            }
           },
           {
             delay: Math.random() * 60000, // Random delay to avoid overwhelming
             attempts: 3,
-            backoff: 'exponential',
-          },
-        );
+            backoff: 'exponential'
+          });
       }
 
       for (const { brokerId } of brokersWithKeys) {
@@ -344,28 +339,25 @@ export class BillingProcessor {
             customerType: 'BROKER',
             period: {
               start: periodStart,
-              end: periodEnd,
-            },
+              end: periodEnd
+            }
           },
           {
             delay: Math.random() * 60000, // Random delay to avoid overwhelming
             attempts: 3,
-            backoff: 'exponential',
-          },
-        );
+            backoff: 'exponential'
+          });
       }
 
       // Reset monthly quotas for all API keys
       await this.resetMonthlyQuotas();
 
       this.logger.log(
-        `Monthly billing cycle initiated for ${usersWithKeys.length} users and ${brokersWithKeys.length} brokers`,
-      );
+        `Monthly billing cycle initiated for ${usersWithKeys.length} users and ${brokersWithKeys.length} brokers`);
     } catch (error) {
       this.logger.error(
         'Failed to process monthly billing cycle',
-        error.stack,
-      );
+        error.stack);
       throw error;
     }
   }
@@ -375,8 +367,7 @@ export class BillingProcessor {
    */
   private async getCustomerDetails(
     customerId: string,
-    customerType: 'USER' | 'BROKER',
-  ): Promise<{ id: string; email: string; firstName?: string; lastName?: string; companyName?: string } | null> {
+    customerType: 'USER' | 'BROKER'): Promise<{ id: string; email: string; firstName?: string; lastName?: string; companyName?: string } | null> {
     if (customerType === 'USER') {
       const user = await this.prisma.user.findUnique({
         where: { id: customerId },
@@ -384,8 +375,8 @@ export class BillingProcessor {
           id: true,
           email: true,
           firstName: true,
-          lastName: true,
-        },
+          lastName: true
+        }
       });
       return user;
     } else {
@@ -394,14 +385,14 @@ export class BillingProcessor {
         select: {
           id: true,
           contactEmail: true,
-          companyName: true,
-        },
+          companyName: true
+        }
       });
       if (broker) {
         return {
           id: broker.id,
           email: broker.contactEmail,
-          companyName: broker.companyName,
+          companyName: broker.companyName
         };
       }
     }
@@ -414,13 +405,13 @@ export class BillingProcessor {
       const result = await this.prisma.apiKey.updateMany({
         where: {
           quotaResetAt: {
-            lt: new Date(),
-          },
+            lt: new Date()
+          }
         },
         data: {
           usageCount: 0,
-          quotaResetAt: new Date(),
-        },
+          quotaResetAt: new Date()
+        }
       });
 
       this.logger.log(`Reset quotas for ${result.count} API keys`);
@@ -430,9 +421,8 @@ export class BillingProcessor {
         'quota.reset',
         {
           resetCount: result.count,
-          resetDate: new Date(),
-        },
-      );
+          resetDate: new Date()
+        });
     } catch (error) {
       this.logger.error('Failed to reset monthly quotas', error.stack);
     }

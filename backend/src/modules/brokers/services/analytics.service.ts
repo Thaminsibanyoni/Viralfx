@@ -1,12 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, MoreThanOrEqual } from 'typeorm';
 import Redis from 'ioredis';
-import { BrokerApiUsage, ApiMethod } from '../entities/broker-api-usage.entity';
-import { BrokerMarketingAnalytics } from '../entities/broker-marketing-analytics.entity';
-import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
-import { Broker } from '../entities/broker.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerApiUsage, ApiMethod } from '../entities/broker-api-usage.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerMarketingAnalytics } from '../entities/broker-marketing-analytics.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Broker } from '../entities/broker.entity';
 import { BrokerDashboardMetrics, ApiUsageMetrics, MarketingMetrics, BrokerAnalytics } from '../interfaces/broker.interface';
 
 @Injectable()
@@ -15,20 +13,11 @@ export class AnalyticsService {
   private redis: Redis;
 
   constructor(
-    @InjectRepository(BrokerApiUsage)
-    private apiUsageRepository: Repository<BrokerApiUsage>,
-    @InjectRepository(BrokerMarketingAnalytics)
-    private marketingAnalyticsRepository: Repository<BrokerMarketingAnalytics>,
-    @InjectRepository(BrokerBill)
-    private billRepository: Repository<BrokerBill>,
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-    private configService: ConfigService,
-  ) {
+        private configService: ConfigService) {
     this.redis = new Redis({
       host: this.configService.get('REDIS_HOST', 'localhost'),
       port: this.configService.get('REDIS_PORT', 6379),
-      password: this.configService.get('REDIS_PASSWORD'),
+      password: this.configService.get('REDIS_PASSWORD')
     });
   }
 
@@ -43,7 +32,7 @@ export class AnalyticsService {
       return JSON.parse(cached);
     }
 
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     if (!broker) {
       throw new Error(`Broker not found: ${brokerId}`);
     }
@@ -80,7 +69,7 @@ export class AnalyticsService {
       complianceScore: complianceMetrics,
       recentActivity,
       financialMetrics,
-      performanceMetrics,
+      performanceMetrics
     };
 
     // Cache for 5 minutes
@@ -90,12 +79,12 @@ export class AnalyticsService {
   }
 
   async getApiUsageStats(brokerId: string, period: { start: Date; end: Date }): Promise<ApiUsageMetrics[]> {
-    const apiUsage = await this.apiUsageRepository.find({
+    const apiUsage = await this.prisma.apiusagerepository.findMany({
       where: {
         brokerId,
-        date: Between(period.start, period.end),
+        date: Between(period.start, period.end)
       },
-      order: { date: 'DESC', endpoint: 'ASC', method: 'ASC' },
+      order: { date: 'DESC', endpoint: 'ASC', method: 'ASC' }
     });
 
     // Transform into metrics format
@@ -107,7 +96,7 @@ export class AnalyticsService {
       requestCount: usage.requestCount,
       averageResponseTime: usage.responseTimeAvg,
       errorCount: usage.errorCount,
-      errorRate: usage.requestCount > 0 ? (usage.errorCount / usage.requestCount) * 100 : 0,
+      errorRate: usage.requestCount > 0 ? (usage.errorCount / usage.requestCount) * 100 : 0
     }));
 
     return metrics;
@@ -143,17 +132,17 @@ export class AnalyticsService {
       uptime,
       topEndpoints,
       errorCodes: [], // Would track actual HTTP error codes
-      performanceScore: this.calculatePerformanceScore(uptime, 100 - (totalRequests > 0 ? (totalErrors / totalRequests) * 100 : 0), avgResponseTime),
+      performanceScore: this.calculatePerformanceScore(uptime, 100 - (totalRequests > 0 ? (totalErrors / totalRequests) * 100 : 0), avgResponseTime)
     };
   }
 
   async getMarketingAnalytics(brokerId: string, period: { start: Date; end: Date }): Promise<MarketingMetrics[]> {
-    const marketingData = await this.marketingAnalyticsRepository.find({
+    const marketingData = await this.prisma.marketinganalyticsrepository.findMany({
       where: {
         brokerId,
-        date: Between(period.start, period.end),
+        date: Between(period.start, period.end)
       },
-      order: { date: 'ASC' },
+      order: { date: 'ASC' }
     });
 
     return marketingData.map(data => ({
@@ -169,18 +158,18 @@ export class AnalyticsService {
       averageRating: data.averageRating,
       reviewCount: data.reviewCount,
       searchRanking: Math.floor(Math.random() * 10) + 1, // Simulated ranking
-      socialMediaMentions: Math.floor(Math.random() * 50), // Simulated mentions
+      socialMediaMentions: Math.floor(Math.random() * 50) // Simulated mentions
     }));
   }
 
   async getRevenueAnalytics(brokerId: string, period: { start: Date; end: Date }): Promise<any> {
     // Get bills for the period
-    const bills = await this.billRepository.find({
+    const bills = await this.prisma.billrepository.findMany({
       where: {
         brokerId,
         period: Between(period.start, period.end),
-        status: BillStatus.PAID,
-      },
+        status: BillStatus.PAID
+      }
     });
 
     // Calculate revenue metrics
@@ -202,10 +191,10 @@ export class AnalyticsService {
       revenueBySource: {
         commissions: commissionRevenue,
         fees: feeRevenue,
-        services: otherRevenue,
+        services: otherRevenue
       },
       profitMargin: grossRevenue > 0 ? (netRevenue / grossRevenue) * 100 : 0,
-      averageRevenuePerMonth: grossRevenue / Math.max(1, bills.length),
+      averageRevenuePerMonth: grossRevenue / Math.max(1, bills.length)
     };
   }
 
@@ -264,8 +253,8 @@ export class AnalyticsService {
       totalRevenue,
       brokerMetrics,
     ] = await Promise.all([
-      this.brokerRepository.count(),
-      this.brokerRepository.count({ where: { isActive: true } }),
+      this.prisma.count(),
+      this.prisma.count({ where: { isActive: true } }),
       this.getTotalPlatformVolume(),
       this.getTotalPlatformRevenue(),
       this.getBrokerMetrics(),
@@ -277,10 +266,10 @@ export class AnalyticsService {
         activeBrokers,
         totalVolume,
         totalRevenue,
-        averageComplianceScore: 0.85, // Would calculate from actual data
+        averageComplianceScore: 0.85 // Would calculate from actual data
       },
       brokerMetrics,
-      recentActivity: await this.getRecentPlatformActivity(),
+      recentActivity: await this.getRecentPlatformActivity()
     };
 
     // Cache for 2 minutes
@@ -294,24 +283,24 @@ export class AnalyticsService {
     today.setHours(0, 0, 0, 0);
 
     // Find or create today's usage record
-    let usage = await this.apiUsageRepository.findOne({
+    let usage = await this.prisma.apiusagerepository.findFirst({
       where: {
         brokerId,
         date: today,
         endpoint,
-        method,
-      },
+        method
+      }
     });
 
     if (!usage) {
-      usage = this.apiUsageRepository.create({
+      usage = this.prisma.apiusagerepository.create({
         brokerId,
         date: today,
         endpoint,
         method,
         requestCount: 0,
         responseTimeAvg: 0,
-        errorCount: 0,
+        errorCount: 0
       });
     }
 
@@ -327,7 +316,7 @@ export class AnalyticsService {
       ((usage.responseTimeAvg * (totalRequests - 1)) + responseTime) / totalRequests
     );
 
-    await this.apiUsageRepository.save(usage);
+    await this.prisma.apiusagerepository.upsert(usage);
 
     // Update real-time metrics cache
     await this.updateRealtimeMetrics(brokerId, {
@@ -335,7 +324,7 @@ export class AnalyticsService {
       method,
       responseTime,
       success: success ? 1 : 0,
-      timestamp: new Date(),
+      timestamp: new Date()
     });
   }
 
@@ -346,7 +335,7 @@ export class AnalyticsService {
       daily: Math.floor(Math.random() * 100000) + 50000,
       weekly: Math.floor(Math.random() * 500000) + 250000,
       monthly: Math.floor(Math.random() * 2000000) + 1000000,
-      yearly: Math.floor(Math.random() * 24000000) + 12000000,
+      yearly: Math.floor(Math.random() * 24000000) + 12000000
     };
   }
 
@@ -356,7 +345,7 @@ export class AnalyticsService {
       total: Math.floor(Math.random() * 1000) + 100,
       newThisMonth: Math.floor(Math.random() * 50) + 5,
       churnRate: Math.random() * 0.05 + 0.01,
-      averageAccountSize: Math.floor(Math.random() * 100000) + 10000,
+      averageAccountSize: Math.floor(Math.random() * 100000) + 10000
     };
   }
 
@@ -400,7 +389,7 @@ export class AnalyticsService {
       requestsThisMonth,
       averageResponseTime,
       errorRate: requestsThisMonth > 0 ? (totalErrors / requestsThisMonth) * 100 : 0,
-      topEndpoints: topEndpoints.map(ep => ({ endpoint: ep.endpoint, count: parseInt(ep.count) })),
+      topEndpoints: topEndpoints.map(ep => ({ endpoint: ep.endpoint, count: parseInt(ep.count) }))
     };
   }
 
@@ -416,9 +405,9 @@ export class AnalyticsService {
           type: 'SECURITY',
           severity: 'LOW',
           message: 'API key rotation recommended',
-          createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+          createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)
         },
-      ],
+      ]
     };
   }
 
@@ -429,30 +418,30 @@ export class AnalyticsService {
         type: 'API_CALL',
         description: 'Processed 1,250 API requests',
         timestamp: new Date(Date.now() - 60 * 60 * 1000),
-        status: 'SUCCESS',
+        status: 'SUCCESS'
       },
       {
         type: 'COMPLIANCE_CHECK',
         description: 'Daily compliance check completed',
         timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        status: 'SUCCESS',
+        status: 'SUCCESS'
       },
       {
         type: 'BILL_PAYMENT',
         description: 'Monthly bill payment received',
         timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        status: 'SUCCESS',
+        status: 'SUCCESS'
       },
     ];
   }
 
   private async getFinancialMetrics(brokerId: string, monthAgo: Date): Promise<any> {
-    const bills = await this.billRepository.find({
+    const bills = await this.prisma.billrepository.findMany({
       where: {
         brokerId,
         createdAt: MoreThanOrEqual(monthAgo),
-        status: BillStatus.PAID,
-      },
+        status: BillStatus.PAID
+      }
     });
 
     const totalPaid = bills.reduce((sum, bill) => sum + bill.total, 0);
@@ -462,7 +451,7 @@ export class AnalyticsService {
       revenueThisMonth: totalPaid,
       feesThisMonth: fees,
       averageCommission: bills.length > 0 ? fees / bills.length : 0,
-      profitMargin: 0.15, // Would calculate from actual costs
+      profitMargin: 0.15 // Would calculate from actual costs
     };
   }
 
@@ -472,7 +461,7 @@ export class AnalyticsService {
       uptime: 99.9,
       systemHealth: 95,
       orderExecutionTime: 120,
-      settlementTime: 300,
+      settlementTime: 300
     };
   }
 
@@ -501,7 +490,7 @@ export class AnalyticsService {
 
     return {
       byTier: brokersByTier.reduce((acc, item) => ({ ...acc, [item.tier]: parseInt(item.count) }), {}),
-      byStatus: {}, // Would query broker status distribution
+      byStatus: {} // Would query broker status distribution
     };
   }
 
@@ -511,12 +500,12 @@ export class AnalyticsService {
       {
         type: 'NEW_BROKER',
         description: 'New broker registered: ABC Financial Services',
-        timestamp: new Date(Date.now() - 30 * 60 * 1000),
+        timestamp: new Date(Date.now() - 30 * 60 * 1000)
       },
       {
         type: 'COMPLIANCE_ALERT',
         description: 'Compliance issue detected for XYZ Investments',
-        timestamp: new Date(Date.now() - 45 * 60 * 1000),
+        timestamp: new Date(Date.now() - 45 * 60 * 1000)
       },
     ];
   }

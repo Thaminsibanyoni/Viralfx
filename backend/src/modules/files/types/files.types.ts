@@ -4,7 +4,7 @@ export enum FileType {
   AUDIO = 'AUDIO',
   DOCUMENT = 'DOCUMENT',
   ARCHIVE = 'ARCHIVE',
-  OTHER = 'OTHER',
+  OTHER = 'OTHER'
 }
 
 export enum FileStatus {
@@ -14,21 +14,21 @@ export enum FileStatus {
   PROCESSING = 'PROCESSING',
   PROCESSED = 'PROCESSED',
   FAILED = 'FAILED',
-  DELETED = 'DELETED',
+  DELETED = 'DELETED'
 }
 
 export enum FileVisibility {
   PRIVATE = 'PRIVATE',
   PUBLIC = 'PUBLIC',
   UNLISTED = 'UNLISTED',
-  SHARED = 'SHARED',
+  SHARED = 'SHARED'
 }
 
 export enum ImageProcessingStatus {
   PENDING = 'PENDING',
   PROCESSING = 'PROCESSING',
   COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
+  FAILED = 'FAILED'
 }
 
 export enum FileCategory {
@@ -38,7 +38,7 @@ export enum FileCategory {
   BACKUP = 'BACKUP',
   TEMP = 'TEMP',
   SYSTEM = 'SYSTEM',
-  GENERAL = 'GENERAL',
+  GENERAL = 'GENERAL'
 }
 
 export interface FileMetadata {

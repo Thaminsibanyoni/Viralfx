@@ -1,9 +1,7 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ConfigService } from '@nestjs/config';
 import { Interval } from '@nestjs/schedule';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ValidatorNode, ValidatorStatus } from '../../oracle/entities/validator-node.entity';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -17,8 +15,7 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly configService: ConfigService,
-    @InjectRepository(ValidatorNode)
-    private readonly validatorNodeRepository: Repository<ValidatorNode>,
+    private readonly prisma: PrismaService
   ) {
     this.validatorId = this.configService.get<string>('VALIDATOR_ID', 'unknown-validator');
     this.validatorKey = this.configService.get<string>('VALIDATOR_KEY', 'default-key');
@@ -47,7 +44,7 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Update validator status to offline
-    await this.updateValidatorStatus(ValidatorStatus.OFFLINE);
+    await this.updateValidatorStatus('OFFLINE');
   }
 
   @Interval(30000) // Every 30 seconds
@@ -55,7 +52,7 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
     if (!this.isHealthy) return;
 
     try {
-      await this.updateValidatorStatus(ValidatorStatus.ONLINE);
+      await this.updateValidatorStatus('ONLINE');
       this.logger.debug(`💓 Heartbeat sent from validator: ${this.validatorId}`);
     } catch (error) {
       this.logger.error(`❌ Failed to send heartbeat:`, error.message);
@@ -94,11 +91,11 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
             version: '1.0.0',
             model: 'sentiment-v2',
             dataSources: ['twitter', 'tiktok', 'instagram'],
-            nodeId: this.validatorId,
-          },
+            nodeId: this.validatorId
+          }
         },
         signature: '',
-        processingTime: Date.now() - startTime,
+        processingTime: Date.now() - startTime
       };
 
       // Generate signature
@@ -113,7 +110,6 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       const processingTime = Date.now() - startTime;
       await this.updateValidatorStats(processingTime, false);
-
       this.logger.error(`❌ Failed to process request for trend: ${request.trendId}`, error.message);
       throw error;
     }
@@ -121,7 +117,7 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
 
   private async registerValidator(): Promise<void> {
     try {
-      const existingValidator = await this.validatorNodeRepository.findOne({
+      const existingValidator = await this.prisma.validator.findFirst({
         where: { nodeId: this.validatorId }
       });
 
@@ -130,22 +126,24 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
         endpoint: `http://localhost:${this.port}`,
         publicKey: this.generatePublicKey(),
         version: '1.0.0',
-        status: ValidatorStatus.ONLINE,
-        lastSeen: new Date(),
+        status: 'ONLINE',
+        lastSeen: new Date()
       };
 
       if (existingValidator) {
-        await this.validatorNodeRepository.update(
-          { id: existingValidator.id },
-          validatorData
-        );
+        await this.prisma.validator.update({
+          where: { id: existingValidator.id },
+          data: validatorData
+        });
         this.logger.log(`📝 Updated existing validator: ${this.validatorId}`);
       } else {
-        await this.validatorNodeRepository.save({
-          ...validatorData,
-          reputationScore: 1.0,
-          totalRequests: 0,
-          successfulRequests: 0,
+        await this.prisma.validator.create({
+          data: {
+            ...validatorData,
+            reputationScore: 1.0,
+            totalRequests: 0,
+            successfulRequests: 0
+          }
         });
         this.logger.log(`🆕 Registered new validator: ${this.validatorId}`);
       }
@@ -155,15 +153,15 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async updateValidatorStatus(status: ValidatorStatus): Promise<void> {
+  private async updateValidatorStatus(status: string): Promise<void> {
     try {
-      await this.validatorNodeRepository.update(
-        { nodeId: this.validatorId },
-        {
+      await this.prisma.validator.updateMany({
+        where: { nodeId: this.validatorId },
+        data: {
           status,
-          lastSeen: new Date(),
+          lastSeen: new Date()
         }
-      );
+      });
     } catch (error) {
       this.logger.error(`❌ Failed to update validator status:`, error.message);
     }
@@ -171,7 +169,7 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
 
   private async updateValidatorStats(processingTime: number, success: boolean): Promise<void> {
     try {
-      const validator = await this.validatorNodeRepository.findOne({
+      const validator = await this.prisma.validator.findFirst({
         where: { nodeId: this.validatorId }
       });
 
@@ -187,16 +185,16 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
         // Update reputation based on success rate and response time
         const reputationScore = this.calculateReputation(successRate, newAvgTime);
 
-        await this.validatorNodeRepository.update(
-          { id: validator.id },
-          {
+        await this.prisma.validator.update({
+          where: { id: validator.id },
+          data: {
             totalRequests,
             successfulRequests,
             averageResponseTime: newAvgTime,
             reputationScore,
-            responseTime: processingTime,
+            responseTime: processingTime
           }
-        );
+        });
       }
     } catch (error) {
       this.logger.error(`❌ Failed to update validator stats:`, error.message);
@@ -207,7 +205,6 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
     // Reputation based on success rate (70%) and response time (30%)
     const successScore = successRate;
     const timeScore = Math.max(0, 1 - (avgResponseTime - 200) / 1000); // Penalize slow responses
-
     return Math.round((successScore * 0.7 + timeScore * 0.3) * 100) / 100;
   }
 
@@ -221,7 +218,7 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
         status: 'healthy',
         validatorId: this.validatorId,
         timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
+        uptime: process.uptime()
       });
     });
 
@@ -231,7 +228,7 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
         validatorId: this.validatorId,
         version: '1.0.0',
         status: 'online',
-        capabilities: ['virality', 'sentiment', 'consensus'],
+        capabilities: ['virality', 'sentiment', 'consensus']
       });
     });
 
@@ -243,7 +240,7 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
       } catch (error) {
         res.status(500).json({
           error: error.message,
-          validatorId: this.validatorId,
+          validatorId: this.validatorId
         });
       }
     });
@@ -265,7 +262,7 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
       validatorId: response.validatorId,
       viralityScore: response.data.viralityScore,
       confidence: response.data.confidence,
-      timestamp: response.data.timestamp,
+      timestamp: response.data.timestamp
     });
 
     return crypto.createHash('sha256')
@@ -295,7 +292,7 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getValidatorMetrics(): Promise<any> {
-    const validator = await this.validatorNodeRepository.findOne({
+    const validator = await this.prisma.validator.findFirst({
       where: { nodeId: this.validatorId }
     });
 
@@ -309,8 +306,8 @@ export class ValidatorNodeService implements OnModuleInit, OnModuleDestroy {
         successRate: validator.totalRequests > 0 ? validator.successfulRequests / validator.totalRequests : 0,
         averageResponseTime: validator.averageResponseTime,
         reputationScore: validator.reputationScore,
-        lastSeen: validator.lastSeen,
-      } : null,
+        lastSeen: validator.lastSeen
+      } : null
     };
   }
 }

@@ -1,8 +1,8 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { Broker } from '../entities/broker.entity';
-import { BrokerTier } from '../entities/broker.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Broker } from '../entities/broker.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerTier } from '../entities/broker.entity';
 import { UserRole } from '@prisma/client';
 
 export interface BrokerRequest extends Request {
@@ -18,7 +18,7 @@ export interface BrokerRequest extends Request {
 export const BROKER_ROLES_KEY = 'brokerRoles';
 
 export const BrokerRoles = (...roles: string[]) => ({
-  [BROKER_ROLES_KEY]: roles,
+  [BROKER_ROLES_KEY]: roles
 });
 
 @Injectable()
@@ -60,7 +60,7 @@ export class BrokerRolesGuard implements CanActivate {
       [UserRole.ADMIN]: ['admin', 'super_admin'],
       [UserRole.SUPPORT]: ['support', 'admin'],
       [UserRole.USER]: ['user'],
-      [UserRole.BROKER]: ['broker', 'user'],
+      [UserRole.BROKER]: ['broker', 'user']
     };
 
     const availableRoles = userRoles.reduce((roles, role) => {
@@ -102,7 +102,7 @@ export class BrokerRolesGuard implements CanActivate {
         'custom_reports',
         'api_management',
         'white_label',
-      ],
+      ]
     };
 
     const availableRoles = brokerTierRoles[broker.tier] || [];
@@ -152,7 +152,7 @@ export const BROKER_PERMISSIONS = {
   // Admin permissions
   ADMIN_ACCESS: 'admin',
   SUPER_ADMIN: 'super_admin',
-  SUPPORT_ACCESS: 'support',
+  SUPPORT_ACCESS: 'support'
 };
 
 // Common role combinations
@@ -191,5 +191,5 @@ export const BROKER_ROLES = {
   ADMIN: [BROKER_PERMISSIONS.ADMIN_ACCESS],
 
   // Support access
-  SUPPORT: [BROKER_PERMISSIONS.SUPPORT_ACCESS],
+  SUPPORT: [BROKER_PERMISSIONS.SUPPORT_ACCESS]
 };

@@ -7,10 +7,9 @@ import {
   IsBoolean,
   MinLength,
   MaxLength,
-  IsJSON,
+  IsJSON
 } from 'class-validator';
-import { AdminRole, AdminStatus } from '../entities/admin-user.entity';
-import { PermissionCategory } from '../entities/admin-permission.entity';
+import { AdminRole, AdminStatus, PermissionCategory } from '../enums/admin.enum';
 
 export class CreateAdminDto {
   @IsEmail()

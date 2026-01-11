@@ -159,9 +159,9 @@ class CRMWebSocketService {
 
     try {
       // Get WebSocket URL from environment or fallback
-      const wsUrl = process.env.REACT_APP_WS_URL ||
-                   (process.env.REACT_APP_API_URL?.replace('http', 'ws') + '/socket.io') ||
-                   'ws://localhost:3001';
+      const wsUrl = (import.meta.env.VITE_WS_URL as string)?.replace('http', 'ws') ||
+                   (import.meta.env.VITE_API_URL as string)?.replace('http', 'ws') + '/socket.io' ||
+                   'ws://localhost:3000';
 
       this.socket = io(wsUrl, {
         auth: {

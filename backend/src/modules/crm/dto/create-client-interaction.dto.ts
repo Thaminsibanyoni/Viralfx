@@ -7,12 +7,12 @@ export enum InteractionType {
   MEETING = 'MEETING',
   NOTE = 'NOTE',
   TICKET = 'TICKET',
-  CHAT = 'CHAT',
+  CHAT = 'CHAT'
 }
 
 export enum InteractionDirection {
   INBOUND = 'INBOUND',
-  OUTBOUND = 'OUTBOUND',
+  OUTBOUND = 'OUTBOUND'
 }
 
 export enum ContactMethod {
@@ -20,21 +20,21 @@ export enum ContactMethod {
   EMAIL = 'EMAIL',
   SMS = 'SMS',
   WHATSAPP = 'WHATSAPP',
-  IN_PERSON = 'IN_PERSON',
+  IN_PERSON = 'IN_PERSON'
 }
 
 export enum InteractionOutcome {
   SUCCESSFUL = 'SUCCESSFUL',
   NEEDS_FOLLOWUP = 'NEEDS_FOLLOWUP',
   NOT_INTERESTED = 'NOT_INTERESTED',
-  CALLBACK_REQUIRED = 'CALLBACK_REQUIRED',
+  CALLBACK_REQUIRED = 'CALLBACK_REQUIRED'
 }
 
 export enum InteractionPriority {
   LOW = 'LOW',
   NORMAL = 'NORMAL',
   HIGH = 'HIGH',
-  URGENT = 'URGENT',
+  URGENT = 'URGENT'
 }
 
 export class CreateClientInteractionDto {

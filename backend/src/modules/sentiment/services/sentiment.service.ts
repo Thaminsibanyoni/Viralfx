@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -31,8 +31,7 @@ export class SentimentService {
     private readonly prisma: PrismaService,
     private readonly redis: Redis,
     @InjectQueue('sentiment-analysis')
-    private readonly sentimentQueue: Queue,
-  ) {}
+    private readonly sentimentQueue: Queue) {}
 
   async analyzeSentiment(content: string, topicId: string, metadata?: any): Promise<SentimentAnalysis> {
     try {
@@ -49,10 +48,10 @@ export class SentimentService {
           content: content.substring(0, 1000),
           metadata: {
             ...analysis.metadata,
-            ...metadata,
+            ...metadata
           },
-          timestamp: new Date(),
-        },
+          timestamp: new Date()
+        }
       });
 
       // Queue follow-up processing
@@ -62,8 +61,8 @@ export class SentimentService {
           content,
           topicId,
           source: metadata?.source || 'manual',
-          metadata,
-        },
+          metadata
+        }
       });
 
       this.logger.log(`Sentiment analysis completed for topic ${topicId}: ${analysis.sentimentScore}`);
@@ -85,9 +84,9 @@ export class SentimentService {
     const snapshot = await this.prisma.sentimentSnapshot.findFirst({
       where: {
         topicId,
-        ...(timestamp && { timestamp: { lte: timestamp } }),
+        ...(timestamp && { timestamp: { lte: timestamp } })
       },
-      orderBy: { timestamp: 'desc' },
+      orderBy: { timestamp: 'desc' }
     });
 
     if (snapshot) {
@@ -114,10 +113,10 @@ export class SentimentService {
         topicId,
         timestamp: {
           gte: startTime,
-          lte: endTime,
-        },
+          lte: endTime
+        }
       },
-      orderBy: { timestamp: 'asc' },
+      orderBy: { timestamp: 'asc' }
     });
 
     // Group snapshots by intervals
@@ -140,7 +139,7 @@ export class SentimentService {
       return {
         timestamp: new Date(parseInt(timestamp)),
         sentimentScore: Math.round(avgSentiment * 1000) / 1000,
-        confidence: Math.round(avgConfidence * 1000) / 1000,
+        confidence: Math.round(avgConfidence * 1000) / 1000
       };
     });
 
@@ -157,8 +156,8 @@ export class SentimentService {
         const snapshots = await this.prisma.sentimentSnapshot.findMany({
           where: {
             topicId,
-            timestamp: { gte: timeAgo },
-          },
+            timestamp: { gte: timeAgo }
+          }
         });
 
         if (snapshots.length === 0) {
@@ -176,8 +175,7 @@ export class SentimentService {
             });
             return acc;
           },
-          {} as any,
-        );
+          {} as any);
 
         Object.keys(emotionAggregates).forEach((emotion) => {
           emotionAggregates[emotion] = emotionAggregates[emotion] / snapshots.length;
@@ -188,10 +186,9 @@ export class SentimentService {
           count: snapshots.length,
           avgSentiment: Math.round(avgSentiment * 1000) / 1000,
           avgConfidence: Math.round(avgConfidence * 1000) / 1000,
-          emotions: emotionAggregates,
+          emotions: emotionAggregates
         };
-      }),
-    );
+      }));
 
     return results;
   }
@@ -212,9 +209,9 @@ export class SentimentService {
           topicId,
           timestamp: {
             gte: periodStart,
-            lt: periodEnd,
-          },
-        },
+            lt: periodEnd
+          }
+        }
       });
 
       if (snapshots.length > 0) {
@@ -236,7 +233,7 @@ export class SentimentService {
         trends.push({
           period: periodStart,
           trend,
-          change: avgSentiment,
+          change: avgSentiment
         });
       }
     }
@@ -248,13 +245,13 @@ export class SentimentService {
     // Get ingest events
     const events = await this.prisma.ingestEvent.findMany({
       where: {
-        id: { in: ingestEventIds },
-      },
+        id: { in: ingestEventIds }
+      }
     });
 
     // Queue batch processing
     await this.sentimentQueue.add('batch-analyze', {
-      events,
+      events
     });
 
     this.logger.log(`Queued batch sentiment analysis for ${events.length} events`);
@@ -266,9 +263,9 @@ export class SentimentService {
     const snapshots = await this.prisma.sentimentSnapshot.findMany({
       where: {
         topicId,
-        timestamp: { gte: startTime },
+        timestamp: { gte: startTime }
       },
-      orderBy: { timestamp: 'asc' },
+      orderBy: { timestamp: 'asc' }
     });
 
     if (snapshots.length < 2) {
@@ -293,9 +290,9 @@ export class SentimentService {
     const snapshots = await this.prisma.sentimentSnapshot.findMany({
       where: {
         topicId,
-        timestamp: { gte: startTime },
+        timestamp: { gte: startTime }
       },
-      orderBy: { timestamp: 'asc' },
+      orderBy: { timestamp: 'asc' }
     });
 
     const shifts: Array<{ timestamp: Date; beforeSentiment: number; afterSentiment: number; shift: number }> = [];
@@ -311,7 +308,7 @@ export class SentimentService {
           timestamp: current.timestamp,
           beforeSentiment: previous.sentimentScore,
           afterSentiment: current.sentimentScore,
-          shift,
+          shift
         });
       }
     }
@@ -325,26 +322,26 @@ export class SentimentService {
     const results = await this.prisma.sentimentSnapshot.groupBy({
       by: ['topicId'],
       where: {
-        timestamp: { gte: timeAgo },
+        timestamp: { gte: timeAgo }
       },
       _avg: {
-        sentimentScore: true,
+        sentimentScore: true
       },
       _count: {
-        id: true,
+        id: true
       },
       orderBy: {
         _avg: {
-          sentimentScore: 'desc',
-        },
+          sentimentScore: 'desc'
+        }
       },
-      take: limit,
+      take: limit
     });
 
     return results.map(result => ({
       topicId: result.topicId,
       avgSentiment: Math.round((result._avg.sentimentScore || 0) * 1000) / 1000,
-      count: result._count.id,
+      count: result._count.id
     }));
   }
 
@@ -354,26 +351,26 @@ export class SentimentService {
     const results = await this.prisma.sentimentSnapshot.groupBy({
       by: ['topicId'],
       where: {
-        timestamp: { gte: timeAgo },
+        timestamp: { gte: timeAgo }
       },
       _avg: {
-        sentimentScore: true,
+        sentimentScore: true
       },
       _count: {
-        id: true,
+        id: true
       },
       orderBy: {
         _avg: {
-          sentimentScore: 'asc',
-        },
+          sentimentScore: 'asc'
+        }
       },
-      take: limit,
+      take: limit
     });
 
     return results.map(result => ({
       topicId: result.topicId,
       avgSentiment: Math.round((result._avg.sentimentScore || 0) * 1000) / 1000,
-      count: result._count.id,
+      count: result._count.id
     }));
   }
 
@@ -382,8 +379,7 @@ export class SentimentService {
     page: number = 1,
     limit: number = 20,
     source?: string,
-    minConfidence?: number,
-  ) {
+    minConfidence?: number) {
     const skip = (page - 1) * limit;
     const where: any = { topicId };
 
@@ -408,8 +404,8 @@ export class SentimentService {
           source: true,
           content: true,
           metadata: true,
-          timestamp: true,
-        },
+          timestamp: true
+        }
       }),
       this.prisma.sentimentEntry.count({ where }),
     ]);
@@ -420,8 +416,8 @@ export class SentimentService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
-      },
+        totalPages: Math.ceil(total / limit)
+      }
     };
   }
 
@@ -432,30 +428,30 @@ export class SentimentService {
       this.prisma.sentimentEntry.count({
         where: {
           timestamp: {
-            gte: timeFilter.from,
-          },
-        },
+            gte: timeFilter.from
+          }
+        }
       }),
       this.prisma.sentimentEntry.aggregate({
         where: {
           timestamp: {
-            gte: timeFilter.from,
-          },
+            gte: timeFilter.from
+          }
         },
         _avg: {
-          score: true,
-        },
+          score: true
+        }
       }),
       this.prisma.sentimentEntry.findMany({
         where: {
           timestamp: {
-            gte: timeFilter.from,
-          },
+            gte: timeFilter.from
+          }
         },
         select: {
-          topicId: true,
+          topicId: true
         },
-        distinct: ['topicId'],
+        distinct: ['topicId']
       }).then(topics => topics.length),
     ]);
 
@@ -465,7 +461,7 @@ export class SentimentService {
       averageScore: avgScore._avg.score || 0,
       topicCount,
       periodStart: timeFilter.from,
-      periodEnd: timeFilter.to,
+      periodEnd: timeFilter.to
     };
   }
 
@@ -477,7 +473,7 @@ export class SentimentService {
   }) {
     await this.sentimentQueue.add('analyze-content', {
       type: 'single',
-      data,
+      data
     });
 
     return { message: 'Sentiment analysis job queued', jobId: data.content.substring(0, 50) };
@@ -488,8 +484,8 @@ export class SentimentService {
       type: 'batch',
       data: {
         topicIds,
-        forceRefresh,
-      },
+        forceRefresh
+      }
     });
 
     return { message: 'Batch sentiment analysis job queued', topicCount: topicIds.length };
@@ -502,28 +498,28 @@ export class SentimentService {
           topicId,
           timestamp: {
             gte: timeFilter.from,
-            lte: timeFilter.to,
-          },
-        },
+            lte: timeFilter.to
+          }
+        }
       }),
       this.prisma.sentimentEntry.aggregate({
         where: {
           topicId,
           timestamp: {
             gte: timeFilter.from,
-            lte: timeFilter.to,
-          },
+            lte: timeFilter.to
+          }
         },
         _avg: {
           score: true,
-          confidence: true,
+          confidence: true
         },
         _min: {
-          score: true,
+          score: true
         },
         _max: {
-          score: true,
-        },
+          score: true
+        }
       }),
     ]);
 
@@ -535,7 +531,7 @@ export class SentimentService {
       averageConfidence: sentimentData._avg.confidence || 0,
       minScore: sentimentData._min.score || 0,
       maxScore: sentimentData._max.score || 0,
-      scoreRange: (sentimentData._max.score || 0) - (sentimentData._min.score || 0),
+      scoreRange: (sentimentData._max.score || 0) - (sentimentData._min.score || 0)
     };
   }
 
@@ -545,9 +541,9 @@ export class SentimentService {
     const deletedCount = await this.prisma.sentimentEntry.deleteMany({
       where: {
         timestamp: {
-          lt: cutoffDate,
-        },
-      },
+          lt: cutoffDate
+        }
+      }
     });
 
     this.logger.log(`Cleaned up ${deletedCount.count} old sentiment entries older than ${olderThanDays} days`);
@@ -584,7 +580,7 @@ export class SentimentService {
         fear: Math.random() * 0.2,
         sadness: Math.max(0, -sentimentScore) * 0.4,
         surprise: Math.random() * 0.3,
-        disgust: Math.max(0, -sentimentScore) * 0.3,
+        disgust: Math.max(0, -sentimentScore) * 0.3
       },
       metadata: {
         model: 'simple-rule-based',
@@ -592,8 +588,8 @@ export class SentimentService {
         processedAt: new Date(),
         wordCount: words.length,
         positiveWords: positiveCount,
-        negativeWords: negativeCount,
-      },
+        negativeWords: negativeCount
+      }
     };
   }
 

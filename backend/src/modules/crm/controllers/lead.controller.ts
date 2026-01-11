@@ -12,12 +12,12 @@ import {
   HttpStatus,
   ValidationPipe
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { LeadService } from '../services/lead.service';
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from "../../../common/enums/user-role.enum";
 import { CreateLeadDto } from '../dto/create-lead.dto';
 import { UpdateLeadDto } from '../dto/update-lead.dto';
 import { LeadFiltersDto } from '../dto/lead-filters.dto';
@@ -45,7 +45,7 @@ export class LeadController {
       success: true,
       data: result.leads,
       pagination: result.pagination,
-      filters: result.filters,
+      filters: result.filters
     };
   }
 
@@ -59,7 +59,7 @@ export class LeadController {
 
     return {
       success: true,
-      data: lead,
+      data: lead
     };
   }
 
@@ -73,7 +73,7 @@ export class LeadController {
     return {
       success: true,
       message: 'Lead created successfully',
-      data: lead,
+      data: lead
     };
   }
 
@@ -91,7 +91,7 @@ export class LeadController {
     return {
       success: true,
       message: 'Lead updated successfully',
-      data: lead,
+      data: lead
     };
   }
 
@@ -105,7 +105,7 @@ export class LeadController {
 
     return {
       success: true,
-      message: 'Lead deleted successfully',
+      message: 'Lead deleted successfully'
     };
   }
 
@@ -123,7 +123,7 @@ export class LeadController {
     return {
       success: true,
       message: 'Lead status updated successfully',
-      data: lead,
+      data: lead
     };
   }
 
@@ -141,7 +141,7 @@ export class LeadController {
     return {
       success: true,
       message: 'Lead assigned successfully',
-      data: lead,
+      data: lead
     };
   }
 
@@ -155,7 +155,7 @@ export class LeadController {
 
     return {
       success: true,
-      message: 'Lead scoring initiated successfully',
+      message: 'Lead scoring initiated successfully'
     };
   }
 
@@ -172,14 +172,14 @@ export class LeadController {
       ...(query.status && { status: query.status }),
       ...(query.assignedTo && { assignedTo: query.assignedTo }),
       ...(query.brokerId && { brokerId: query.brokerId }),
-      ...(query.dateRange && { dateRange: JSON.parse(query.dateRange) }),
+      ...(query.dateRange && { dateRange: JSON.parse(query.dateRange) })
     };
 
     const csvData = await this.leadService.exportLeads(filters);
 
     return {
       success: true,
-      data: csvData,
+      data: csvData
     };
   }
 
@@ -193,7 +193,7 @@ export class LeadController {
 
     return {
       success: true,
-      data: stats,
+      data: stats
     };
   }
 }

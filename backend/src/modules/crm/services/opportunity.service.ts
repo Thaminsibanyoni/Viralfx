@@ -1,30 +1,33 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Opportunity, OpportunityStage } from '../entities/opportunity.entity';
-import { ContractService } from './contract.service';
-import { BrokersService } from '../../brokers/services/brokers.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { ContractService } from "./contract.service";
+import { BrokersService } from "../../brokers/services/brokers.service";
 import { CreateOpportunityDto } from '../dto/create-opportunity.dto';
 import { UpdateOpportunityDto } from '../dto/update-opportunity.dto';
+
+type OpportunityStage = 'PROSPECTING' | 'QUALIFICATION' | 'PROPOSAL' | 'NEGOTIATION' | 'CLOSED_WON' | 'CLOSED_LOST';
 
 @Injectable()
 export class OpportunityService {
   constructor(
-    @InjectRepository(Opportunity)
-    private readonly opportunityRepository: Repository<Opportunity>,
+        private prisma: PrismaService,
     private readonly contractService: ContractService,
-    private readonly brokersService: BrokersService,
-  ) {}
+    private readonly brokersService: BrokersService) {}
 
   async createOpportunity(createOpportunityDto: CreateOpportunityDto) {
-    const opportunity = this.opportunityRepository.create(createOpportunityDto);
-    return await this.opportunityRepository.save(opportunity);
+    const opportunity = await this.prisma.brokerDeal.create({
+      data: createOpportunityDto
+    });
+    return opportunity;
   }
 
   async updateOpportunity(id: string, updateOpportunityDto: UpdateOpportunityDto) {
     const opportunity = await this.getOpportunityById(id);
 
-    await this.opportunityRepository.update(id, updateOpportunityDto);
+    await this.prisma.brokerDeal.update({
+      where: { id },
+      data: updateOpportunityDto
+    });
     return await this.getOpportunityById(id);
   }
 
@@ -32,35 +35,41 @@ export class OpportunityService {
     const opportunity = await this.getOpportunityById(id);
 
     // Validation: Cannot skip stages
-    if (!this.isValidStageTransition(opportunity.stage, newStage)) {
+    if (!this.isValidStageTransition(opportunity.stage as OpportunityStage, newStage)) {
       throw new BadRequestException(`Cannot move from ${opportunity.stage} to ${newStage}`);
     }
 
-    const updateData: Partial<Opportunity> = {
-      stage: newStage,
+    const updateData: any = {
+      stage: newStage
     };
 
     // Update probability based on stage
     updateData.probability = this.getStageProbability(newStage);
 
     // Set actual close date for closed stages
-    if (newStage === OpportunityStage.CLOSED_WON || newStage === OpportunityStage.CLOSED_LOST) {
+    if (newStage === 'CLOSED_WON' || newStage === 'CLOSED_LOST') {
       updateData.actualCloseDate = new Date();
     }
 
-    await this.opportunityRepository.update(id, updateData);
+    await this.prisma.brokerDeal.update({
+      where: { id },
+      data: updateData
+    });
     return await this.getOpportunityById(id);
   }
 
   async closeWon(id: string) {
     const opportunity = await this.getOpportunityById(id);
 
-    await this.opportunityRepository.manager.transaction(async (transactionManager) => {
+    await this.prisma.$transaction(async (tx) => {
       // Update opportunity stage
-      await transactionManager.update(Opportunity, id, {
-        stage: OpportunityStage.CLOSED_WON,
-        actualCloseDate: new Date(),
-        probability: 100,
+      await tx.brokerDeal.update({
+        where: { id },
+        data: {
+          stage: 'CLOSED_WON',
+          actualCloseDate: new Date(),
+          probability: 100
+        }
       });
 
       // Create contract from opportunity
@@ -69,14 +78,14 @@ export class OpportunityService {
         value: opportunity.value,
         startDate: new Date(),
         endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
-        autoRenew: true,
+        autoRenew: true
       });
 
       // Update broker metrics
       if (opportunity.brokerId) {
         await this.brokersService.updateMetrics(opportunity.brokerId, {
           totalDealsWon: 1,
-          totalRevenue: opportunity.value,
+          totalRevenue: opportunity.value
         });
       }
     });
@@ -87,17 +96,20 @@ export class OpportunityService {
   async closeLost(id: string, reason: string) {
     const opportunity = await this.getOpportunityById(id);
 
-    await this.opportunityRepository.update(id, {
-      stage: OpportunityStage.CLOSED_LOST,
-      actualCloseDate: new Date(),
-      probability: 0,
-      lostReason: reason,
+    await this.prisma.brokerDeal.update({
+      where: { id },
+      data: {
+        stage: 'CLOSED_LOST',
+        actualCloseDate: new Date(),
+        probability: 0,
+        lostReason: reason
+      }
     });
 
     // Update broker metrics
     if (opportunity.brokerId) {
       await this.brokersService.updateMetrics(opportunity.brokerId, {
-        totalDealsLost: 1,
+        totalDealsLost: 1
       });
     }
 
@@ -120,61 +132,66 @@ export class OpportunityService {
       assignedTo,
       brokerId,
       dateRange,
-      valueRange,
+      valueRange
     } = filters;
 
-    const queryBuilder = this.opportunityRepository
-      .createQueryBuilder('opportunity')
-      .leftJoinAndSelect('opportunity.broker', 'broker')
-      .leftJoinAndSelect('opportunity.lead', 'lead')
-      .leftJoinAndSelect('opportunity.contract', 'contract');
+    const where: any = {};
 
     if (stage) {
-      queryBuilder.andWhere('opportunity.stage = :stage', { stage });
+      where.stage = stage;
     }
 
     if (assignedTo) {
-      queryBuilder.andWhere('opportunity.assignedTo = :assignedTo', { assignedTo });
+      where.assignedTo = assignedTo;
     }
 
     if (brokerId) {
-      queryBuilder.andWhere('opportunity.brokerId = :brokerId', { brokerId });
+      where.brokerId = brokerId;
     }
 
     if (dateRange) {
-      queryBuilder.andWhere(
-        'opportunity.createdAt BETWEEN :start AND :end',
-        dateRange
-      );
+      where.createdAt = { gte: dateRange.start, lte: dateRange.end };
     }
 
     if (valueRange) {
-      queryBuilder.andWhere(
-        'opportunity.value BETWEEN :min AND :max',
-        valueRange
-      );
+      where.value = { gte: valueRange.min, lte: valueRange.max };
     }
 
-    queryBuilder.orderBy('opportunity.createdAt', 'DESC');
+    const skip = (page - 1) * limit;
 
-    const offset = (page - 1) * limit;
-    queryBuilder.skip(offset).take(limit);
-
-    const [opportunities, total] = await queryBuilder.getManyAndCount();
+    const [opportunities, total] = await Promise.all([
+      this.prisma.brokerDeal.findMany({
+        where,
+        include: {
+          broker: {
+            select: { businessName: true }
+          },
+          lead: true
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit
+      }),
+      this.prisma.brokerDeal.count({ where })
+    ]);
 
     return {
       opportunities,
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit)
     };
   }
 
   async getOpportunityById(id: string) {
-    const opportunity = await this.opportunityRepository.findOne({
+    const opportunity = await this.prisma.brokerDeal.findFirst({
       where: { id },
-      relations: ['broker', 'lead', 'contract', 'activities'],
+      include: {
+        broker: true,
+        lead: true,
+        activities: true
+      }
     });
 
     if (!opportunity) {
@@ -185,51 +202,47 @@ export class OpportunityService {
   }
 
   async getPipeline(brokerId?: string) {
-    const queryBuilder = this.opportunityRepository
-      .createQueryBuilder('opportunity')
-      .select('opportunity.stage', 'stage')
-      .addSelect('COUNT(*)', 'count')
-      .addSelect('SUM(opportunity.value)', 'totalValue')
-      .addSelect('AVG(opportunity.probability)', 'avgProbability');
+    const where: any = brokerId ? { brokerId } : {};
 
-    if (brokerId) {
-      queryBuilder.where('opportunity.brokerId = :brokerId', { brokerId });
-    } else {
-      queryBuilder.where('opportunity.stage NOT IN (:...closedStages)', {
-        closedStages: [OpportunityStage.CLOSED_WON, OpportunityStage.CLOSED_LOST],
-      });
+    if (!brokerId) {
+      where.stage = {
+        notIn: ['CLOSED_WON', 'CLOSED_LOST']
+      };
     }
 
-    const pipelineData = await queryBuilder
-      .groupBy('opportunity.stage')
-      .getRawMany();
+    const pipelineData = await this.prisma.brokerDeal.groupBy({
+      by: ['stage'],
+      where,
+      _count: true,
+      _sum: { value: true },
+      _avg: { probability: true }
+    });
 
     return pipelineData.map(item => ({
       stage: item.stage,
-      count: parseInt(item.count),
-      totalValue: parseFloat(item.totalValue) || 0,
-      avgProbability: parseFloat(item.avgProbability) || 0,
+      count: item._count,
+      totalValue: item._sum.value || 0,
+      avgProbability: item._avg.probability || 0
     }));
   }
 
   async calculateWinRate(brokerId?: string, period: { start: Date; end: Date }) {
-    const queryBuilder = this.opportunityRepository
-      .createQueryBuilder('opportunity');
+    const where: any = {
+      actualCloseDate: {
+        gte: period.start,
+        lte: period.end
+      }
+    };
 
     if (brokerId) {
-      queryBuilder.where('opportunity.brokerId = :brokerId', { brokerId });
+      where.brokerId = brokerId;
     }
 
-    queryBuilder.andWhere(
-      'opportunity.actualCloseDate BETWEEN :start AND :end',
-      period
-    );
+    const total = await this.prisma.brokerDeal.count({ where });
 
-    const total = await queryBuilder.getCount();
-
-    const won = await queryBuilder
-      .andWhere('opportunity.stage = :stage', { stage: OpportunityStage.CLOSED_WON })
-      .getCount();
+    const won = await this.prisma.brokerDeal.count({
+      where: { ...where, stage: 'CLOSED_WON' }
+    });
 
     return total > 0 ? (won / total) * 100 : 0;
   }
@@ -239,19 +252,20 @@ export class OpportunityService {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() + periodDays);
 
-    const opportunities = await this.opportunityRepository
-      .createQueryBuilder('opportunity')
-      .where('opportunity.expectedCloseDate BETWEEN :startDate AND :endDate', {
-        startDate,
-        endDate,
-      })
-      .andWhere('opportunity.stage NOT IN (:...closedStages)', {
-        closedStages: [OpportunityStage.CLOSED_WON, OpportunityStage.CLOSED_LOST],
-      })
-      .getMany();
+    const opportunities = await this.prisma.brokerDeal.findMany({
+      where: {
+        expectedCloseDate: {
+          gte: startDate,
+          lte: endDate
+        },
+        stage: {
+          notIn: ['CLOSED_WON', 'CLOSED_LOST']
+        }
+      }
+    });
 
     const forecast = opportunities.reduce((acc, opp) => {
-      const weightedValue = opp.value * (opp.probability / 100);
+      const weightedValue = Number(opp.value) * (opp.probability / 100);
       return acc + weightedValue;
     }, 0);
 
@@ -260,25 +274,25 @@ export class OpportunityService {
       forecastAmount: forecast,
       opportunityCount: opportunities.length,
       averageDealSize: opportunities.length > 0
-        ? opportunities.reduce((sum, opp) => sum + opp.value, 0) / opportunities.length
-        : 0,
+        ? opportunities.reduce((sum, opp) => sum + Number(opp.value), 0) / opportunities.length
+        : 0
     };
   }
 
   private isValidStageTransition(currentStage: OpportunityStage, newStage: OpportunityStage): boolean {
     // Define valid transitions
     const stageOrder = [
-      OpportunityStage.PROSPECTING,
-      OpportunityStage.QUALIFICATION,
-      OpportunityStage.PROPOSAL,
-      OpportunityStage.NEGOTIATION,
+      'PROSPECTING',
+      'QUALIFICATION',
+      'PROPOSAL',
+      'NEGOTIATION',
     ];
 
     const currentIndex = stageOrder.indexOf(currentStage);
     const newIndex = stageOrder.indexOf(newStage);
 
     // Can always close as won or lost
-    if (newStage === OpportunityStage.CLOSED_WON || newStage === OpportunityStage.CLOSED_LOST) {
+    if (newStage === 'CLOSED_WON' || newStage === 'CLOSED_LOST') {
       return true;
     }
 
@@ -287,13 +301,13 @@ export class OpportunityService {
   }
 
   private getStageProbability(stage: OpportunityStage): number {
-    const stageProbabilities = {
-      [OpportunityStage.PROSPECTING]: 10,
-      [OpportunityStage.QUALIFICATION]: 25,
-      [OpportunityStage.PROPOSAL]: 50,
-      [OpportunityStage.NEGOTIATION]: 75,
-      [OpportunityStage.CLOSED_WON]: 100,
-      [OpportunityStage.CLOSED_LOST]: 0,
+    const stageProbabilities: Record<OpportunityStage, number> = {
+      'PROSPECTING': 10,
+      'QUALIFICATION': 25,
+      'PROPOSAL': 50,
+      'NEGOTIATION': 75,
+      'CLOSED_WON': 100,
+      'CLOSED_LOST': 0
     };
 
     return stageProbabilities[stage] || 50;

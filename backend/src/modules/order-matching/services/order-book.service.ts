@@ -1,13 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThanOrEqual, LessThanOrEqual, LessThan } from 'typeorm';
 
-import { Order } from '../../market-aggregation/entities/order.entity';
-import { Market } from '../../market-aggregation/entities/market.entity';
+import { Order } from "../../market-aggregation/interfaces/order.interface";
+import { Market } from "../../market-aggregation/interfaces/market.interface";
 import { MatchResult } from '../interfaces/order-matching.interface';
-import { WebSocketGateway } from '../../websocket/gateways/websocket.gateway';
 
 interface OrderBookEntry {
   orderId: string;
@@ -30,18 +28,34 @@ interface OrderBook {
   low24h: number;
 }
 
+interface ProcessedOrder {
+  id: string;
+  userId: string;
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  order_type: string;
+  quantity: number;
+  price?: number;
+  stop_price?: number;
+  filled_quantity: number;
+  remaining_quantity: number;
+  status: string;
+  fills?: any[];
+  avg_fill_price?: number;
+  commission: number;
+  fee: number;
+  created_at: Date;
+  updated_at: Date;
+  expires_at?: Date;
+}
+
 @Injectable()
 export class OrderBookService implements OnModuleInit {
   private readonly logger = new Logger(OrderBookService.name);
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
-    @InjectRepository(Order)
-    private readonly orderRepository: Repository<Order>,
-    @InjectRepository(Market)
-    private readonly marketRepository: Repository<Market>,
-    private readonly webSocketGateway: WebSocketGateway,
-  ) {}
+    private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
     this.logger.log('OrderBookService initialized');
@@ -187,7 +201,7 @@ export class OrderBookService implements OnModuleInit {
         userId: order.userId,
         quantity: order.quantity,
         price: order.price,
-        timestamp: order.created_at
+        timestamp: order.createdAt || new Date()
       }));
 
       // Update the hash structure for consistency
@@ -206,7 +220,7 @@ export class OrderBookService implements OnModuleInit {
         });
       }
 
-      this.logger.log(`Added ${order.side} order ${order.id} to order book for ${order.symbol}`);
+      this.logger.debug(`Added ${order.side} order ${order.id} to order book for ${order.symbol}`);
     } catch (error) {
       this.logger.error(`Failed to add order to order book:`, error);
       throw error;
@@ -234,14 +248,13 @@ export class OrderBookService implements OnModuleInit {
         await this.redis.lpush(`${orderBookKey}:${side}:orders`, ...filteredOrders);
       }
 
-      this.logger.log(`Removed order ${order.id} from order book for ${order.symbol}`);
+      this.logger.debug(`Removed order ${order.id} from order book for ${order.symbol}`);
     } catch (error) {
       this.logger.error(`Failed to remove order from order book:`, error);
       throw error;
     }
   }
 
-  
   /**
    * Get market depth for a symbol
    */
@@ -354,54 +367,45 @@ export class OrderBookService implements OnModuleInit {
   }
 
   /**
-   * Update order book after matches
-   */
-  private async updateOrderBookAfterMatches(symbol: string, matches: MatchResult[]): Promise<void> {
-    try {
-      const orderBookKey = `orderbook:${symbol}`;
-
-      // Update order quantities or remove filled orders
-      for (const match of matches) {
-        // Update bid order
-        await this.updateOrderQuantity(match.bidOrderId, match.quantity);
-
-        // Update ask order
-        await this.updateOrderQuantity(match.askOrderId, match.quantity);
-      }
-
-      // Update order book timestamp and volume
-      await this.redis.hset(orderBookKey, 'lastUpdate', new Date().toISOString());
-
-      this.logger.log(`Updated order book for ${symbol} after ${matches.length} matches`);
-    } catch (error) {
-      this.logger.error(`Failed to update order book after matches:`, error);
-      throw error;
-    }
-  }
-
-  /**
    * Update order quantity after partial fill
    */
   private async updateOrderQuantity(orderId: string, filledQuantity: number): Promise<void> {
     try {
-      const order = await this.orderRepository.findOne({ where: { id: orderId } });
+      const order = await this.prisma.order.findFirst({ where: { id: orderId } });
       if (!order) return;
 
-      order.filled_quantity += filledQuantity;
-      order.remaining_quantity -= filledQuantity;
+      const newFilledQuantity = (order.filled_quantity || 0) + filledQuantity;
+      const newRemainingQuantity = (order.remaining_quantity || order.quantity) - filledQuantity;
 
-      if (order.remaining_quantity <= 0) {
-        order.status = 'FILLED';
-        order.filled_at = new Date();
+      const updateData: any = {
+        filled_quantity: newFilledQuantity,
+        remaining_quantity: newRemainingQuantity
+      };
+
+      if (newRemainingQuantity <= 0) {
+        updateData.status = 'FILLED';
+        updateData.filled_at = new Date();
+        updateData.is_active = false;
       } else {
-        order.status = 'PARTIAL_FILLED';
+        updateData.status = 'PARTIAL_FILLED';
       }
 
-      await this.orderRepository.save(order);
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: updateData
+      });
 
       // Remove from order book if fully filled
-      if (order.status === 'FILLED') {
-        await this.removeOrder(order);
+      if (newRemainingQuantity <= 0) {
+        await this.removeOrder({
+          id: order.id,
+          userId: order.userId,
+          symbol: order.symbol,
+          side: order.side as 'BUY' | 'SELL',
+          quantity: order.quantity,
+          price: order.price || undefined,
+          createdAt: order.created_at
+        });
       }
     } catch (error) {
       this.logger.error(`Failed to update order quantity for ${orderId}:`, error);
@@ -415,17 +419,32 @@ export class OrderBookService implements OnModuleInit {
   async cleanupExpiredOrders(): Promise<void> {
     try {
       const now = new Date();
-      const expiredOrders = await this.orderRepository.find({
+
+      const expiredOrders = await this.prisma.order.findMany({
         where: {
           status: 'OPEN',
-          expires_at: LessThan(now)
+          expires_at: { lte: now }
         }
       });
 
       for (const order of expiredOrders) {
-        order.status = 'EXPIRED';
-        await this.orderRepository.save(order);
-        await this.removeOrder(order);
+        await this.prisma.order.update({
+          where: { id: order.id },
+          data: {
+            status: 'EXPIRED',
+            is_active: false
+          }
+        });
+
+        await this.removeOrder({
+          id: order.id,
+          userId: order.userId,
+          symbol: order.symbol,
+          side: order.side as 'BUY' | 'SELL',
+          quantity: order.quantity,
+          price: order.price || undefined,
+          createdAt: order.created_at
+        });
       }
 
       this.logger.log(`Cleaned up ${expiredOrders.length} expired orders`);
@@ -442,41 +461,55 @@ export class OrderBookService implements OnModuleInit {
       const triggeredOrders: Order[] = [];
 
       // Find stop loss orders (SELL when price drops below stop price)
-      const stopLossOrders = await this.orderRepository.find({
+      const stopLossOrders = await this.prisma.order.findMany({
         where: {
           symbol,
           order_type: 'STOP',
           side: 'SELL',
           status: 'OPEN',
-          stop_price: MoreThanOrEqual(currentPrice),
+          stop_price: { lte: currentPrice }
         },
-        order: { stop_price: 'ASC' },
+        orderBy: { stop_price: 'asc' }
       });
 
       // Find stop buy orders (BUY when price rises above stop price)
-      const stopBuyOrders = await this.orderRepository.find({
+      const stopBuyOrders = await this.prisma.order.findMany({
         where: {
           symbol,
           order_type: 'STOP',
           side: 'BUY',
           status: 'OPEN',
-          stop_price: LessThanOrEqual(currentPrice),
+          stop_price: { gte: currentPrice }
         },
-        order: { stop_price: 'DESC' },
+        orderBy: { stop_price: 'desc' }
       });
 
       const allTriggeredOrders = [...stopLossOrders, ...stopBuyOrders];
 
       for (const order of allTriggeredOrders) {
         // Convert stop order to market order
-        order.order_type = 'MARKET';
-        order.status = 'PENDING';
-        order.stop_price = null;
+        await this.prisma.order.update({
+          where: { id: order.id },
+          data: {
+            order_type: 'MARKET',
+            status: 'PENDING',
+            stop_price: null
+          }
+        });
 
-        await this.orderRepository.save(order);
-        triggeredOrders.push(order);
+        triggeredOrders.push({
+          id: order.id,
+          userId: order.userId,
+          symbol: order.symbol,
+          side: order.side as 'BUY' | 'SELL',
+          type: 'MARKET',
+          quantity: order.quantity,
+          price: undefined,
+          stopPrice: undefined,
+          createdAt: order.created_at
+        });
 
-        this.logger.log(`Stop order ${order.id} triggered at price ${currentPrice}`);
+        this.logger.debug(`Stop order ${order.id} triggered at price ${currentPrice}`);
       }
 
       return triggeredOrders;
@@ -494,43 +527,67 @@ export class OrderBookService implements OnModuleInit {
       const triggeredOrders: Order[] = [];
 
       // Find take profit orders (SELL when price reaches or exceeds target)
-      const takeProfitSellOrders = await this.orderRepository.find({
+      const takeProfitSellOrders = await this.prisma.order.findMany({
         where: {
           symbol,
           order_type: 'STOP_LIMIT',
           side: 'SELL',
           status: 'OPEN',
-          stop_price: LessThanOrEqual(currentPrice),
+          stop_price: { lte: currentPrice }
         },
-        order: { stop_price: 'ASC' },
+        orderBy: { stop_price: 'asc' }
       });
 
       // Find take profit buy orders (BUY when price drops to or below target)
-      const takeProfitBuyOrders = await this.orderRepository.find({
+      const takeProfitBuyOrders = await this.prisma.order.findMany({
         where: {
           symbol,
           order_type: 'STOP_LIMIT',
           side: 'BUY',
           status: 'OPEN',
-          stop_price: MoreThanOrEqual(currentPrice),
+          stop_price: { gte: currentPrice }
         },
-        order: { stop_price: 'DESC' },
+        orderBy: { stop_price: 'desc' }
       });
 
       const allTriggeredOrders = [...takeProfitSellOrders, ...takeProfitBuyOrders];
 
       for (const order of allTriggeredOrders) {
         // Convert take profit order to limit order at target price
-        order.order_type = 'LIMIT';
-        order.price = order.stop_price;
-        order.stop_price = null;
-        order.status = 'OPEN';
+        const updatedOrder = await this.prisma.order.update({
+          where: { id: order.id },
+          data: {
+            order_type: 'LIMIT',
+            price: order.stop_price,
+            stop_price: null,
+            status: 'OPEN'
+          }
+        });
 
-        await this.orderRepository.save(order);
-        await this.addOrder(order);
-        triggeredOrders.push(order);
+        await this.addOrder({
+          id: updatedOrder.id,
+          userId: updatedOrder.userId,
+          symbol: updatedOrder.symbol,
+          side: updatedOrder.side as 'BUY' | 'SELL',
+          type: 'LIMIT',
+          quantity: updatedOrder.quantity,
+          price: updatedOrder.price || undefined,
+          createdAt: updatedOrder.created_at
+        });
 
-        this.logger.log(`Take profit order ${order.id} triggered at price ${currentPrice}, converted to LIMIT at ${order.price}`);
+        triggeredOrders.push({
+          id: updatedOrder.id,
+          userId: updatedOrder.userId,
+          symbol: updatedOrder.symbol,
+          side: updatedOrder.side as 'BUY' | 'SELL',
+          type: 'LIMIT',
+          quantity: updatedOrder.quantity,
+          price: updatedOrder.price || undefined,
+          stopPrice: undefined,
+          createdAt: updatedOrder.created_at
+        });
+
+        this.logger.debug(`Take profit order ${order.id} triggered at price ${currentPrice}, converted to LIMIT at ${updatedOrder.price}`);
       }
 
       return triggeredOrders;
@@ -548,24 +605,30 @@ export class OrderBookService implements OnModuleInit {
       const matches: MatchResult[] = [];
 
       // Get open orders sorted by price-time priority
-      const bids = await this.orderRepository.find({
+      const bids = await this.prisma.order.findMany({
         where: {
           symbol,
           side: 'BUY',
           status: 'OPEN',
-          order_type: 'LIMIT',
+          order_type: 'LIMIT'
         },
-        order: { price: 'DESC', created_at: 'ASC' },
+        orderBy: [
+          { price: 'desc' },
+          { created_at: 'asc' }
+        ]
       });
 
-      const asks = await this.orderRepository.find({
+      const asks = await this.prisma.order.findMany({
         where: {
           symbol,
           side: 'SELL',
           status: 'OPEN',
-          order_type: 'LIMIT',
+          order_type: 'LIMIT'
         },
-        order: { price: 'ASC', created_at: 'ASC' },
+        orderBy: [
+          { price: 'asc' },
+          { created_at: 'asc' }
+        ]
       });
 
       let bidIndex = 0;
@@ -576,10 +639,12 @@ export class OrderBookService implements OnModuleInit {
         const ask = asks[askIndex];
 
         // Check if orders can be matched
-        if (bid.price >= ask.price) {
-          const matchQuantity = Math.min(bid.remaining_quantity, ask.remaining_quantity);
-          const matchPrice = ask.price; // Use ask price for execution
-          const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        if ((bid.price || 0) >= (ask.price || 0)) {
+          const bidRemaining = bid.remaining_quantity || bid.quantity;
+          const askRemaining = ask.remaining_quantity || ask.quantity;
+          const matchQuantity = Math.min(bidRemaining, askRemaining);
+          const matchPrice = ask.price || 0; // Use ask price for execution
+          const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
           const match: MatchResult = {
             bidOrderId: bid.id,
@@ -589,91 +654,150 @@ export class OrderBookService implements OnModuleInit {
             bidUserId: bid.userId,
             askUserId: ask.userId,
             timestamp: new Date(),
-            tradeId,
+            tradeId
           };
 
           matches.push(match);
 
           // Update bid order
           const bidFill = {
-            id: `fill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            id: `fill_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
             quantity: matchQuantity,
             price: matchPrice,
             commission: matchQuantity * matchPrice * 0.001, // 0.1% commission
             fee: matchQuantity * matchPrice * 0.0001, // 0.01% fee
             timestamp: new Date(),
-            tradeId,
+            tradeId
           };
 
-          if (!bid.fills) bid.fills = [];
-          bid.fills.push(bidFill);
-          bid.filled_quantity += matchQuantity;
-          bid.remaining_quantity -= matchQuantity;
-          bid.commission += bidFill.commission;
-          bid.fee += bidFill.fee;
+          const bidFills = Array.isArray(bid.fills) ? bid.fills : [];
+          bidFills.push(bidFill);
 
-          if (bid.remaining_quantity <= 0) {
-            bid.status = 'FILLED';
-            bid.filled_at = new Date();
-            bid.avg_fill_price = ((bid.avg_fill_price || 0) * (bid.filled_quantity - matchQuantity) + matchPrice * matchQuantity) / bid.filled_quantity;
+          const newBidFilled = (bid.filled_quantity || 0) + matchQuantity;
+          const newBidRemaining = bidRemaining - matchQuantity;
+          const bidCommission = (bid.commission || 0) + bidFill.commission;
+          const bidFee = (bid.fee || 0) + bidFill.fee;
+
+          let bidStatus = 'OPEN';
+          let bidFilledAt = undefined;
+          let bidAvgPrice = bid.avg_fill_price || 0;
+
+          if (newBidRemaining <= 0) {
+            bidStatus = 'FILLED';
+            bidFilledAt = new Date();
+            bidAvgPrice = ((bidAvgPrice * (newBidFilled - matchQuantity)) + (matchPrice * matchQuantity)) / newBidFilled;
           } else {
-            bid.status = 'PARTIAL_FILLED';
-            bid.avg_fill_price = ((bid.avg_fill_price || 0) * (bid.filled_quantity - matchQuantity) + matchPrice * matchQuantity) / bid.filled_quantity;
+            bidStatus = 'PARTIAL_FILLED';
+            bidAvgPrice = ((bidAvgPrice * (newBidFilled - matchQuantity)) + (matchPrice * matchQuantity)) / newBidFilled;
           }
+
+          await this.prisma.order.update({
+            where: { id: bid.id },
+            data: {
+              filled_quantity: newBidFilled,
+              remaining_quantity: newBidRemaining,
+              status: bidStatus,
+              filled_at: bidFilledAt,
+              avg_fill_price: bidAvgPrice,
+              commission: bidCommission,
+              fee: bidFee,
+              fills: bidFills
+            }
+          });
 
           // Update ask order
           const askFill = {
-            id: `fill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            id: `fill_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
             quantity: matchQuantity,
             price: matchPrice,
-            commission: matchQuantity * matchPrice * 0.001, // 0.1% commission
-            fee: matchQuantity * matchPrice * 0.0001, // 0.01% fee
+            commission: matchQuantity * matchPrice * 0.001,
+            fee: matchQuantity * matchPrice * 0.0001,
             timestamp: new Date(),
-            tradeId,
+            tradeId
           };
 
-          if (!ask.fills) ask.fills = [];
-          ask.fills.push(askFill);
-          ask.filled_quantity += matchQuantity;
-          ask.remaining_quantity -= matchQuantity;
-          ask.commission += askFill.commission;
-          ask.fee += askFill.fee;
+          const askFills = Array.isArray(ask.fills) ? ask.fills : [];
+          askFills.push(askFill);
 
-          if (ask.remaining_quantity <= 0) {
-            ask.status = 'FILLED';
-            ask.filled_at = new Date();
-            ask.avg_fill_price = ((ask.avg_fill_price || 0) * (ask.filled_quantity - matchQuantity) + matchPrice * matchQuantity) / ask.filled_quantity;
+          const newAskFilled = (ask.filled_quantity || 0) + matchQuantity;
+          const newAskRemaining = askRemaining - matchQuantity;
+          const askCommission = (ask.commission || 0) + askFill.commission;
+          const askFee = (ask.fee || 0) + askFill.fee;
+
+          let askStatus = 'OPEN';
+          let askFilledAt = undefined;
+          let askAvgPrice = ask.avg_fill_price || 0;
+
+          if (newAskRemaining <= 0) {
+            askStatus = 'FILLED';
+            askFilledAt = new Date();
+            askAvgPrice = ((askAvgPrice * (newAskFilled - matchQuantity)) + (matchPrice * matchQuantity)) / newAskFilled;
           } else {
-            ask.status = 'PARTIAL_FILLED';
-            ask.avg_fill_price = ((ask.avg_fill_price || 0) * (ask.filled_quantity - matchQuantity) + matchPrice * matchQuantity) / ask.filled_quantity;
+            askStatus = 'PARTIAL_FILLED';
+            askAvgPrice = ((askAvgPrice * (newAskFilled - matchQuantity)) + (matchPrice * matchQuantity)) / newAskFilled;
           }
 
+          await this.prisma.order.update({
+            where: { id: ask.id },
+            data: {
+              filled_quantity: newAskFilled,
+              remaining_quantity: newAskRemaining,
+              status: askStatus,
+              filled_at: askFilledAt,
+              avg_fill_price: askAvgPrice,
+              commission: askCommission,
+              fee: askFee,
+              fills: askFills
+            }
+          });
+
           // Move to next order if fully filled
-          if (bid.remaining_quantity <= 0) bidIndex++;
-          if (ask.remaining_quantity <= 0) askIndex++;
+          if (newBidRemaining <= 0) bidIndex++;
+          if (newAskRemaining <= 0) askIndex++;
 
           // Broadcast individual matches
-          await this.webSocketGateway.broadcastOrderFilled(bid);
-          await this.webSocketGateway.broadcastOrderFilled(ask);
+          try {
+            // TODO: Implement WebSocket broadcast through event emitter
+            // await this.webSocketGateway.server?.emit('order:matched', {
+            //   match,
+            //   timestamp: new Date()
+            // });
+            this.logger.debug(`Order matched: ${match.id}`);
+          } catch (wsError) {
+            this.logger.warn(`Failed to broadcast order match: ${wsError.message}`);
+          }
         } else {
           // No more matches possible
           break;
         }
       }
 
-      // Save updated orders
-      const updatedOrders = [...bids, ...asks].filter(order =>
-        order.filled_quantity > 0 || order.status !== 'OPEN'
-      );
+      // Remove filled orders from order book
+      for (const bid of bids) {
+        if ((bid.remaining_quantity || bid.quantity) <= 0) {
+          await this.removeOrder({
+            id: bid.id,
+            userId: bid.userId,
+            symbol: bid.symbol,
+            side: 'BUY',
+            quantity: bid.quantity,
+            price: bid.price || undefined,
+            createdAt: bid.created_at
+          });
+        }
+      }
 
-      if (updatedOrders.length > 0) {
-        await this.orderRepository.save(updatedOrders);
-
-        // Remove filled orders from order book
-        for (const order of updatedOrders) {
-          if (order.status === 'FILLED') {
-            await this.removeOrder(order);
-          }
+      for (const ask of asks) {
+        if ((ask.remaining_quantity || ask.quantity) <= 0) {
+          await this.removeOrder({
+            id: ask.id,
+            userId: ask.userId,
+            symbol: ask.symbol,
+            side: 'SELL',
+            quantity: ask.quantity,
+            price: ask.price || undefined,
+            createdAt: ask.created_at
+          });
         }
       }
 
@@ -715,9 +839,10 @@ export class OrderBookService implements OnModuleInit {
       const orderBook = await this.getOrderBook(symbol, 20);
       if (!orderBook) return;
 
-      await this.webSocketGateway.broadcastOrderBookUpdate(symbol, orderBook);
+      // TODO: Implement WebSocket broadcast through event emitter
+      // await this.webSocketGateway.broadcastOrderBookUpdate(symbol, orderBook);
 
-      this.logger.debug(`Broadcasted order book update for ${symbol}`);
+      this.logger.debug(`Order book update for ${symbol} (WebSocket broadcast disabled)`);
     } catch (error) {
       this.logger.error(`Failed to broadcast order book update for ${symbol}:`, error);
     }
@@ -728,7 +853,7 @@ export class OrderBookService implements OnModuleInit {
    */
   async getAllOrderBooks(): Promise<Array<{ symbol: string; stats: any }>> {
     try {
-      const markets = await this.marketRepository.find({
+      const markets = await this.prisma.market.findMany({
         where: { is_active: true, status: 'ACTIVE' }
       });
 

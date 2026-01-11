@@ -1,11 +1,12 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { ComplianceService } from '../services/compliance.service';
-import { ComplianceCheckType, ComplianceResult } from '../entities/broker-compliance-check.entity';
-import { NotificationService } from '../../notifications/services/notification.service';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { Broker } from '../entities/broker.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { ComplianceCheckType, ComplianceResult } from '../entities/broker-compliance-check.entity';
+import { NotificationService } from "../../notifications/services/notification.service";
+import { PrismaService } from "../../../prisma/prisma.service";
+// COMMENTED OUT (TypeORM entity deleted): import { Broker } from '../entities/broker.entity';
 
 export interface ComplianceJobData {
   brokerId: string;
@@ -14,32 +15,56 @@ export interface ComplianceJobData {
 }
 
 @Processor('broker-compliance')
-export class BrokerComplianceProcessor {
+export class BrokerComplianceProcessor extends WorkerHost {
   private readonly logger = new Logger(BrokerComplianceProcessor.name);
 
   constructor(
     private readonly complianceService: ComplianceService,
     private readonly notificationService: NotificationService,
-    private readonly prismaService: PrismaService,
-  ) {}
+    private readonly prismaService: PrismaService) {
+    super();
+}
 
-  @OnQueueActive()
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'daily-compliance-check':
+        return this.handleDailyComplianceCheck(job);
+      case 'sanctions-check':
+        return this.handleSanctionsCheck(job);
+      case 'adverse-media-check':
+        return this.handleAdverseMediaCheck(job);
+      case 'financial-health-check':
+        return this.handleFinancialHealthCheck(job);
+      case 'security-assessment':
+        return this.handleSecurityAssessment(job);
+      case 'send-compliance-alert':
+        return this.handleSendComplianceAlert(job);
+      case 'handle-critical-compliance-issue':
+        return this.handleCriticalComplianceIssue(job);
+      case 'batch-compliance-check':
+        return this.handleBatchComplianceCheck(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  @OnWorkerEvent('active')
   onActive(job: Job<ComplianceJobData>) {
     this.logger.log(`Processing compliance job ${job.id} of type ${job.name}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job<ComplianceJobData>) {
     this.logger.log(`Completed compliance job ${job.id} of type ${job.name}`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job<ComplianceJobData>, error: Error) {
     this.logger.error(`Failed compliance job ${job.id} of type ${job.name}:`, error);
   }
 
-  @Process('daily-compliance-check')
-  async handleDailyComplianceCheck(job: Job<ComplianceJobData>) {
+  private async handleDailyComplianceCheck(job: Job<ComplianceJobData>) {
     const { brokerId } = job.data;
 
     this.logger.log(`Running daily compliance check for broker ${brokerId}`);
@@ -81,7 +106,7 @@ export class BrokerComplianceProcessor {
         overallPassed,
         complianceScore,
         checkCount: checkTypes.length,
-        passedCount: results.filter(r => r.result?.result !== ComplianceResult.FAIL).length,
+        passedCount: results.filter(r => r.result?.result !== ComplianceResult.FAIL).length
       });
 
       this.logger.log(`Daily compliance check completed for broker ${brokerId}. Score: ${complianceScore}`);
@@ -90,21 +115,20 @@ export class BrokerComplianceProcessor {
         success: true,
         overallPassed,
         complianceScore,
-        results,
+        results
       };
     } catch (error) {
       this.logger.error(`Daily compliance check failed for broker ${brokerId}:`, error);
 
       await this.logComplianceActivity(brokerId, 'DAILY_COMPLIANCE_CHECK_ERROR', {
-        error: error.message,
+        error: error.message
       });
 
       throw error;
     }
   }
 
-  @Process('sanctions-check')
-  async handleSanctionsCheck(job: Job<ComplianceJobData>) {
+  private async handleSanctionsCheck(job: Job<ComplianceJobData>) {
     const { brokerId } = job.data;
 
     this.logger.log(`Running sanctions check for broker ${brokerId}`);
@@ -115,7 +139,7 @@ export class BrokerComplianceProcessor {
       await this.logComplianceActivity(brokerId, 'SANCTIONS_CHECK', {
         result: result.result,
         score: result.score,
-        flags: result.details?.flags || [],
+        flags: result.details?.flags || []
       });
 
       return result;
@@ -125,8 +149,7 @@ export class BrokerComplianceProcessor {
     }
   }
 
-  @Process('adverse-media-check')
-  async handleAdverseMediaCheck(job: Job<ComplianceJobData>) {
+  private async handleAdverseMediaCheck(job: Job<ComplianceJobData>) {
     const { brokerId } = job.data;
 
     this.logger.log(`Running adverse media check for broker ${brokerId}`);
@@ -137,7 +160,7 @@ export class BrokerComplianceProcessor {
       await this.logComplianceActivity(brokerId, 'ADVERSE_MEDIA_CHECK', {
         result: result.result,
         score: result.score,
-        flags: result.details?.flags || [],
+        flags: result.details?.flags || []
       });
 
       return result;
@@ -147,8 +170,7 @@ export class BrokerComplianceProcessor {
     }
   }
 
-  @Process('financial-health-check')
-  async handleFinancialHealthCheck(job: Job<ComplianceJobData>) {
+  private async handleFinancialHealthCheck(job: Job<ComplianceJobData>) {
     const { brokerId } = job.data;
 
     this.logger.log(`Running financial health check for broker ${brokerId}`);
@@ -160,7 +182,7 @@ export class BrokerComplianceProcessor {
         result: result.result,
         score: result.score,
         aum: result.details?.actualValue,
-        threshold: result.details?.threshold,
+        threshold: result.details?.threshold
       });
 
       return result;
@@ -170,8 +192,7 @@ export class BrokerComplianceProcessor {
     }
   }
 
-  @Process('security-assessment')
-  async handleSecurityAssessment(job: Job<ComplianceJobData>) {
+  private async handleSecurityAssessment(job: Job<ComplianceJobData>) {
     const { brokerId } = job.data;
 
     this.logger.log(`Running security assessment for broker ${brokerId}`);
@@ -182,7 +203,7 @@ export class BrokerComplianceProcessor {
       await this.logComplianceActivity(brokerId, 'SECURITY_ASSESSMENT', {
         result: result.result,
         score: result.score,
-        flags: result.details?.flags || [],
+        flags: result.details?.flags || []
       });
 
       return result;
@@ -192,8 +213,7 @@ export class BrokerComplianceProcessor {
     }
   }
 
-  @Process('send-compliance-alert')
-  async handleSendComplianceAlert(job: Job<ComplianceJobData>) {
+  private async handleSendComplianceAlert(job: Job<ComplianceJobData>) {
     const { brokerId, options } = job.data;
 
     this.logger.log(`Sending compliance alert for broker ${brokerId}`);
@@ -208,7 +228,7 @@ export class BrokerComplianceProcessor {
       await this.logComplianceActivity(brokerId, 'COMPLIANCE_ALERT_SENT', {
         alertType: alert.type,
         severity: alert.severity,
-        escalationLevel,
+        escalationLevel
       });
 
       // Escalate if needed
@@ -224,8 +244,7 @@ export class BrokerComplianceProcessor {
     }
   }
 
-  @Process('handle-critical-compliance-issue')
-  async handleCriticalComplianceIssue(job: Job<ComplianceJobData>) {
+  private async handleCriticalComplianceIssue(job: Job<ComplianceJobData>) {
     const { brokerId, options } = job.data;
 
     this.logger.log(`Handling critical compliance issue for broker ${brokerId}`);
@@ -247,7 +266,7 @@ export class BrokerComplianceProcessor {
       await this.logComplianceActivity(brokerId, 'CRITICAL_COMPLIANCE_ISSUE_HANDLED', {
         alertType: alert.type,
         severity: alert.severity,
-        actions: ['ESCALATED', 'NOTIFIED', 'SUSPENSION_CONSIDERED'],
+        actions: ['ESCALATED', 'NOTIFIED', 'SUSPENSION_CONSIDERED']
       });
 
       this.logger.log(`Critical compliance issue handled for broker ${brokerId}`);
@@ -258,8 +277,7 @@ export class BrokerComplianceProcessor {
     }
   }
 
-  @Process('batch-compliance-check')
-  async handleBatchComplianceCheck(job: Job<ComplianceJobData>) {
+  private async handleBatchComplianceCheck(job: Job<ComplianceJobData>) {
     this.logger.log('Running batch compliance check for all active brokers');
 
     try {
@@ -286,7 +304,7 @@ export class BrokerComplianceProcessor {
         failedChecks,
         averageScore: successfulChecks > 0
           ? results.filter(r => r.success).reduce((sum, r) => sum + r.complianceScore, 0) / successfulChecks
-          : 0,
+          : 0
       });
 
       this.logger.log(`Batch compliance check completed. Success: ${successfulChecks}, Failed: ${failedChecks}`);
@@ -296,7 +314,7 @@ export class BrokerComplianceProcessor {
         totalBrokers: brokerIds.length,
         successfulChecks,
         failedChecks,
-        results,
+        results
       };
     } catch (error) {
       this.logger.error('Batch compliance check failed:', error);
@@ -309,7 +327,7 @@ export class BrokerComplianceProcessor {
     const escalationTargets = {
       1: ['compliance-team@viralfx.com'],
       2: ['compliance-team@viralfx.com', 'senior-compliance@viralfx.com'],
-      3: ['compliance-team@viralfx.com', 'senior-compliance@viralfx.com', 'cto@viralfx.com'],
+      3: ['compliance-team@viralfx.com', 'senior-compliance@viralfx.com', 'cto@viralfx.com']
     };
 
     const targets = escalationTargets[escalationLevel] || escalationTargets[1];
@@ -320,7 +338,7 @@ export class BrokerComplianceProcessor {
         ...alert,
         message: `[ESCALATION LEVEL ${escalationLevel}] ${alert.message}`,
         escalationTarget: target,
-        escalatedAt: new Date(),
+        escalatedAt: new Date()
       });
     }
   }
@@ -331,7 +349,7 @@ export class BrokerComplianceProcessor {
       ...alert,
       message: `[CRITICAL ESCALATION] ${alert.message}`,
       escalatedAt: new Date(),
-      requiresImmediateAction: true,
+      requiresImmediateAction: true
     });
   }
 
@@ -340,7 +358,7 @@ export class BrokerComplianceProcessor {
     await this.logComplianceActivity(brokerId, 'SUSPENSION_CONSIDERED', {
       alertType: alert.type,
       reason: alert.message,
-      consideredAt: new Date(),
+      consideredAt: new Date()
     });
 
     // In a real implementation, this might trigger an automated suspension
@@ -356,7 +374,7 @@ export class BrokerComplianceProcessor {
         ...alert,
         message: `[URGENT - ${channel}] ${alert.message}`,
         channel,
-        priority: 'HIGH',
+        priority: 'HIGH'
       });
     }
   }
@@ -364,8 +382,7 @@ export class BrokerComplianceProcessor {
   private async logComplianceActivity(
     entityId: string,
     activity: string,
-    details: any,
-  ): Promise<void> {
+    details: any): Promise<void> {
     await this.prismaService.auditLog.create({
       data: {
         action: 'COMPLIANCE_CHECK',
@@ -375,12 +392,12 @@ export class BrokerComplianceProcessor {
         newValues: JSON.stringify({
           activity,
           details,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString()
         }),
         userId: null,
         ipAddress: null,
-        userAgent: 'Compliance Processor',
-      },
+        userAgent: 'Compliance Processor'
+      }
     });
   }
 }

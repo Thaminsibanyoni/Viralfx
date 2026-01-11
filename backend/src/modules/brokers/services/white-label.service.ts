@@ -1,10 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Broker } from '../entities/broker.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Broker } from '../entities/broker.entity';
 import { ConfigService } from '@nestjs/config';
-import { S3Service } from '../../storage/services/s3.service';
-import { EmailService } from '../../notifications/services/email.service';
+import { StorageService } from "../../storage/services/storage.service";
+// EmailService temporarily commented out - using NotificationService instead if needed
+// import { EmailService } from "../../notifications/services/email.service";
 
 export interface WhiteLabelConfig {
   branding: {
@@ -131,12 +130,8 @@ export class WhiteLabelService {
   private readonly logger = new Logger(WhiteLabelService.name);
 
   constructor(
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-    private configService: ConfigService,
-    private s3Service: S3Service,
-    private emailService: EmailService,
-  ) {}
+        private configService: ConfigService,
+    private storageService: StorageService) {}
 
   async createWhiteLabelConfig(
     brokerId: string,
@@ -145,7 +140,7 @@ export class WhiteLabelService {
   ): Promise<WhiteLabelConfig> {
     this.logger.log(`Creating white-label config for broker ${brokerId}`);
 
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     if (!broker) {
       throw new Error(`Broker not found: ${brokerId}`);
     }
@@ -183,7 +178,7 @@ export class WhiteLabelService {
     return {
       branding: {
         logo: {
-          url: this.configService.get<string>('DEFAULT_LOGO_URL', '/assets/default-logo.png'),
+          url: this.configService.get<string>('DEFAULT_LOGO_URL', '/assets/default-logo.png')
         },
         colors: {
           primary: '#3B82F6',      // Blue
@@ -192,17 +187,17 @@ export class WhiteLabelService {
           background: '#FFFFFF',
           surface: '#F9FAFB',
           text: '#111827',
-          textSecondary: '#6B7280',
+          textSecondary: '#6B7280'
         },
         typography: {
           fontFamily: 'Inter, system-ui, sans-serif',
           headingFont: 'Inter, system-ui, sans-serif',
-          bodyFont: 'Inter, system-ui, sans-serif',
+          bodyFont: 'Inter, system-ui, sans-serif'
         },
         companyName: broker.companyName,
         tagline: 'Social Momentum Trading Platform',
         website: broker.companyWebsite,
-        supportEmail: broker.complianceInfo.contactEmail,
+        supportEmail: broker.complianceInfo.contactEmail
       },
       customFeeStructure: {
         commissionRate: 0.3,           // 30% default
@@ -212,7 +207,7 @@ export class WhiteLabelService {
         volumeDiscounts: [
           { minVolume: 1000000, discountRate: 0.02 },
           { minVolume: 5000000, discountRate: 0.05 },
-        ],
+        ]
       },
       features: {
         enabledModules: [
@@ -220,7 +215,7 @@ export class WhiteLabelService {
           'PORTFOLIO_MANAGEMENT', 'REPORTING', 'API_ACCESS'
         ],
         customDomains: [],
-        integrations: [],
+        integrations: []
       },
       compliance: {
         riskWarnings: [
@@ -230,20 +225,20 @@ export class WhiteLabelService {
         ],
         regulatoryInfo: {
           fscaLicense: broker.fscaLicenseNumber,
-          jurisdiction: 'South Africa',
+          jurisdiction: 'South Africa'
         },
         dataPrivacy: {
           gdprCompliant: true,
-          dataRetentionPeriod: 2555, // 7 years
-        },
+          dataRetentionPeriod: 2555 // 7 years
+        }
       },
       ui: {
         layout: {
           sidebarPosition: 'LEFT',
           headerStyle: 'DETAILED',
-          footerEnabled: true,
-        },
-      },
+          footerEnabled: true
+        }
+      }
     };
   }
 
@@ -256,7 +251,7 @@ export class WhiteLabelService {
         category: 'MODERN',
         preview: {
           thumbnail: '/assets/templates/modern-blue-thumb.png',
-          screenshots: ['/assets/templates/modern-blue-1.png'],
+          screenshots: ['/assets/templates/modern-blue-1.png']
         },
         config: {
           branding: {
@@ -267,12 +262,12 @@ export class WhiteLabelService {
               background: '#FFFFFF',
               surface: '#F3F4F6',
               text: '#1F2937',
-              textSecondary: '#6B7280',
-            },
-          },
+              textSecondary: '#6B7280'
+            }
+          }
         },
         popularity: 85,
-        isPremium: false,
+        isPremium: false
       },
       {
         id: 'minimal-dark',
@@ -281,7 +276,7 @@ export class WhiteLabelService {
         category: 'MINIMAL',
         preview: {
           thumbnail: '/assets/templates/minimal-dark-thumb.png',
-          screenshots: ['/assets/templates/minimal-dark-1.png'],
+          screenshots: ['/assets/templates/minimal-dark-1.png']
         },
         config: {
           branding: {
@@ -292,12 +287,12 @@ export class WhiteLabelService {
               background: '#111827',
               surface: '#1F2937',
               text: '#F9FAFB',
-              textSecondary: '#D1D5DB',
-            },
-          },
+              textSecondary: '#D1D5DB'
+            }
+          }
         },
         popularity: 72,
-        isPremium: true,
+        isPremium: true
       },
       {
         id: 'corporate-green',
@@ -306,7 +301,7 @@ export class WhiteLabelService {
         category: 'CORPORATE',
         preview: {
           thumbnail: '/assets/templates/corporate-green-thumb.png',
-          screenshots: ['/assets/templates/corporate-green-1.png'],
+          screenshots: ['/assets/templates/corporate-green-1.png']
         },
         config: {
           branding: {
@@ -317,12 +312,12 @@ export class WhiteLabelService {
               background: '#FFFFFF',
               surface: '#F0FDF4',
               text: '#064E3B',
-              textSecondary: '#6B7280',
-            },
-          },
+              textSecondary: '#6B7280'
+            }
+          }
         },
         popularity: 65,
-        isPremium: false,
+        isPremium: false
       },
     ];
 
@@ -379,8 +374,8 @@ export class WhiteLabelService {
         visitors: 0,
         pageViews: 0,
         signups: 0,
-        conversions: 0,
-      },
+        conversions: 0
+      }
     };
 
     try {
@@ -420,14 +415,14 @@ export class WhiteLabelService {
     const key = `white-label/${brokerId}/${assetType}/${file.originalname}`;
 
     // Upload to S3 or other storage service
-    const result = await this.s3Service.uploadFile(key, file.buffer, {
+    const result = await this.storageService.uploadFile(key, file.buffer, {
       contentType: file.mimetype,
-      acl: 'public-read',
+      acl: 'public-read'
     });
 
     return {
       url: result.url,
-      key: result.key,
+      key: result.key
     };
   }
 
@@ -527,13 +522,13 @@ ${ui.customCSS || ''}
       customFeeStructure: { ...base.customFeeStructure, ...updates.customFeeStructure },
       features: { ...base.features, ...updates.features },
       compliance: { ...base.compliance, ...updates.compliance },
-      ui: { ...base.ui, ...updates.ui },
+      ui: { ...base.ui, ...updates.ui }
     };
   }
 
   private async getConfig(brokerId: string): Promise<WhiteLabelConfig> {
     // In a real implementation, this would fetch from database
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     return this.getDefaultConfig(broker);
   }
 
@@ -570,7 +565,7 @@ ${ui.customCSS || ''}
         { path: '/', views: Math.floor(Math.random() * 1000) + 500 },
         { path: '/dashboard', views: Math.floor(Math.random() * 500) + 200 },
         { path: '/trading', views: Math.floor(Math.random() * 300) + 100 },
-      ],
+      ]
     };
   }
 }

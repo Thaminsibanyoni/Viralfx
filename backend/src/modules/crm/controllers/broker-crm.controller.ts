@@ -11,18 +11,18 @@ import {
   UploadedFile,
   HttpCode,
   HttpStatus,
-  ParseUUIDPipe,
+  ParseUUIDPipe
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { FilesService } from '../../files/files.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { FilesService } from "../../files/services/files.service";
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiConsumes, ApiForbiddenResponse } from '@nestjs/swagger';
 import { BrokerCrmService } from '../services/broker-crm.service';
 import { CreateBrokerAccountDto } from '../dto/create-broker-account.dto';
 import { UpdateBrokerAccountDto } from '../dto/update-broker-account.dto';
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from "../../../common/enums/user-role.enum";
 import { PermissionGuard } from '../guards/permission.guard';
 import { CheckPermission } from '../decorators/check-permission.decorator';
 
@@ -34,8 +34,7 @@ import { CheckPermission } from '../decorators/check-permission.decorator';
 export class BrokerCrmController {
   constructor(
     private readonly brokerCrmService: BrokerCrmService,
-    private readonly filesService: FilesService,
-  ) {}
+    private readonly filesService: FilesService) {}
 
   @Post()
   @ApiOperation({ summary: 'Create new broker account' })
@@ -49,7 +48,7 @@ export class BrokerCrmController {
       return {
         success: true,
         message: 'Broker account created successfully',
-        data: broker,
+        data: broker
       };
     } catch (error) {
       throw error;
@@ -70,7 +69,7 @@ export class BrokerCrmController {
       limit: parseInt(query.limit) || 10,
       status: query.status,
       tier: query.tier,
-      search: query.search,
+      search: query.search
     };
 
     const result = await this.brokerCrmService.getAllBrokerAccounts(filters);
@@ -82,8 +81,8 @@ export class BrokerCrmController {
         page: result.page,
         limit: result.limit,
         total: result.total,
-        totalPages: Math.ceil(result.total / result.limit),
-      },
+        totalPages: Math.ceil(result.total / result.limit)
+      }
     };
   }
 
@@ -96,7 +95,7 @@ export class BrokerCrmController {
 
     return {
       success: true,
-      data: broker,
+      data: broker
     };
   }
 
@@ -107,14 +106,13 @@ export class BrokerCrmController {
   @HttpCode(HttpStatus.OK)
   async updateBrokerAccount(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() updateBrokerAccountDto: UpdateBrokerAccountDto,
-  ) {
+    @Body() updateBrokerAccountDto: UpdateBrokerAccountDto) {
     const broker = await this.brokerCrmService.updateBrokerAccount(id, updateBrokerAccountDto);
 
     return {
       success: true,
       message: 'Broker account updated successfully',
-      data: broker,
+      data: broker
     };
   }
 
@@ -125,8 +123,7 @@ export class BrokerCrmController {
   @ApiResponse({ status: 403, description: 'Forbidden' })
   async generateDocumentUploadUrl(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { filename: string; contentType: string; documentType: string },
-  ) {
+    @Body() body: { filename: string; contentType: string; documentType: string }) {
     const { filename, contentType, documentType } = body;
 
     // Generate unique document ID and S3 key
@@ -137,7 +134,7 @@ export class BrokerCrmController {
       bucket: 'broker-docs',
       key,
       expiresIn: 3600,
-      contentType,
+      contentType
     });
 
     return {
@@ -145,8 +142,8 @@ export class BrokerCrmController {
       data: {
         uploadUrl: presignedUrl,
         documentId,
-        s3Key: key,
-      },
+        s3Key: key
+      }
     };
   }
 
@@ -166,8 +163,7 @@ export class BrokerCrmController {
       description?: string;
       tags?: string[];
       expiryDate?: string;
-    },
-  ) {
+    }) {
     const document = await this.brokerCrmService.completeDocumentUpload(id, documentId, body);
 
     return {
@@ -177,8 +173,8 @@ export class BrokerCrmController {
         ...document,
         securityStatus: 'PENDING_VERIFICATION',
         virusScanStatus: 'PENDING',
-        fscaComplianceStatus: 'PENDING_REVIEW',
-      },
+        fscaComplianceStatus: 'PENDING_REVIEW'
+      }
     };
   }
 
@@ -192,19 +188,17 @@ export class BrokerCrmController {
   async verifyDocument(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('documentId', ParseUUIDPipe) documentId: string,
-    @Body() verificationData: { status: string; notes: string },
-  ) {
+    @Body() verificationData: { status: string; notes: string }) {
     const document = await this.brokerCrmService.verifyDocument(
       id,
       documentId,
       verificationData.status,
-      verificationData.notes,
-    );
+      verificationData.notes);
 
     return {
       success: true,
       message: 'Document verification updated successfully',
-      data: document,
+      data: document
     };
   }
 
@@ -213,14 +207,13 @@ export class BrokerCrmController {
   @ApiResponse({ status: 201, description: 'Note added successfully' })
   async addNote(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() noteData: { content: string; category: string },
-  ) {
+    @Body() noteData: { content: string; category: string }) {
     const note = await this.brokerCrmService.addNote(id, noteData);
 
     return {
       success: true,
       message: 'Note added successfully',
-      data: note,
+      data: note
     };
   }
 
@@ -233,7 +226,7 @@ export class BrokerCrmController {
 
     return {
       success: true,
-      data: compliance,
+      data: compliance
     };
   }
 
@@ -253,14 +246,13 @@ export class BrokerCrmController {
       complianceStatus?: string;
       riskRating?: string;
       notes?: string;
-    },
-  ) {
+    }) {
     const compliance = await this.brokerCrmService.updateBrokerCompliance(id, complianceData);
 
     return {
       success: true,
       message: 'Broker compliance status updated successfully',
-      data: compliance,
+      data: compliance
     };
   }
 
@@ -272,19 +264,18 @@ export class BrokerCrmController {
   @ApiQuery({ name: 'endDate', required: false, type: String })
   async getBrokerInvoices(
     @Param('id', ParseUUIDPipe) id: string,
-    @Query() query: any,
-  ) {
+    @Query() query: any) {
     const filters = {
       status: query.status,
       startDate: query.startDate ? new Date(query.startDate) : undefined,
-      endDate: query.endDate ? new Date(query.endDate) : undefined,
+      endDate: query.endDate ? new Date(query.endDate) : undefined
     };
 
     const invoices = await this.brokerCrmService.getBrokerInvoices(id, filters);
 
     return {
       success: true,
-      data: invoices,
+      data: invoices
     };
   }
 
@@ -295,18 +286,16 @@ export class BrokerCrmController {
   @HttpCode(HttpStatus.OK)
   async updateComplianceStatus(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() complianceData: { status: string; reason: string },
-  ) {
+    @Body() complianceData: { status: string; reason: string }) {
     const broker = await this.brokerCrmService.updateComplianceStatus(
       id,
       complianceData.status,
-      complianceData.reason,
-    );
+      complianceData.reason);
 
     return {
       success: true,
       message: 'Compliance status updated successfully',
-      data: broker,
+      data: broker
     };
   }
 }

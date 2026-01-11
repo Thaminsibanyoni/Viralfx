@@ -1,9 +1,9 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { WebSocketGateway as WSGateway } from '../../websocket/gateways/websocket.gateway';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { SendTimeOptimizerService } from '../services/send-time-optimizer.service';
 import { ProviderHealthService } from '../services/provider-health.service';
 import { ProviderRoutingService, RoutingContext } from '../services/provider-routing.service';
@@ -25,7 +25,7 @@ export interface EmailNotificationJob {
 
 @Injectable()
 @Processor('notifications:email')
-export class EmailProcessor {
+export class EmailProcessor extends WorkerHost {
   private readonly logger = new Logger(EmailProcessor.name);
   private transporter: nodemailer.Transporter;
   private sendGridClient: SendGrid.MailService | null = null;
@@ -35,13 +35,12 @@ export class EmailProcessor {
   constructor(
     private readonly configService: ConfigService,
     private readonly prismaService: PrismaService,
-    private readonly webSocketGateway: WSGateway,
     private readonly sendTimeOptimizer: SendTimeOptimizerService,
     private readonly providerHealthService: ProviderHealthService,
     private readonly providerRoutingService: ProviderRoutingService,
-    private readonly chaosTestingService: ChaosTestingService,
-  ) {
-    this.initializeProviders();
+    private readonly chaosTestingService: ChaosTestingService) {
+    super();
+this.initializeProviders();
   }
 
   private initializeProviders() {
@@ -58,8 +57,8 @@ export class EmailProcessor {
       secure: this.configService.get('SMTP_SECURE') === 'true',
       auth: {
         user: this.configService.get('SMTP_USER'),
-        pass: this.configService.get('SMTP_PASS'),
-      },
+        pass: this.configService.get('SMTP_PASS')
+      }
     };
 
     this.transporter = nodemailer.createTransporter(emailConfig);
@@ -105,7 +104,7 @@ export class EmailProcessor {
       AWS.config.update({
         accessKeyId,
         secretAccessKey,
-        region,
+        region
       });
       this.sesClient = new AWS.SES();
       this.logger.log('AWS SES client initialized');
@@ -114,23 +113,22 @@ export class EmailProcessor {
     }
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onActive(job: Job<EmailNotificationJob>) {
     this.logger.log(`Processing email notification job ${job.id} for user ${job.data.userId}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job<EmailNotificationJob>) {
     this.logger.log(`Completed email notification job ${job.id} for user ${job.data.userId}`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job<EmailNotificationJob>, error: Error) {
     this.logger.error(`Failed email notification job ${job.id} for user ${job.data.userId}:`, error);
   }
 
-  @Process('send-email')
-  async handleSendEmail(job: Job<EmailNotificationJob>) {
+  private async handleSendEmail(job: Job<EmailNotificationJob>) {
     const { userId, notificationId, email, subject, template, data } = job.data;
 
     this.logger.log(`Processing email notification ${notificationId} for user ${userId}`);
@@ -138,7 +136,7 @@ export class EmailProcessor {
     try {
       // Get notification details
       const notification = await this.prismaService.notification.findUnique({
-        where: { id: notificationId },
+        where: { id: notificationId }
       });
 
       if (!notification) {
@@ -148,7 +146,7 @@ export class EmailProcessor {
       // Get user preferences to check if email notifications are enabled
       const user = await this.prismaService.user.findUnique({
         where: { id: userId },
-        include: { notificationPreferences: true },
+        include: { notificationPreferences: true }
       });
 
       if (!user?.notificationPreferences?.emailNotifications) {
@@ -164,7 +162,7 @@ export class EmailProcessor {
         priority: notification.priority as 'low' | 'medium' | 'high' | 'critical',
         channel: 'email',
         timezone: user.notificationPreferences?.timezone,
-        metadata: data,
+        metadata: data
       });
 
       if (!timeOptimization.shouldSendNow) {
@@ -174,7 +172,7 @@ export class EmailProcessor {
         if (timeOptimization.optimalSendTime) {
           await this.prismaService.notification.update({
             where: { id: notificationId },
-            data: { scheduledFor: timeOptimization.optimalSendTime },
+            data: { scheduledFor: timeOptimization.optimalSendTime }
           });
         }
 
@@ -188,7 +186,7 @@ export class EmailProcessor {
           skipped: true,
           reason: timeOptimization.reason,
           optimalSendTime: timeOptimization.optimalSendTime,
-          delayMs: timeOptimization.delayMs,
+          delayMs: timeOptimization.delayMs
         };
       }
 
@@ -206,10 +204,10 @@ export class EmailProcessor {
           notificationMessage: notification.message,
           actionUrl: notification.actionUrl,
           actionText: notification.actionText,
-          createdAt: notification.createdAt,
+          createdAt: notification.createdAt
         },
         priority: notification.priority as 'low' | 'medium' | 'high' | 'critical',
-        notificationId,
+        notificationId
       });
 
       // Log the email delivery
@@ -223,7 +221,7 @@ export class EmailProcessor {
         notificationId,
         email,
         subject,
-        sentAt: new Date(),
+        sentAt: new Date()
       });
 
       this.logger.log(`Email notification ${notificationId} sent successfully to ${email}`);
@@ -236,7 +234,7 @@ export class EmailProcessor {
         priority: notification.priority as 'low' | 'medium' | 'high' | 'critical',
         channel: 'email',
         timezone: user.notificationPreferences?.timezone,
-        metadata: data,
+        metadata: data
       });
 
       return {
@@ -248,8 +246,8 @@ export class EmailProcessor {
         optimizationStats: {
           qualityScore: timeOptimization.qualityScore,
           frequencyCapRespected: timeOptimization.frequencyCapRespected,
-          quietHoursRespected: timeOptimization.quietHoursRespected,
-        },
+          quietHoursRespected: timeOptimization.quietHoursRespected
+        }
       };
     } catch (error) {
       // Handle special case for optimal time delay
@@ -275,14 +273,13 @@ export class EmailProcessor {
           notificationId,
           email,
           error: error.message,
-          retryable: false,
+          retryable: false
         };
       }
     }
   }
 
-  @Process('send-bulk-email')
-  async handleSendBulkEmail(job: Job<{
+  private async handleSendBulkEmail(job: Job<{
     notificationIds: string[];
     template: string;
     subject: string;
@@ -299,7 +296,7 @@ export class EmailProcessor {
           // Get notification and user details
           const notification = await this.prismaService.notification.findUnique({
             where: { id: notificationId },
-            include: { user: { include: { notificationPreferences: true } } },
+            include: { user: { include: { notificationPreferences: true } } }
           });
 
           if (!notification || !notification.user) {
@@ -325,10 +322,10 @@ export class EmailProcessor {
               notificationTitle: notification.title,
               notificationMessage: notification.message,
               actionUrl: notification.actionUrl,
-              actionText: notification.actionText,
+              actionText: notification.actionText
             },
             priority: notification.priority as 'low' | 'medium' | 'high' | 'critical',
-            notificationId,
+            notificationId
           });
 
           results.push({ notificationId, success: true, messageId: emailResult.messageId });
@@ -354,7 +351,7 @@ export class EmailProcessor {
         successful,
         failed,
         skipped,
-        results,
+        results
       };
     } catch (error) {
       this.logger.error('Bulk email sending failed:', error);
@@ -393,7 +390,7 @@ export class EmailProcessor {
       requiresHighThroughput: false, // Single email
       requiresLowLatency: emailData.priority === 'critical' || emailData.priority === 'high',
       costOptimization: emailData.priority === 'low',
-      geographicRouting: false, // Email is global
+      geographicRouting: false // Email is global
     };
 
     let lastError: Error | null = null;
@@ -432,7 +429,7 @@ export class EmailProcessor {
             subject: emailData.subject,
             html: htmlContent,
             text: textContent,
-            template: emailData.template,
+            template: emailData.template
           });
 
           // Record successful delivery attempt
@@ -451,7 +448,7 @@ export class EmailProcessor {
             messageId: result.messageId,
             provider: providerId,
             attempts,
-            cost: result.cost || 0,
+            cost: result.cost || 0
           };
 
         } catch (error) {
@@ -463,8 +460,7 @@ export class EmailProcessor {
             providerId,
             false,
             Date.now() - Date.now(),
-            error.message,
-          );
+            error.message);
 
           // Continue to next provider if available
           if (attempts < maxAttempts) {
@@ -523,14 +519,14 @@ export class EmailProcessor {
       text: emailData.text,
       headers: {
         'X-ViralFX-Template': emailData.template,
-        'X-ViralFX-Provider': 'smtp',
-      },
+        'X-ViralFX-Provider': 'smtp'
+      }
     };
 
     const result = await this.transporter.sendMail(mailOptions);
     return {
       messageId: result.messageId,
-      cost: 0.001, // Internal SMTP cost
+      cost: 0.001 // Internal SMTP cost
     };
   }
 
@@ -553,14 +549,14 @@ export class EmailProcessor {
       text: emailData.text,
       headers: {
         'X-ViralFX-Template': emailData.template,
-        'X-ViralFX-Provider': 'sendgrid',
-      },
+        'X-ViralFX-Provider': 'sendgrid'
+      }
     };
 
     const [response] = await this.sendGridClient.send(msg);
     return {
       messageId: response.headers['x-message-id'],
-      cost: 0.01, // SendGrid cost
+      cost: 0.01 // SendGrid cost
     };
   }
 
@@ -582,13 +578,13 @@ export class EmailProcessor {
       html: emailData.html,
       text: emailData.text,
       'h:X-ViralFX-Template': emailData.template,
-      'h:X-ViralFX-Provider': 'mailgun',
+      'h:X-ViralFX-Provider': 'mailgun'
     };
 
     const response = await this.mailgunClient.messages().send(mailData);
     return {
       messageId: response.id,
-      cost: 0.008, // Mailgun cost
+      cost: 0.008 // Mailgun cost
     };
   }
 
@@ -606,37 +602,37 @@ export class EmailProcessor {
     const params = {
       Source: this.configService.get('EMAIL_FROM') || 'noreply@viralfx.com',
       Destination: {
-        ToAddresses: [emailData.to],
+        ToAddresses: [emailData.to]
       },
       Message: {
         Subject: {
-          Data: emailData.subject,
+          Data: emailData.subject
         },
         Body: {
           Html: {
-            Data: emailData.html,
+            Data: emailData.html
           },
           Text: {
-            Data: emailData.text,
-          },
-        },
+            Data: emailData.text
+          }
+        }
       },
       Headers: [
         {
           Name: 'X-ViralFX-Template',
-          Value: emailData.template,
+          Value: emailData.template
         },
         {
           Name: 'X-ViralFX-Provider',
-          Value: 'ses',
+          Value: 'ses'
         },
-      ],
+      ]
     };
 
     const result = await this.sesClient.sendEmail(params).promise();
     return {
       messageId: result.MessageId,
-      cost: 0.0001, // SES cost
+      cost: 0.0001 // SES cost
     };
   }
 
@@ -679,14 +675,14 @@ export class EmailProcessor {
           // Fallback template
           return {
             html: `<div>${data.message || 'No content'}</div>`,
-            text: data.message || 'No content',
+            text: data.message || 'No content'
           };
       }
     } catch (error) {
       this.logger.error(`Failed to render template ${templateName}:`, error);
       return {
         html: `<div>${data.message || 'Email content could not be rendered'}</div>`,
-        text: data.message || 'Email content could not be rendered',
+        text: data.message || 'Email content could not be rendered'
       };
     }
   }
@@ -742,8 +738,8 @@ export class EmailProcessor {
         status,
         sentAt: status === 'SUCCESS' ? new Date() : undefined,
         errorDetails: status === 'FAILED' ? JSON.stringify(details) : null,
-        metadata: details ? JSON.stringify(details) : null,
-      },
+        metadata: details ? JSON.stringify(details) : null
+      }
     });
   }
 
@@ -755,8 +751,8 @@ export class EmailProcessor {
       where: { id: notificationId },
       data: {
         deliveryStatus: status,
-        deliveredAt: status === 'EMAIL_SENT' ? new Date() : undefined,
-      },
+        deliveredAt: status === 'EMAIL_SENT' ? new Date() : undefined
+      }
     });
   }
 
@@ -766,12 +762,12 @@ export class EmailProcessor {
       where: {
         template_date: {
           template,
-          date: new Date().toISOString().split('T')[0], // Today's date
-        },
+          date: new Date().toISOString().split('T')[0] // Today's date
+        }
       },
       update: {
         sent: { increment: 1 },
-        lastUsedAt: new Date(),
+        lastUsedAt: new Date()
       },
       create: {
         template,
@@ -780,8 +776,8 @@ export class EmailProcessor {
         delivered: 0,
         opened: 0,
         clicked: 0,
-        lastUsedAt: new Date(),
-      },
+        lastUsedAt: new Date()
+      }
     });
   }
 }

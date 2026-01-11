@@ -1,8 +1,8 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { IsObject, IsOptional, IsEnum, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CreateBrokerDto } from './create-broker.dto';
-import { BrokerStatus } from '../entities/broker.entity';
+import { CreateBrokerDto } from "./create-broker.dto";
+import { BrokerStatus } from '../enums/broker.enum';
 
 class ComplianceInfoDto {
   @ApiProperty({ required: false })

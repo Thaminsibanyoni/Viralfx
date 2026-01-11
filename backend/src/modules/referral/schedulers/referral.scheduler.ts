@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ReferralTrackingService } from '../services/referral-tracking.service';
 
 @Injectable()
@@ -17,8 +17,7 @@ export class ReferralScheduler {
     private readonly configService: ConfigService,
     @InjectQueue('referral-processing') private readonly referralProcessingQueue: Queue,
     @InjectQueue('reward-distribution') private readonly rewardDistributionQueue: Queue,
-    @InjectQueue('notifications') private readonly notificationsQueue: Queue,
-  ) {
+    @InjectQueue('notifications') private readonly notificationsQueue: Queue) {
     this.isProduction = this.configService.get('NODE_ENV') === 'production';
   }
 
@@ -27,7 +26,7 @@ export class ReferralScheduler {
    */
   @Cron('0 2 * * *', {
     name: 'daily-referral-completion-checks',
-    timeZone: 'UTC',
+    timeZone: 'UTC'
   })
   async dailyReferralCompletionChecks(): Promise<void> {
     this.logger.log('Starting daily referral completion checks');
@@ -37,16 +36,16 @@ export class ReferralScheduler {
       const referralsToCheck = await this.prisma.referral.findMany({
         where: {
           status: { in: ['PENDING', 'REGISTERED', 'QUALIFIED'] },
-          createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // Last 30 days
+          createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
         },
         include: {
           referredUser: {
             select: {
               id: true,
-              kycStatus: true,
-            },
-          },
-        },
+              kycStatus: true
+            }
+          }
+        }
       });
 
       this.logger.log(`Found ${referralsToCheck.length} referrals to check`);
@@ -70,8 +69,8 @@ export class ReferralScheduler {
               checkCriteria: {
                 kycRequired: true,
                 firstTradeRequired: true,
-                minTradeAmount: 10, // Minimum trade amount to qualify
-              },
+                minTradeAmount: 10 // Minimum trade amount to qualify
+              }
             },
             {
               priority: this.getReferralPriority(referral),
@@ -79,10 +78,10 @@ export class ReferralScheduler {
               attempts: 3,
               backoff: {
                 type: 'exponential',
-                delay: 5000,
+                delay: 5000
               },
               removeOnComplete: 100,
-              removeOnFail: 50,
+              removeOnFail: 50
             }
           );
         }
@@ -98,7 +97,7 @@ export class ReferralScheduler {
       this.logger.error('Failed to process daily referral completion checks:', error);
       await this.sendAdminAlert('Daily Referral Completion Checks Failed', {
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       });
     }
   }
@@ -108,7 +107,7 @@ export class ReferralScheduler {
    */
   @Cron('0 3 * * *', {
     name: 'daily-referral-expiration',
-    timeZone: 'UTC',
+    timeZone: 'UTC'
   })
   async dailyReferralExpiration(): Promise<void> {
     this.logger.log('Starting daily referral expiration');
@@ -118,14 +117,14 @@ export class ReferralScheduler {
       await this.referralProcessingQueue.add(
         'expire-referrals',
         {
-          daysOld: 30,
+          daysOld: 30
         },
         {
           attempts: 3,
           backoff: {
             type: 'exponential',
-            delay: 2000,
-          },
+            delay: 2000
+          }
         }
       );
 
@@ -133,14 +132,14 @@ export class ReferralScheduler {
       await this.rewardDistributionQueue.add(
         'batch-expire-rewards',
         {
-          daysUnclaimed: 30,
+          daysUnclaimed: 30
         },
         {
           attempts: 3,
           backoff: {
             type: 'exponential',
-            delay: 2000,
-          },
+            delay: 2000
+          }
         }
       );
 
@@ -149,7 +148,7 @@ export class ReferralScheduler {
       this.logger.error('Failed to process daily referral expiration:', error);
       await this.sendAdminAlert('Daily Referral Expiration Failed', {
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       });
     }
   }
@@ -159,7 +158,7 @@ export class ReferralScheduler {
    */
   @Cron('0 0 * * 0', {
     name: 'weekly-leaderboard-recalculation',
-    timeZone: 'UTC',
+    timeZone: 'UTC'
   })
   async weeklyLeaderboardRecalculation(): Promise<void> {
     this.logger.log('Starting weekly leaderboard recalculation');
@@ -186,7 +185,7 @@ export class ReferralScheduler {
           entries: topReferrers,
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
-          generatedAt: new Date().toISOString(),
+          generatedAt: new Date().toISOString()
         })
       );
 
@@ -198,7 +197,7 @@ export class ReferralScheduler {
       this.logger.error('Failed to recalculate weekly leaderboard:', error);
       await this.sendAdminAlert('Weekly Leaderboard Recalculation Failed', {
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       });
     }
   }
@@ -208,7 +207,7 @@ export class ReferralScheduler {
    */
   @Cron('0 1 1 * *', {
     name: 'monthly-referral-analytics',
-    timeZone: 'UTC',
+    timeZone: 'UTC'
   })
   async monthlyReferralAnalytics(): Promise<void> {
     this.logger.log('Starting monthly referral analytics report');
@@ -228,17 +227,17 @@ export class ReferralScheduler {
       const report = {
         period: {
           start: lastMonth.toISOString().split('T')[0],
-          end: endOfLastMonth.toISOString().split('T')[0],
+          end: endOfLastMonth.toISOString().split('T')[0]
         },
         summary: {
           totalReferrals: analytics.funnel.reduce((sum, day) => sum + day.signups, 0),
           totalConversions: analytics.funnel.reduce((sum, day) => sum + day.conversions, 0),
           totalRevenue: analytics.topReferrers.reduce((sum, referrer) => sum + referrer.totalEarnings, 0),
-          averageConversionRate: analytics.conversionRates,
+          averageConversionRate: analytics.conversionRates
         },
         topPerformers: analytics.topReferrers.slice(0, 10),
         channelPerformance: analytics.channelPerformance,
-        generatedAt: new Date().toISOString(),
+        generatedAt: new Date().toISOString()
       };
 
       // Store report
@@ -247,8 +246,8 @@ export class ReferralScheduler {
           type: 'MONTHLY_REFERRAL_ANALYTICS',
           period: report.period,
           data: report,
-          generatedAt: new Date(),
-        },
+          generatedAt: new Date()
+        }
       });
 
       // Send report to admins
@@ -257,10 +256,10 @@ export class ReferralScheduler {
         {
           type: 'MONTHLY_REFERRAL_ANALYTICS',
           data: report,
-          recipients: ['admin@viralfx.com'], // Would get from config
+          recipients: ['admin@viralfx.com'] // Would get from config
         },
         {
-          attempts: 3,
+          attempts: 3
         }
       );
 
@@ -269,7 +268,7 @@ export class ReferralScheduler {
       this.logger.error('Failed to generate monthly referral analytics:', error);
       await this.sendAdminAlert('Monthly Referral Analytics Failed', {
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       });
     }
   }
@@ -279,7 +278,7 @@ export class ReferralScheduler {
    */
   @Cron('0 * * * *', {
     name: 'hourly-redis-cleanup',
-    timeZone: 'UTC',
+    timeZone: 'UTC'
   })
   async hourlyRedisCleanup(): Promise<void> {
     if (!this.isProduction) {
@@ -336,7 +335,7 @@ export class ReferralScheduler {
    * Health check for referral system - runs every 5 minutes
    */
   @Cron('*/5 * * * *', {
-    name: 'referral-health-check',
+    name: 'referral-health-check'
   })
   async referralHealthCheck(): Promise<void> {
     try {
@@ -353,9 +352,9 @@ export class ReferralScheduler {
           referralProcessingQueue: checks[0].status === 'fulfilled' ? checks[0].value : 'failed',
           rewardDistributionQueue: checks[1].status === 'fulfilled' ? checks[1].value : 'failed',
           database: checks[2].status === 'fulfilled' ? 'healthy' : 'failed',
-          redis: checks[3].status === 'fulfilled' ? 'healthy' : 'failed',
+          redis: checks[3].status === 'fulfilled' ? 'healthy' : 'failed'
         },
-        overall: checks.every(check => check.status === 'fulfilled') ? 'healthy' : 'degraded',
+        overall: checks.every(check => check.status === 'fulfilled') ? 'healthy' : 'degraded'
       };
 
       // Store health status
@@ -373,7 +372,7 @@ export class ReferralScheduler {
       this.logger.error('Referral health check failed:', error);
       await this.sendAdminAlert('Referral Health Check Error', {
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       });
     }
   }
@@ -405,11 +404,11 @@ export class ReferralScheduler {
               referralCount: referrer.referralCount,
               totalEarnings: referrer.totalEarnings,
               bonusAmount,
-              period: 'weekly',
-            },
+              period: 'weekly'
+            }
           },
           {
-            attempts: 3,
+            attempts: 3
           }
         );
       }
@@ -423,7 +422,7 @@ export class ReferralScheduler {
       3: 25,   // 3rd place
       4: 15,   // 4th place
       5: 10,   // 5th place
-      6: 5,    // 6th-10th place
+      6: 5    // 6th-10th place
     };
 
     if (rank <= 5) {
@@ -452,7 +451,7 @@ export class ReferralScheduler {
         waiting: waiting.length,
         active: active.length,
         completed: completed.length,
-        failed: failed.length,
+        failed: failed.length
       };
 
       return health.failed > 100 ? 'degraded' : 'healthy';
@@ -486,10 +485,10 @@ export class ReferralScheduler {
         {
           subject: `ViralFX Referral System: ${subject}`,
           data,
-          priority: 'high',
+          priority: 'high'
         },
         {
-          attempts: 3,
+          attempts: 3
         }
       );
     } catch (error) {

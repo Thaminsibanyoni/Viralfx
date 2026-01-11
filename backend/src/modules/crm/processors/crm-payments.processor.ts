@@ -1,34 +1,41 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { RedisService } from '../../redis/redis.service';
-import { WalletService } from '../../wallet/wallet.service';
-import { BrokerPayment } from '../entities/broker-payment.entity';
-import { BrokerInvoice } from '../entities/broker-invoice.entity';
-import { AuditService } from '../../audit/audit.service';
+import { RedisService } from "../../redis/redis.service";
+import { WalletService } from "../../wallet/services/index";
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerPayment } from '../entities/broker-payment.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerInvoice } from '../entities/broker-invoice.entity';
+import { AuditService } from "../../audit/audit.service";
 import { HttpService } from '@nestjs/axios';
 import { createHmac } from 'crypto';
 
 @Processor('crm-payments')
-export class CrmPaymentsProcessor {
+export class CrmPaymentsProcessor extends WorkerHost {
   private readonly logger = new Logger(CrmPaymentsProcessor.name);
 
   constructor(
-    @InjectRepository(BrokerPayment)
-    private brokerPaymentRepository: Repository<BrokerPayment>,
-    @InjectRepository(BrokerInvoice)
-    private brokerInvoiceRepository: Repository<BrokerInvoice>,
-    private redisService: RedisService,
+        private redisService: RedisService,
     private walletService: WalletService,
     private auditService: AuditService,
     private httpService: HttpService,
-    private dataSource: DataSource,
-  ) {}
+    private dataSource: DataSource) {
+    super();
+}
 
-  @Process('process-webhook')
-  async handlePaymentWebhook(job: Job<{ payload: any; signature?: string }>) {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'process-webhook':
+        return this.handlePaymentWebhook(job);
+      case 'reconcile-payments':
+        return this.handlePaymentReconciliation(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handlePaymentWebhook(job: Job<{ payload: any; signature?: string }>) {
     const { payload, signature } = job.data;
 
     // Implement idempotency with Redis lock using transaction ID
@@ -53,9 +60,9 @@ export class CrmPaymentsProcessor {
       }
 
       // Find existing payment record
-      let payment = await this.brokerPaymentRepository.findOne({
+      let payment = await this.prisma.brokerPayment.findFirst({
         where: { transactionId: txId },
-        relations: ['invoice'],
+        relations: ['invoice']
       });
 
       if (!payment) {
@@ -77,7 +84,7 @@ export class CrmPaymentsProcessor {
         entityId: payment.id,
         changeDiff: JSON.stringify(payload),
         timestamp: new Date(),
-        hmac: this.generateAuditHmac(payload),
+        hmac: this.generateAuditHmac(payload)
       });
 
       this.logger.log(`Payment webhook processed successfully for transaction ${txId}`);
@@ -94,26 +101,25 @@ export class CrmPaymentsProcessor {
         entityId: txId,
         changeDiff: JSON.stringify({ error: error.message, payload }),
         timestamp: new Date(),
-        hmac: this.generateAuditHmac({ error: error.message }),
+        hmac: this.generateAuditHmac({ error: error.message })
       });
 
       throw error;
     }
   }
 
-  @Process('reconcile-payments')
-  async handlePaymentReconciliation(job: Job<{ date?: string }>) {
+  private async handlePaymentReconciliation(job: Job<{ date?: string }>) {
     const reconciliationDate = job.data.date ? new Date(job.data.date) : new Date();
 
     this.logger.log(`Starting payment reconciliation for ${reconciliationDate.toISOString()}`);
 
     // Find payments that need reconciliation
-    const pendingPayments = await this.brokerPaymentRepository.find({
+    const pendingPayments = await this.prisma.brokerPayment.findMany({
       where: {
         status: 'PENDING',
-        createdAt: reconciliationDate,
+        createdAt: reconciliationDate
       },
-      relations: ['invoice'],
+      relations: ['invoice']
     });
 
     let reconciled = 0;
@@ -128,7 +134,7 @@ export class CrmPaymentsProcessor {
           // Update payment status
           payment.status = gatewayStatus;
           payment.gatewayResponse = JSON.stringify(gatewayStatus);
-          await this.brokerPaymentRepository.save(payment);
+          await this.prisma.brokerPayment.upsert(payment);
 
           // Process status change
           await this.processPaymentStatusChange(payment, { status: gatewayStatus });
@@ -146,7 +152,7 @@ export class CrmPaymentsProcessor {
   }
 
   private async createPaymentFromWebhook(payload: any): Promise<BrokerPayment> {
-    const payment = this.brokerPaymentRepository.create({
+    const payment = this.prisma.brokerPayment.create({
       transactionId: payload.transaction_id || payload.id,
       invoiceId: payload.metadata?.invoice_id,
       amount: payload.amount / 100, // Convert from cents if applicable
@@ -157,11 +163,11 @@ export class CrmPaymentsProcessor {
       paidAt: payload.paid_at ? new Date(payload.paid_at * 1000) : null,
       metadata: {
         webhook_source: payload.event?.split('.')[0] || 'unknown',
-        gateway_reference: payload.reference,
-      },
+        gateway_reference: payload.reference
+      }
     });
 
-    return await this.brokerPaymentRepository.save(payment);
+    return await this.prisma.brokerPayment.upsert(payment);
   }
 
   private async updatePaymentFromWebhook(payment: BrokerPayment, payload: any): Promise<BrokerPayment> {
@@ -172,7 +178,7 @@ export class CrmPaymentsProcessor {
       payment.paidAt = new Date(payload.paid_at * 1000);
     }
 
-    return await this.brokerPaymentRepository.save(payment);
+    return await this.prisma.brokerPayment.upsert(payment);
   }
 
   private async processPaymentStatusChange(payment: BrokerPayment, payload: any): Promise<void> {
@@ -180,7 +186,7 @@ export class CrmPaymentsProcessor {
       // Update invoice status
       payment.invoice.status = 'PAID';
       payment.invoice.paidAt = new Date();
-      await this.brokerInvoiceRepository.save(payment.invoice);
+      await this.prisma.brokerInvoice.upsert(payment.invoice);
 
       // Credit broker wallet
       if (payment.invoice.brokerId) {
@@ -191,7 +197,7 @@ export class CrmPaymentsProcessor {
           `Payment for invoice ${payment.invoice.invoiceNumber}`,
           {
             paymentId: payment.id,
-            invoiceId: payment.invoice.id,
+            invoiceId: payment.invoice.id
           }
         );
       }
@@ -251,7 +257,7 @@ export class CrmPaymentsProcessor {
       'eft': 'EFT',
       'ozow': 'OZOW',
       'payfast': 'PAYFAST',
-      'paystack': 'PAYSTACK',
+      'paystack': 'PAYSTACK'
     };
 
     return methodMap[method] || 'OTHER';
@@ -276,17 +282,17 @@ export class CrmPaymentsProcessor {
       .digest('hex');
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onActive(job: Job) {
     this.logger.log(`Processing payment job ${job.id} of type ${job.name}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job, result: any) {
     this.logger.log(`Completed payment job ${job.id} of type ${job.name}. Result:`, result);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job, error: Error) {
     this.logger.error(`Failed payment job ${job.id} of type ${job.name}:`, error);
   }

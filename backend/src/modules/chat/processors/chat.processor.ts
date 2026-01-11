@@ -1,4 +1,5 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bullmq';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { ChatService } from '../services/chat.service';
@@ -31,16 +32,30 @@ interface MessageProcessingJob {
 }
 
 @Processor('chat-notifications')
-export class ChatNotificationProcessor {
+export class ChatNotificationProcessor extends WorkerHost {
   private readonly logger = new Logger(ChatNotificationProcessor.name);
 
   constructor(
     private readonly chatService: ChatService,
-    private readonly chatGateway: ChatGateway,
-  ) {}
+    private readonly chatGateway: ChatGateway) {
+    super();
+}
 
-  @Process('send-notification')
-  async handleNotification(job: Job<ChatNotificationJob>): Promise<void> {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'send-notification':
+        return this.handleNotification(job);
+      case 'auto-moderate':
+        return this.handleAutoModeration(job);
+      case 'process-message':
+        return this.handleMessageProcessing(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleNotification(job: Job<ChatNotificationJob>): Promise<void> {
     const { type, data } = job.data;
 
     this.logger.log(`Processing chat notification: ${type} for user ${data.userId}`);
@@ -93,8 +108,8 @@ export class ChatNotificationProcessor {
         roomId: data.roomId,
         messageId: data.messageId,
         senderId: data.senderId,
-        senderUsername: data.senderUsername,
-      },
+        senderUsername: data.senderUsername
+      }
     });
 
     // Update unread count
@@ -110,8 +125,8 @@ export class ChatNotificationProcessor {
         roomId: data.roomId,
         messageId: data.messageId,
         senderId: data.senderId,
-        senderUsername: data.senderUsername,
-      },
+        senderUsername: data.senderUsername
+      }
     });
   }
 
@@ -124,8 +139,8 @@ export class ChatNotificationProcessor {
         roomId: data.roomId,
         roomName: data.roomName,
         inviterId: data.senderId,
-        inviterUsername: data.senderUsername,
-      },
+        inviterUsername: data.senderUsername
+      }
     });
   }
 
@@ -138,8 +153,8 @@ export class ChatNotificationProcessor {
         roomId: data.roomId,
         action: data.action,
         reason: data.reason,
-        messageId: data.messageId,
-      },
+        messageId: data.messageId
+      }
     });
   }
 
@@ -158,17 +173,17 @@ export class ChatNotificationProcessor {
     // This would be implemented with actual Redis client
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onJobActive(job: Job) {
     this.logger.debug(`Chat notification job ${job.id} started processing`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onJobCompleted(job: Job, result: any) {
     this.logger.log(`Chat notification job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onJobFailed(job: Job, error: Error) {
     this.logger.error(`Chat notification job ${job.id} failed:`, error.message);
   }
@@ -179,11 +194,11 @@ export class ChatModerationProcessor {
   private readonly logger = new Logger(ChatModerationProcessor.name);
 
   constructor(
-    private readonly moderationService: ChatModerationService,
-  ) {}
+    private readonly moderationService: ChatModerationService) {
+    super();
+}
 
-  @Process('auto-moderate')
-  async handleAutoModeration(job: Job<MessageProcessingJob>): Promise<void> {
+  private async handleAutoModeration(job: Job<MessageProcessingJob>): Promise<void> {
     const { type, data } = job.data;
 
     this.logger.log(`Processing auto-moderation: ${type} for message ${data.messageId}`);
@@ -270,17 +285,17 @@ export class ChatModerationProcessor {
     return 0.1;
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onJobActive(job: Job) {
     this.logger.debug(`Chat moderation job ${job.id} started processing`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onJobCompleted(job: Job, result: any) {
     this.logger.log(`Chat moderation job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onJobFailed(job: Job, error: Error) {
     this.logger.error(`Chat moderation job ${job.id} failed:`, error.message);
   }
@@ -291,11 +306,11 @@ export class MessageProcessingProcessor {
   private readonly logger = new Logger(MessageProcessingProcessor.name);
 
   constructor(
-    private readonly chatService: ChatService,
-  ) {}
+    private readonly chatService: ChatService) {
+    super();
+}
 
-  @Process('process-message')
-  async handleMessageProcessing(job: Job<MessageProcessingJob>): Promise<void> {
+  private async handleMessageProcessing(job: Job<MessageProcessingJob>): Promise<void> {
     const { type, data } = job.data;
 
     this.logger.log(`Processing message: ${type} for message ${data.messageId}`);
@@ -366,7 +381,7 @@ export class MessageProcessingProcessor {
     return {
       score: 0.1,
       magnitude: 0.5,
-      label: 'neutral',
+      label: 'neutral'
     };
   }
 
@@ -375,7 +390,7 @@ export class MessageProcessingProcessor {
     return {
       keywords: [],
       entities: [],
-      language: 'en',
+      language: 'en'
     };
   }
 
@@ -383,21 +398,21 @@ export class MessageProcessingProcessor {
     // Placeholder for translation
     return {
       detectedLanguage: 'en',
-      translations: {},
+      translations: {}
     };
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onJobActive(job: Job) {
     this.logger.debug(`Message processing job ${job.id} started processing`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onJobCompleted(job: Job, result: any) {
     this.logger.log(`Message processing job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onJobFailed(job: Job, error: Error) {
     this.logger.error(`Message processing job ${job.id} failed:`, error.message);
   }

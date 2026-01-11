@@ -12,6 +12,7 @@ import {
   HttpStatus,
   HttpCode,
   BadRequestException,
+  Req
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -19,12 +20,12 @@ import {
   ApiResponse,
   ApiParam,
   ApiQuery,
-  ApiBearerAuth,
+  ApiBearerAuth
 } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { BettingService } from '../services/betting.service';
 
 @ApiTags('Betting')
@@ -48,11 +49,10 @@ export class BettingController {
       odds?: number;
       metadata?: any;
     },
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.bettingService.placeBet({
       userId: req.user.userId,
-      ...body,
+      ...body
     });
   }
 
@@ -64,22 +64,20 @@ export class BettingController {
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 20, max: 50)' })
   @ApiResponse({ status: 200, description: 'User bets retrieved successfully' })
   async getMyBets(
-    @Request() req,
+    @Req() req,
     @Query('status') status?: string,
     @Query('marketId') marketId?: string,
     @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
-  ) {
+    @Query('limit') limit: number = 20) {
     const validatedLimit = Math.min(Math.max(limit, 1), 50);
 
     return this.bettingService.getUserBets(
       req.user.userId,
       {
         status: status as any,
-        marketId,
+        marketId
       },
-      { page, limit: validatedLimit },
-    );
+      { page, limit: validatedLimit });
   }
 
   @Get(':id')
@@ -87,7 +85,7 @@ export class BettingController {
   @ApiParam({ name: 'id', description: 'Bet ID' })
   @ApiResponse({ status: 200, description: 'Bet details retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Bet not found' })
-  async getBet(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
+  async getBet(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
     return this.bettingService.getBet(id, req.user.userId);
   }
 
@@ -98,7 +96,7 @@ export class BettingController {
   @ApiResponse({ status: 200, description: 'Bet cancelled successfully' })
   @ApiResponse({ status: 404, description: 'Bet not found' })
   @ApiResponse({ status: 400, description: 'Bet cannot be cancelled' })
-  async cancelBet(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
+  async cancelBet(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
     await this.bettingService.cancelBet(id, req.user.userId);
     return { message: 'Bet cancelled successfully' };
   }
@@ -113,8 +111,7 @@ export class BettingController {
   @ApiResponse({ status: 400, description: 'Cannot update settled bet' })
   async updateBetOdds(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { newOdds: number },
-  ) {
+    @Body() body: { newOdds: number }) {
     await this.bettingService.updateBetOdds(id, body.newOdds);
     return { message: 'Bet odds updated successfully' };
   }
@@ -130,7 +127,7 @@ export class BettingController {
   @Get('stats/my')
   @ApiOperation({ summary: 'Get current user\'s betting statistics' })
   @ApiResponse({ status: 200, description: 'Betting statistics retrieved successfully' })
-  async getMyBettingStats(@Request() req) {
+  async getMyBettingStats(@Req() req) {
     return this.bettingService.getUserBettingStats(req.user.userId);
   }
 
@@ -148,7 +145,7 @@ export class BettingController {
       totalPayouts: 0,
       platformRevenue: 0,
       topBettors: [],
-      recentActivity: [],
+      recentActivity: []
     };
   }
 
@@ -160,14 +157,13 @@ export class BettingController {
   @ApiResponse({ status: 200, description: 'Top bettors retrieved successfully' })
   async getTopBettors(
     @Query('limit') limit: number = 10,
-    @Query('timeWindow') timeWindow: number = 30,
-  ) {
+    @Query('timeWindow') timeWindow: number = 30) {
     // This would query user betting stats and return top performers
     const validatedLimit = Math.min(Math.max(limit, 1), 50);
 
     return {
       timeWindow,
-      topBettors: [], // Would be populated with actual data
+      topBettors: [] // Would be populated with actual data
     };
   }
 
@@ -181,15 +177,13 @@ export class BettingController {
   async getUserBettingHistory(
     @Param('userId', ParseUUIDPipe) userId: string,
     @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
-  ) {
+    @Query('limit') limit: number = 20) {
     const validatedLimit = Math.min(Math.max(limit, 1), 50);
 
     return this.bettingService.getUserBets(
       userId,
       {},
-      { page, limit: validatedLimit },
-    );
+      { page, limit: validatedLimit });
   }
 
   @Get('analysis/activity')
@@ -200,8 +194,7 @@ export class BettingController {
   @ApiResponse({ status: 200, description: 'Betting activity analysis retrieved successfully' })
   async getBettingActivityAnalysis(
     @Query('timeWindow') timeWindow: number = 24,
-    @Query('granularity') granularity: string = 'hour',
-  ) {
+    @Query('granularity') granularity: string = 'hour') {
     // This would return comprehensive betting activity analysis
     return {
       timeWindow,
@@ -212,7 +205,7 @@ export class BettingController {
       volumeTrend: [],
       outcomeDistribution: [],
       timeDistribution: [],
-      insights: [],
+      insights: []
     };
   }
 
@@ -232,8 +225,7 @@ export class BettingController {
         odds?: number;
         metadata?: any;
       }>;
-    },
-  ) {
+    }) {
     const { bets } = body;
 
     if (!bets || bets.length === 0) {
@@ -249,7 +241,7 @@ export class BettingController {
       bets.map(betData =>
         this.bettingService.placeBet(betData).catch(error => ({
           error: error.message,
-          data: betData,
+          data: betData
         }))
       )
     );
@@ -262,7 +254,7 @@ export class BettingController {
       totalBets: bets.length,
       successful,
       failed,
-      errors: failed > 0 ? results.filter(r => r.error).map(r => r.error) : undefined,
+      errors: failed > 0 ? results.filter(r => r.error).map(r => r.error) : undefined
     };
   }
 
@@ -274,8 +266,7 @@ export class BettingController {
   @ApiResponse({ status: 200, description: 'Suspicious betting patterns retrieved' })
   async getSuspiciousBettingPatterns(
     @Query('timeWindow') timeWindow: number = 24,
-    @Query('threshold') threshold: number = 0.7,
-  ) {
+    @Query('threshold') threshold: number = 0.7) {
     // This would analyze betting patterns for suspicious activity
     return {
       timeWindow,
@@ -283,7 +274,7 @@ export class BettingController {
       suspiciousPatterns: [],
       flaggedUsers: [],
       flaggedMarkets: [],
-      recommendations: [],
+      recommendations: []
     };
   }
 
@@ -296,8 +287,7 @@ export class BettingController {
     @Param('betId', ParseUUIDPipe) betId: string,
     @Body() body: {
       validationRules?: string[];
-    },
-  ) {
+    }) {
     // This would validate bet compliance
     return {
       betId,
@@ -305,7 +295,7 @@ export class BettingController {
       riskScore: 0.3,
       violations: [],
       recommendations: [],
-      validatedAt: new Date(),
+      validatedAt: new Date()
     };
   }
 }

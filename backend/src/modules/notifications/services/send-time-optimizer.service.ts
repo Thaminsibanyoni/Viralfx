@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../prisma/prisma.service';
 
 export interface UserEngagementProfile {
   userId: string;
@@ -74,8 +74,7 @@ export class SendTimeOptimizerService {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly prismaService: PrismaService,
-  ) {
+    private readonly prismaService: PrismaService) {
     this.featureEnabled = this.configService.get('SEND_TIME_OPTIMIZATION_ENABLED', 'true') === 'true';
     this.logger.log(`Send Time Optimization: ${this.featureEnabled ? 'ENABLED' : 'DISABLED'}`);
   }
@@ -91,7 +90,7 @@ export class SendTimeOptimizerService {
         reason: 'Feature disabled',
         qualityScore: 100,
         frequencyCapRespected: true,
-        quietHoursRespected: true,
+        quietHoursRespected: true
       };
     }
 
@@ -103,7 +102,7 @@ export class SendTimeOptimizerService {
           reason: 'Critical priority bypass',
           qualityScore: 100,
           frequencyCapRespected: true,
-          quietHoursRespected: true,
+          quietHoursRespected: true
         };
       }
 
@@ -114,7 +113,7 @@ export class SendTimeOptimizerService {
           reason: 'Verification notification bypass',
           qualityScore: 100,
           frequencyCapRespected: true,
-          quietHoursRespected: true,
+          quietHoursRespected: true
         };
       }
 
@@ -131,7 +130,7 @@ export class SendTimeOptimizerService {
           reason: `Frequency cap exceeded: ${frequencyCheck.reason}`,
           qualityScore: profile.qualityScore,
           frequencyCapRespected: false,
-          quietHoursRespected: true,
+          quietHoursRespected: true
         };
       }
 
@@ -145,7 +144,7 @@ export class SendTimeOptimizerService {
           reason: `Quiet hours: ${quietHoursCheck.reason}`,
           qualityScore: profile.qualityScore,
           frequencyCapRespected: true,
-          quietHoursRespected: false,
+          quietHoursRespected: false
         };
       }
 
@@ -159,7 +158,7 @@ export class SendTimeOptimizerService {
           reason: `Suboptimal send time: ${optimalTimeCheck.reason}`,
           qualityScore: profile.qualityScore,
           frequencyCapRespected: true,
-          quietHoursRespected: true,
+          quietHoursRespected: true
         };
       }
 
@@ -169,7 +168,7 @@ export class SendTimeOptimizerService {
         reason: 'Optimal send time',
         qualityScore: profile.qualityScore,
         frequencyCapRespected: true,
-        quietHoursRespected: true,
+        quietHoursRespected: true
       };
     } catch (error) {
       this.logger.error(`Error in shouldSendNow for user ${notificationData.userId}:`, error);
@@ -179,7 +178,7 @@ export class SendTimeOptimizerService {
         reason: 'Optimization failed - fail safe',
         qualityScore: 50,
         frequencyCapRespected: true,
-        quietHoursRespected: true,
+        quietHoursRespected: true
       };
     }
   }
@@ -236,8 +235,8 @@ export class SendTimeOptimizerService {
           type: metrics.type,
           deviceType: metrics.deviceType,
           timeToOpen: metrics.timeToOpen,
-          timeToClick: metrics.timeToClick,
-        },
+          timeToClick: metrics.timeToClick
+        }
       });
 
       // Update user profile based on engagement
@@ -255,7 +254,7 @@ export class SendTimeOptimizerService {
   async getUserEngagementProfile(userId: string): Promise<UserEngagementProfile | null> {
     try {
       const profile = await this.prismaService.userEngagementProfile.findUnique({
-        where: { userId },
+        where: { userId }
       });
 
       if (!profile) {
@@ -271,7 +270,7 @@ export class SendTimeOptimizerService {
         quietHours: JSON.parse(profile.quietHours as string),
         qualityScore: profile.qualityScore,
         createdAt: profile.createdAt,
-        updatedAt: profile.updatedAt,
+        updatedAt: profile.updatedAt
       };
     } catch (error) {
       this.logger.error(`Error getting user engagement profile for ${userId}:`, error);
@@ -315,29 +314,29 @@ export class SendTimeOptimizerService {
         email: [[9, 0], [12, 0], [18, 0]], // 9 AM, 12 PM, 6 PM
         sms: [[10, 0], [14, 0], [19, 0]],  // 10 AM, 2 PM, 7 PM
         push: [[8, 0], [12, 30], [17, 0]], // 8 AM, 12:30 PM, 5 PM
-        inApp: [[9, 0], [13, 0], [20, 0]], // 9 AM, 1 PM, 8 PM
+        inApp: [[9, 0], [13, 0], [20, 0]] // 9 AM, 1 PM, 8 PM
       },
       engagementPatterns: {
         hourlyOpenRates: new Array(24).fill(0.5), // Default 50% open rate
         dailyEngagementScores: new Array(7).fill(0.5), // Default 50% engagement
         preferredChannels: ['push', 'email'],
-        lastEngagementAt: undefined,
+        lastEngagementAt: undefined
       },
       frequencyCaps: {
         email: { maxPerDay: 5, maxPerWeek: 20, maxPerMonth: 50 },
         sms: { maxPerDay: 3, maxPerWeek: 10, maxPerMonth: 25 },
         push: { maxPerDay: 10, maxPerWeek: 40, maxPerMonth: 100 },
-        inApp: { maxPerDay: 20, maxPerWeek: 80, maxPerMonth: 200 },
+        inApp: { maxPerDay: 20, maxPerWeek: 80, maxPerMonth: 200 }
       },
       quietHours: {
         enabled: true,
         start: '22:00',
         end: '08:00',
-        timezone: 'UTC',
+        timezone: 'UTC'
       },
       qualityScore: 50, // Default medium quality
       createdAt: now,
-      updatedAt: now,
+      updatedAt: now
     };
   }
 
@@ -349,7 +348,7 @@ export class SendTimeOptimizerService {
       // Get user's timezone from preferences
       const user = await this.prismaService.user.findUnique({
         where: { id: profile.userId },
-        include: { notificationPreferences: true },
+        include: { notificationPreferences: true }
       });
 
       if (user?.notificationPreferences?.timezone) {
@@ -359,7 +358,7 @@ export class SendTimeOptimizerService {
       if (user?.notificationPreferences?.quietHours) {
         profile.quietHours = {
           ...profile.quietHours,
-          ...user.notificationPreferences.quietHours,
+          ...user.notificationPreferences.quietHours
         };
       }
 
@@ -368,10 +367,10 @@ export class SendTimeOptimizerService {
       const recentEngagement = await this.prismaService.notificationEngagement.findMany({
         where: {
           userId: profile.userId,
-          deliveredAt: { gte: thirtyDaysAgo },
+          deliveredAt: { gte: thirtyDaysAgo }
         },
         orderBy: { deliveredAt: 'desc' },
-        take: 1000,
+        take: 1000
       });
 
       // Update engagement patterns based on recent data
@@ -447,7 +446,7 @@ export class SendTimeOptimizerService {
       email: sortedHours.map(hour => [hour, 0]),
       sms: sortedHours.map(hour => [hour, 30]), // 30 minutes later
       push: sortedHours.map(hour => [Math.max(0, hour - 1), 0]), // 1 hour earlier
-      inApp: sortedHours.map(hour => [hour, 15]), // 15 minutes later
+      inApp: sortedHours.map(hour => [hour, 15]) // 15 minutes later
     };
   }
 
@@ -472,7 +471,7 @@ export class SendTimeOptimizerService {
           sentAt: { gte: dayStart },
           // Note: In a real implementation, you'd need to join with notifications table
           // or store userId in the delivery log
-        },
+        }
       });
 
       if (dailyCount >= caps.maxPerDay) {
@@ -481,7 +480,7 @@ export class SendTimeOptimizerService {
         return {
           canSend: false,
           reason: `Daily limit reached (${dailyCount}/${caps.maxPerDay})`,
-          nextAvailableTime: nextDay,
+          nextAvailableTime: nextDay
         };
       }
 
@@ -494,8 +493,8 @@ export class SendTimeOptimizerService {
         where: {
           channel,
           status: 'SUCCESS',
-          sentAt: { gte: weekStart },
-        },
+          sentAt: { gte: weekStart }
+        }
       });
 
       if (weeklyCount >= caps.maxPerWeek) {
@@ -504,7 +503,7 @@ export class SendTimeOptimizerService {
         return {
           canSend: false,
           reason: `Weekly limit reached (${weeklyCount}/${caps.maxPerWeek})`,
-          nextAvailableTime: nextWeek,
+          nextAvailableTime: nextWeek
         };
       }
 
@@ -553,7 +552,7 @@ export class SendTimeOptimizerService {
       return {
         canSend: false,
         reason: 'Currently in quiet hours',
-        nextAvailableTime: this.convertFromUserTimezone(nextAvailable, profile.timezone),
+        nextAvailableTime: this.convertFromUserTimezone(nextAvailable, profile.timezone)
       };
     }
 
@@ -597,7 +596,7 @@ export class SendTimeOptimizerService {
     return {
       shouldSendNow: false,
       reason: 'Not in optimal send time window',
-      nextOptimalTime: this.convertFromUserTimezone(nextOptimal, profile.timezone),
+      nextOptimalTime: this.convertFromUserTimezone(nextOptimal, profile.timezone)
     };
   }
 
@@ -701,7 +700,7 @@ export class SendTimeOptimizerService {
           frequencyCaps: JSON.stringify(profile.frequencyCaps),
           quietHours: JSON.stringify(profile.quietHours),
           qualityScore: profile.qualityScore,
-          updatedAt: new Date(),
+          updatedAt: new Date()
         },
         create: {
           userId: profile.userId,
@@ -710,8 +709,8 @@ export class SendTimeOptimizerService {
           engagementPatterns: JSON.stringify(profile.engagementPatterns),
           frequencyCaps: JSON.stringify(profile.frequencyCaps),
           quietHours: JSON.stringify(profile.quietHours),
-          qualityScore: profile.qualityScore,
-        },
+          qualityScore: profile.qualityScore
+        }
       });
     } catch (error) {
       this.logger.error(`Error saving user engagement profile for ${profile.userId}:`, error);

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import { HttpService } from '@nestjs/axios';
+// Trend entity removed;
 
 export interface SocialMetrics {
   platform: string;
@@ -59,36 +60,35 @@ export class SocialMediaService {
       baseUrl: 'https://api.twitter.com/2',
       rateLimit: {
         requests: 300,
-        window: 900000, // 15 minutes
-      },
+        window: 900000 // 15 minutes
+      }
     },
     instagram: {
       baseUrl: 'https://graph.instagram.com',
       rateLimit: {
         requests: 200,
-        window: 3600000, // 1 hour
-      },
+        window: 3600000 // 1 hour
+      }
     },
     tiktok: {
       baseUrl: 'https://open-api.tiktok.com',
       rateLimit: {
         requests: 100,
-        window: 3600000, // 1 hour
-      },
+        window: 3600000 // 1 hour
+      }
     },
     youtube: {
       baseUrl: 'https://www.googleapis.com/youtube/v3',
       rateLimit: {
         requests: 10000,
-        window: 86400000, // 1 day
-      },
-    },
+        window: 86400000 // 1 day
+      }
+    }
   };
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
-    private readonly httpService: HttpService,
-  ) {}
+    private readonly httpService: HttpService) {}
 
   /**
    * Get social media metrics for a trend
@@ -97,27 +97,23 @@ export class SocialMediaService {
     symbol: string,
     platform: string = 'all',
     hashtags: string[] = [],
-    keywords: string[] = []
-  ): Promise<SocialMetrics | null> {
+    keywords: string[] = []): Promise<SocialMetrics | null> {
     try {
       const cacheKey = `social-metrics:${symbol}:${platform}:${Date.now()}`;
       const cached = await this.redis.get(cacheKey);
-
       if (cached) {
         return JSON.parse(cached);
       }
 
       let metrics: SocialMetrics | null = null;
-
       if (platform === 'all') {
         // Get metrics from all platforms
         const platformMetrics = await Promise.all([
           this.getPlatformMetrics('twitter', symbol, hashtags, keywords),
           this.getPlatformMetrics('instagram', symbol, hashtags, keywords),
           this.getPlatformMetrics('tiktok', symbol, hashtags, keywords),
-          this.getPlatformMetrics('youtube', symbol, hashtags, keywords),
+          this.getPlatformMetrics('youtube', symbol, hashtags, keywords)
         ]);
-
         metrics = this.aggregatePlatformMetrics(platformMetrics.filter(Boolean));
       } else {
         metrics = await this.getPlatformMetrics(platform, symbol, hashtags, keywords);
@@ -143,14 +139,12 @@ export class SocialMediaService {
     symbol: string,
     platform: string,
     hashtags: string[] = [],
-    limit: number = 100
-  ): Promise<SocialPost[]> {
+    limit: number = 100): Promise<SocialPost[]> {
     try {
       const posts: SocialPost[] = [];
 
       // Search for posts with symbol or hashtags
       const searchTerms = [symbol, ...hashtags];
-
       for (const term of searchTerms) {
         const platformPosts = await this.searchPosts(platform, term, limit);
         posts.push(...platformPosts);
@@ -159,7 +153,6 @@ export class SocialMediaService {
       // Remove duplicates and sort by timestamp
       const uniquePosts = this.removeDuplicatePosts(posts);
       uniquePosts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
       return uniquePosts.slice(0, limit);
 
     } catch (error) {
@@ -173,12 +166,10 @@ export class SocialMediaService {
    */
   async getTrendingTopics(
     symbol: string,
-    timeframe: string = '24h'
-  ): Promise<TrendingTopic[]> {
+    timeframe: string = '24h'): Promise<TrendingTopic[]> {
     try {
       const cacheKey = `trending-topics:${symbol}:${timeframe}`;
       const cached = await this.redis.get(cacheKey);
-
       if (cached) {
         return JSON.parse(cached);
       }
@@ -198,7 +189,6 @@ export class SocialMediaService {
 
       // Cache for 30 minutes
       await this.redis.setex(cacheKey, 1800, JSON.stringify(rankedTopics));
-
       return rankedTopics;
 
     } catch (error) {
@@ -212,8 +202,7 @@ export class SocialMediaService {
    */
   async analyzeInfluencerImpact(
     symbol: string,
-    hashtags: string[] = []
-  ): Promise<{
+    hashtags: string[] = []): Promise<{
     totalInfluencers: number;
     topInfluencers: Array<{
       username: string;
@@ -233,11 +222,9 @@ export class SocialMediaService {
       const platforms = ['twitter', 'instagram', 'tiktok', 'youtube'];
       for (const platform of platforms) {
         const posts = await this.getRecentPosts(symbol, platform, hashtags, 500);
-
         for (const post of posts) {
           if (post.isFromInfluencer) {
             const key = `${platform}:${post.author}`;
-
             if (!influencers.has(key)) {
               influencers.set(key, {
                 username: post.author,
@@ -245,10 +232,9 @@ export class SocialMediaService {
                 followers: await this.getInfluencerFollowers(platform, post.author),
                 posts: 0,
                 totalEngagement: 0,
-                sentiment: [],
+                sentiment: []
               });
             }
-
             const influencer = influencers.get(key);
             influencer.posts++;
             influencer.totalEngagement += post.likes + post.shares + post.comments;
@@ -265,7 +251,7 @@ export class SocialMediaService {
           followers: influencer.followers,
           engagement: influencer.totalEngagement / influencer.posts,
           posts: influencer.posts,
-          sentiment: influencer.sentiment.reduce((sum: number, s: number) => sum + s, 0) / influencer.sentiment.length,
+          sentiment: influencer.sentiment.reduce((sum: number, s: number) => sum + s, 0) / influencer.sentiment.length
         }))
         .sort((a, b) => b.followers - a.followers)
         .slice(0, 20);
@@ -278,7 +264,7 @@ export class SocialMediaService {
         totalInfluencers,
         topInfluencers,
         influencerScore,
-        reach,
+        reach
       };
 
     } catch (error) {
@@ -287,7 +273,7 @@ export class SocialMediaService {
         totalInfluencers: 0,
         topInfluencers: [],
         influencerScore: 0,
-        reach: 0,
+        reach: 0
       };
     }
   }
@@ -311,7 +297,6 @@ export class SocialMediaService {
   }
 
   // Private helper methods
-
   private async getPlatformMetrics(
     platform: string,
     symbol: string,
@@ -347,7 +332,6 @@ export class SocialMediaService {
       // Search for tweets
       const searchQuery = this.buildTwitterSearchQuery(symbol, hashtags, keywords);
       const tweets = await this.searchTwitter(searchQuery, 100);
-
       if (tweets.length === 0) {
         return null;
       }
@@ -386,7 +370,7 @@ export class SocialMediaService {
         hashtags: this.extractHashtags(tweets),
         growthRate: await this.calculateGrowthRate('twitter', symbol),
         demographics: await this.getTwitterDemographics(tweets),
-        contentTypes: this.analyzeContentTypes(tweets),
+        contentTypes: this.analyzeContentTypes(tweets)
       };
 
     } catch (error) {
@@ -404,7 +388,6 @@ export class SocialMediaService {
       // Instagram API implementation
       // Note: This is a simplified implementation
       const posts = await this.searchInstagram(symbol, hashtags, keywords, 100);
-
       if (posts.length === 0) {
         return null;
       }
@@ -413,13 +396,10 @@ export class SocialMediaService {
       const totalComments = posts.reduce((sum, post) => sum + post.comments, 0);
       const totalShares = posts.reduce((sum, post) => sum + post.shares, 0);
       const totalMentions = posts.length;
-
       const reach = posts.reduce((sum, post) => sum + (post.author.followers || 0), 0);
       const engagement = totalMentions > 0 ? (totalLikes + totalComments + totalShares) / totalMentions : 0;
-
       const sentiments = posts.map(post => this.analyzePostSentiment(post.caption));
       const avgSentiment = sentiments.reduce((sum, sentiment) => sum + sentiment, 0) / sentiments.length;
-
       const influencers = posts
         .filter(post => (post.author.followers || 0) > 10000)
         .map(post => post.author.username);
@@ -437,7 +417,7 @@ export class SocialMediaService {
         hashtags: this.extractHashtagsFromPosts(posts),
         growthRate: await this.calculateGrowthRate('instagram', symbol),
         demographics: await this.getInstagramDemographics(posts),
-        contentTypes: this.analyzeInstagramContentTypes(posts),
+        contentTypes: this.analyzeInstagramContentTypes(posts)
       };
 
     } catch (error) {
@@ -454,7 +434,6 @@ export class SocialMediaService {
     try {
       // TikTok API implementation
       const videos = await this.searchTikTok(symbol, hashtags, keywords, 100);
-
       if (videos.length === 0) {
         return null;
       }
@@ -463,13 +442,10 @@ export class SocialMediaService {
       const totalShares = videos.reduce((sum, video) => sum + video.shares, 0);
       const totalComments = videos.reduce((sum, video) => sum + video.comments, 0);
       const totalMentions = videos.length;
-
       const reach = videos.reduce((sum, video) => sum + (video.author.followers || 0), 0);
       const engagement = totalMentions > 0 ? (totalLikes + totalShares + totalComments) / totalMentions : 0;
-
       const sentiments = videos.map(video => this.analyzePostSentiment(video.caption));
       const avgSentiment = sentiments.reduce((sum, sentiment) => sum + sentiment, 0) / sentiments.length;
-
       const influencers = videos
         .filter(video => (video.author.followers || 0) > 10000)
         .map(video => video.author.username);
@@ -487,7 +463,7 @@ export class SocialMediaService {
         hashtags: this.extractHashtagsFromVideos(videos),
         growthRate: await this.calculateGrowthRate('tiktok', symbol),
         demographics: await this.getTikTokDemographics(videos),
-        contentTypes: this.analyzeTikTokContentTypes(videos),
+        contentTypes: this.analyzeTikTokContentTypes(videos)
       };
 
     } catch (error) {
@@ -504,7 +480,6 @@ export class SocialMediaService {
     try {
       // YouTube API implementation
       const videos = await this.searchYouTube(symbol, hashtags, keywords, 100);
-
       if (videos.length === 0) {
         return null;
       }
@@ -513,14 +488,11 @@ export class SocialMediaService {
       const totalShares = videos.reduce((sum, video) => sum + video.shares, 0);
       const totalComments = videos.reduce((sum, video) => sum + video.comments, 0);
       const totalMentions = videos.length;
-
       const views = videos.reduce((sum, video) => sum + video.views, 0);
       const reach = views;
       const engagement = totalMentions > 0 ? (totalLikes + totalShares + totalComments) / totalMentions : 0;
-
       const sentiments = videos.map(video => this.analyzePostSentiment(video.description));
       const avgSentiment = sentiments.reduce((sum, sentiment) => sum + sentiment, 0) / sentiments.length;
-
       const influencers = videos
         .filter(video => (video.author.subscribers || 0) > 10000)
         .map(video => video.author.username);
@@ -538,7 +510,7 @@ export class SocialMediaService {
         hashtags: this.extractHashtagsFromVideos(videos),
         growthRate: await this.calculateGrowthRate('youtube', symbol),
         demographics: await this.getYoutubeDemographics(videos),
-        contentTypes: this.analyzeYoutubeContentTypes(videos),
+        contentTypes: this.analyzeYoutubeContentTypes(videos)
       };
 
     } catch (error) {
@@ -567,9 +539,9 @@ export class SocialMediaService {
       demographics: {
         ageGroups: {},
         gender: {},
-        locations: {},
+        locations: {}
       },
-      contentTypes: {},
+      contentTypes: {}
     };
 
     // Aggregate numeric metrics
@@ -615,7 +587,6 @@ export class SocialMediaService {
     // Simplified sentiment analysis
     const positiveWords = ['good', 'great', 'love', 'amazing', 'excellent', 'wonderful'];
     const negativeWords = ['bad', 'terrible', 'hate', 'awful', 'horrible', 'disgusting'];
-
     const words = text.toLowerCase().split(/\s+/);
     let score = 0;
 
@@ -674,19 +645,19 @@ export class SocialMediaService {
         '18-24': 25,
         '25-34': 35,
         '35-44': 25,
-        '45+': 15,
+        '45+': 15
       },
       gender: {
         'male': 50,
         'female': 45,
-        'other': 5,
+        'other': 5
       },
       locations: {
         'South Africa': 60,
         'Nigeria': 15,
         'Kenya': 10,
-        'Other': 15,
-      },
+        'Other': 15
+      }
     };
   }
 
@@ -710,7 +681,7 @@ export class SocialMediaService {
       'text': 0,
       'image': 0,
       'video': 0,
-      'link': 0,
+      'link': 0
     };
 
     for (const tweet of tweets) {
@@ -734,7 +705,7 @@ export class SocialMediaService {
       'photo': 0,
       'video': 0,
       'carousel': 0,
-      'reel': 0,
+      'reel': 0
     };
 
     for (const post of posts) {
@@ -753,7 +724,7 @@ export class SocialMediaService {
       'video': 0,
       'duet': 0,
       'stitch': 0,
-      'reaction': 0,
+      'reaction': 0
     };
 
     for (const video of videos) {
@@ -771,7 +742,7 @@ export class SocialMediaService {
     const types = {
       'video': 0,
       'short': 0,
-      'livestream': 0,
+      'livestream': 0
     };
 
     for (const video of videos) {
@@ -790,7 +761,6 @@ export class SocialMediaService {
   private combineDemographics(target: any, source: any): void {
     for (const [category, data] of Object.entries(source)) {
       if (!target[category]) target[category] = {};
-
       for (const [key, value] of Object.entries(data as Record<string, number>)) {
         target[category][key] = (target[category][key] || 0) + value;
       }
@@ -873,7 +843,6 @@ export class SocialMediaService {
     // Calculate influencer impact score
     const totalFollowers = influencers.reduce((sum, inf) => sum + inf.followers, 0);
     const avgEngagement = influencers.reduce((sum, inf) => sum + inf.engagement, 0) / influencers.length;
-
     return Math.min(100, (totalFollowers / 100000) * (avgEngagement / 100));
   }
 

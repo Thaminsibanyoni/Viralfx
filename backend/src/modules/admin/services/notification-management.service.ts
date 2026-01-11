@@ -1,9 +1,9 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { NotificationService } from '../../notifications/services/notification.service';
-import { AdminWebSocketService } from './admin-websocket.service';
-import { Queue } from 'bull';
-import { InjectQueue } from '@nestjs/bull';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { NotificationService } from "../../notifications/services/notification.service";
+import { AdminWebSocketService } from "./admin-websocket.service";
+import { Queue } from 'bullmq';
+import { InjectQueue } from '@nestjs/bullmq';
 
 @Injectable()
 export class NotificationManagementService {
@@ -13,8 +13,7 @@ export class NotificationManagementService {
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
     private readonly adminWebSocketService: AdminWebSocketService,
-    @InjectQueue('notifications') private readonly notificationQueue: Queue,
-  ) {}
+    @InjectQueue('notifications') private readonly notificationQueue: Queue) {}
 
   async broadcastNotification(notificationData: any, adminId: string) {
     // Validate notification data
@@ -32,20 +31,20 @@ export class NotificationManagementService {
         metadata: {
           ...validatedData.metadata,
           createdBy: adminId,
-          createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
         },
         status: 'PENDING',
         scheduledFor: null,
-        createdBy: adminId,
-      },
+        createdBy: adminId
+      }
     });
 
     // Get total active users count
     const recipientCount = await this.prisma.user.count({
       where: {
         status: 'ACTIVE',
-        emailVerified: true,
-      },
+        emailVerified: true
+      }
     });
 
     // Queue notification for processing
@@ -53,13 +52,13 @@ export class NotificationManagementService {
       notificationId: notification.id,
       recipientType: 'all',
       channels: validatedData.channels,
-      notificationData: validatedData,
+      notificationData: validatedData
     }, {
       attempts: 3,
       backoff: {
         type: 'exponential',
-        delay: 2000,
-      },
+        delay: 2000
+      }
     });
 
     // Update notification with recipient count
@@ -69,9 +68,9 @@ export class NotificationManagementService {
         recipientCount,
         metadata: {
           ...notification.metadata,
-          recipientCount,
-        },
-      },
+          recipientCount
+        }
+      }
     });
 
     // Emit WebSocket event
@@ -81,7 +80,7 @@ export class NotificationManagementService {
       recipientCount,
       channels: validatedData.channels,
       sentBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`Broadcast notification created by admin ${adminId}: ${notification.id}`);
@@ -91,7 +90,7 @@ export class NotificationManagementService {
       title: validatedData.title,
       recipientCount,
       channels: validatedData.channels,
-      status: 'PENDING',
+      status: 'PENDING'
     };
   }
 
@@ -116,13 +115,13 @@ export class NotificationManagementService {
           ...validatedNotification.metadata,
           segment: validatedSegment,
           createdBy: adminId,
-          createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
         },
         status: 'PENDING',
         scheduledFor: null,
         createdBy: adminId,
-        recipientCount,
-      },
+        recipientCount
+      }
     });
 
     // Queue notification for processing
@@ -130,13 +129,13 @@ export class NotificationManagementService {
       notificationId: notification.id,
       segment: validatedSegment,
       channels: validatedNotification.channels,
-      notificationData: validatedNotification,
+      notificationData: validatedNotification
     }, {
       attempts: 3,
       backoff: {
         type: 'exponential',
-        delay: 2000,
-      },
+        delay: 2000
+      }
     });
 
     // Emit WebSocket event
@@ -147,7 +146,7 @@ export class NotificationManagementService {
       recipientCount,
       channels: validatedNotification.channels,
       sentBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`Segment notification created by admin ${adminId}: ${notification.id}`);
@@ -158,14 +157,14 @@ export class NotificationManagementService {
       segment: validatedSegment,
       recipientCount,
       channels: validatedNotification.channels,
-      status: 'PENDING',
+      status: 'PENDING'
     };
   }
 
   async sendToUser(userId: string, notificationData: any, adminId: string) {
     // Validate user exists
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId }
     });
 
     if (!user) {
@@ -187,13 +186,13 @@ export class NotificationManagementService {
           ...validatedData.metadata,
           userId,
           createdBy: adminId,
-          createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
         },
         status: 'PENDING',
         scheduledFor: null,
         createdBy: adminId,
-        recipientCount: 1,
-      },
+        recipientCount: 1
+      }
     });
 
     // Queue notification for processing
@@ -201,13 +200,13 @@ export class NotificationManagementService {
       notificationId: notification.id,
       userId,
       channels: validatedData.channels,
-      notificationData: validatedData,
+      notificationData: validatedData
     }, {
       attempts: 3,
       backoff: {
         type: 'exponential',
-        delay: 2000,
-      },
+        delay: 2000
+      }
     });
 
     // Emit WebSocket event
@@ -217,7 +216,7 @@ export class NotificationManagementService {
       userId,
       channels: validatedData.channels,
       sentBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`User notification created by admin ${adminId}: ${notification.id} to user ${userId}`);
@@ -227,7 +226,7 @@ export class NotificationManagementService {
       title: validatedData.title,
       userId,
       channels: validatedData.channels,
-      status: 'PENDING',
+      status: 'PENDING'
     };
   }
 
@@ -260,10 +259,10 @@ export class NotificationManagementService {
         include: {
           _count: {
             select: {
-              adminNotifications: true,
-            },
-          },
-        },
+              adminNotifications: true
+            }
+          }
+        }
       }),
       this.prisma.notificationTemplate.count({ where }),
     ]);
@@ -281,12 +280,12 @@ export class NotificationManagementService {
         usageCount: template._count.adminNotifications,
         isActive: template.isActive,
         createdAt: template.createdAt,
-        updatedAt: template.updatedAt,
+        updatedAt: template.updatedAt
       })),
       total,
       page: filters.page,
       limit: filters.limit,
-      totalPages: Math.ceil(total / filters.limit),
+      totalPages: Math.ceil(total / filters.limit)
     };
   }
 
@@ -296,10 +295,10 @@ export class NotificationManagementService {
       include: {
         _count: {
           select: {
-            adminNotifications: true,
-          },
-        },
-      },
+            adminNotifications: true
+          }
+        }
+      }
     });
 
     if (!template) {
@@ -318,7 +317,7 @@ export class NotificationManagementService {
       usageCount: template._count.adminNotifications,
       isActive: template.isActive,
       createdAt: template.createdAt,
-      updatedAt: template.updatedAt,
+      updatedAt: template.updatedAt
     };
   }
 
@@ -329,8 +328,8 @@ export class NotificationManagementService {
       data: {
         ...validatedData,
         isActive: true,
-        createdBy: adminId,
-      },
+        createdBy: adminId
+      }
     });
 
     this.logger.log(`Notification template created by admin ${adminId}: ${template.name}`);
@@ -342,7 +341,7 @@ export class NotificationManagementService {
     const validatedData = this.validateTemplateData(templateData);
 
     const existingTemplate = await this.prisma.notificationTemplate.findUnique({
-      where: { id },
+      where: { id }
     });
 
     if (!existingTemplate) {
@@ -358,8 +357,8 @@ export class NotificationManagementService {
         content: existingTemplate.content,
         variables: existingTemplate.variables,
         version: (existingTemplate.version || 0) + 1,
-        createdBy: adminId,
-      },
+        createdBy: adminId
+      }
     });
 
     const updatedTemplate = await this.prisma.notificationTemplate.update({
@@ -367,8 +366,8 @@ export class NotificationManagementService {
       data: {
         ...validatedData,
         version: (existingTemplate.version || 0) + 1,
-        updatedBy: adminId,
-      },
+        updatedBy: adminId
+      }
     });
 
     this.logger.log(`Notification template updated by admin ${adminId}: ${id}`);
@@ -378,7 +377,7 @@ export class NotificationManagementService {
 
   async deleteTemplate(id: string, adminId: string) {
     const template = await this.prisma.notificationTemplate.findUnique({
-      where: { id },
+      where: { id }
     });
 
     if (!template) {
@@ -391,8 +390,8 @@ export class NotificationManagementService {
       data: {
         isActive: false,
         deletedAt: new Date(),
-        deletedBy: adminId,
-      },
+        deletedBy: adminId
+      }
     });
 
     this.logger.log(`Notification template deleted by admin ${adminId}: ${id}`);
@@ -400,7 +399,7 @@ export class NotificationManagementService {
 
   async duplicateTemplate(id: string, name: string, adminId: string) {
     const originalTemplate = await this.prisma.notificationTemplate.findUnique({
-      where: { id },
+      where: { id }
     });
 
     if (!originalTemplate) {
@@ -420,9 +419,9 @@ export class NotificationManagementService {
         createdBy: adminId,
         metadata: {
           ...originalTemplate.metadata,
-          duplicatedFrom: id,
-        },
-      },
+          duplicatedFrom: id
+        }
+      }
     });
 
     this.logger.log(`Notification template duplicated by admin ${adminId}: ${name}`);
@@ -447,7 +446,7 @@ export class NotificationManagementService {
 
     if (filters.channel) {
       where.channels = {
-        has: filters.channel,
+        has: filters.channel
       };
     }
 
@@ -473,15 +472,15 @@ export class NotificationManagementService {
               id: true,
               email: true,
               firstName: true,
-              lastName: true,
-            },
+              lastName: true
+            }
           },
           _count: {
             select: {
-              deliveryLogs: true,
-            },
-          },
-        },
+              deliveryLogs: true
+            }
+          }
+        }
       }),
       this.prisma.adminNotification.count({ where }),
     ]);
@@ -501,12 +500,12 @@ export class NotificationManagementService {
         scheduledFor: notification.scheduledFor,
         sentAt: notification.sentAt,
         createdAt: notification.createdAt,
-        creator: notification.creator,
+        creator: notification.creator
       })),
       total,
       page: filters.page,
       limit: filters.limit,
-      totalPages: Math.ceil(total / filters.limit),
+      totalPages: Math.ceil(total / filters.limit)
     };
   }
 
@@ -519,19 +518,19 @@ export class NotificationManagementService {
             id: true,
             email: true,
             firstName: true,
-            lastName: true,
-          },
+            lastName: true
+          }
         },
         deliveryLogs: {
           take: 100,
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: 'desc' }
         },
         _count: {
           select: {
-            deliveryLogs: true,
-          },
-        },
-      },
+            deliveryLogs: true
+          }
+        }
+      }
     });
 
     if (!notification) {
@@ -557,7 +556,7 @@ export class NotificationManagementService {
       creator: notification.creator,
       metadata: notification.metadata,
       deliveryStats,
-      recentDeliveries: notification.deliveryLogs.slice(0, 20),
+      recentDeliveries: notification.deliveryLogs.slice(0, 20)
     };
   }
 
@@ -571,7 +570,7 @@ export class NotificationManagementService {
       '7d': 7,
       '30d': 30,
       '90d': 90,
-      '1y': 365,
+      '1y': 365
     };
 
     if (filters.timeframe) {
@@ -592,32 +591,32 @@ export class NotificationManagementService {
     ] = await Promise.all([
       this.prisma.adminNotification.count({
         where: {
-          createdAt: { gte: startDate },
-        },
+          createdAt: { gte: startDate }
+        }
       }),
       this.prisma.notificationDeliveryLog.count({
         where: {
           notification: {
-            createdAt: { gte: startDate },
+            createdAt: { gte: startDate }
           },
-          status: 'DELIVERED',
-        },
+          status: 'DELIVERED'
+        }
       }),
       this.prisma.notificationDeliveryLog.count({
         where: {
           notification: {
-            createdAt: { gte: startDate },
+            createdAt: { gte: startDate }
           },
-          openedAt: { not: null },
-        },
+          openedAt: { not: null }
+        }
       }),
       this.prisma.notificationDeliveryLog.count({
         where: {
           notification: {
-            createdAt: { gte: startDate },
+            createdAt: { gte: startDate }
           },
-          clickedAt: { not: null },
-        },
+          clickedAt: { not: null }
+        }
       }),
       this.getChannelBreakdown(startDate),
       this.getCategoryBreakdown(startDate),
@@ -636,22 +635,22 @@ export class NotificationManagementService {
         totalClicked,
         deliveryRate,
         openRate,
-        clickRate,
+        clickRate
       },
       breakdowns: {
         channels: channelBreakdown,
-        categories: categoryBreakdown,
+        categories: categoryBreakdown
       },
       timeline: dailyStats,
       timeframe: filters.timeframe || '30d',
       startDate,
-      endDate: new Date(),
+      endDate: new Date()
     };
   }
 
   async sendTestNotification(testData: any, adminId: string) {
     const admin = await this.prisma.adminUser.findUnique({
-      where: { id: adminId },
+      where: { id: adminId }
     });
 
     if (!admin) {
@@ -663,13 +662,13 @@ export class NotificationManagementService {
       message: testData.customMessage || 'This is a test notification from the SuperAdmin panel.',
       category: 'test',
       priority: 'low',
-      channels: testData.channels || ['email'],
+      channels: testData.channels || ['email']
     };
 
     // If using template, get and process it
     if (testData.templateId) {
       const template = await this.prisma.notificationTemplate.findUnique({
-        where: { id: testData.templateId },
+        where: { id: testData.templateId }
       });
 
       if (template) {
@@ -678,7 +677,7 @@ export class NotificationManagementService {
           template.content,
           {
             userName: `${admin.firstName} ${admin.lastName}`,
-            adminEmail: admin.email,
+            adminEmail: admin.email
           }
         );
       }
@@ -696,12 +695,12 @@ export class NotificationManagementService {
         metadata: {
           isTest: true,
           createdBy: adminId,
-          createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
         },
         status: 'PENDING',
         createdBy: adminId,
-        recipientCount: 1,
-      },
+        recipientCount: 1
+      }
     });
 
     // Queue for immediate processing
@@ -710,10 +709,10 @@ export class NotificationManagementService {
       adminId,
       adminEmail: testData.recipientEmail || admin.email,
       channels: notificationData.channels,
-      notificationData,
+      notificationData
     }, {
       attempts: 3,
-      removeOnComplete: true,
+      removeOnComplete: true
     });
 
     this.logger.log(`Test notification sent by admin ${adminId}: ${notification.id}`);
@@ -723,7 +722,7 @@ export class NotificationManagementService {
       title: notificationData.title,
       channels: notificationData.channels,
       recipient: testData.recipientEmail || admin.email,
-      status: 'PENDING',
+      status: 'PENDING'
     };
   }
 
@@ -734,31 +733,31 @@ export class NotificationManagementService {
         id: 'active_users',
         name: 'Active Users',
         description: 'Users with active status',
-        filters: { status: 'ACTIVE' },
+        filters: { status: 'ACTIVE' }
       },
       {
         id: 'verified_users',
         name: 'KYC Verified Users',
         description: 'Users with completed KYC',
-        filters: { kycStatus: 'VERIFIED' },
+        filters: { kycStatus: 'VERIFIED' }
       },
       {
         id: 'trading_users',
         name: 'Active Traders',
         description: 'Users who have placed bets',
-        filters: { hasTraded: true },
+        filters: { hasTraded: true }
       },
       {
         id: 'high_balance_users',
         name: 'High Balance Users',
         description: 'Users with balance above $1000',
-        filters: { minBalance: 1000 },
+        filters: { minBalance: 1000 }
       },
       {
         id: 'new_users',
         name: 'New Users (Last 30 days)',
         description: 'Users registered in last 30 days',
-        filters: { registeredAfter: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+        filters: { registeredAfter: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
       },
     ];
 
@@ -790,12 +789,12 @@ export class NotificationManagementService {
         break;
       case 'high_balance_users':
         where.balanceUsd = {
-          gte: filters.minBalance || 1000,
+          gte: filters.minBalance || 1000
         };
         break;
       case 'new_users':
         where.createdAt = {
-          gte: filters.registeredAfter || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          gte: filters.registeredAfter || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
         };
         break;
       case 'custom':
@@ -823,7 +822,7 @@ export class NotificationManagementService {
     // If using template, process with variables
     if (previewData.templateId) {
       const template = await this.prisma.notificationTemplate.findUnique({
-        where: { id: previewData.templateId },
+        where: { id: previewData.templateId }
       });
 
       if (template) {
@@ -845,7 +844,7 @@ export class NotificationManagementService {
       title,
       message,
       channels: previewData.channels || ['email'],
-      variables: previewData.variables || {},
+      variables: previewData.variables || {}
     };
   }
 
@@ -861,13 +860,13 @@ export class NotificationManagementService {
             select: {
               id: true,
               email: true,
-              username: true,
-            },
-          },
-        },
+              username: true
+            }
+          }
+        }
       }),
       this.prisma.notificationDeliveryLog.count({
-        where: { notificationId },
+        where: { notificationId }
       }),
     ]);
 
@@ -882,12 +881,12 @@ export class NotificationManagementService {
         openedAt: log.openedAt,
         clickedAt: log.clickedAt,
         error: log.error,
-        responseTime: log.responseTime,
+        responseTime: log.responseTime
       })),
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit)
     };
   }
 
@@ -895,8 +894,8 @@ export class NotificationManagementService {
     const failedDeliveries = await this.prisma.notificationDeliveryLog.findMany({
       where: {
         notificationId,
-        status: 'FAILED',
-      },
+        status: 'FAILED'
+      }
     });
 
     let resentCount = 0;
@@ -910,15 +909,15 @@ export class NotificationManagementService {
             status: 'PENDING',
             error: null,
             sentAt: null,
-            deliveredAt: null,
-          },
+            deliveredAt: null
+          }
         });
 
         // Queue for resend
         await this.notificationQueue.add('resend', {
           deliveryId: delivery.id,
           userId: delivery.userId,
-          notificationId,
+          notificationId
         });
 
         resentCount++;
@@ -933,7 +932,7 @@ export class NotificationManagementService {
       notificationId,
       failedCount: failedDeliveries.length,
       resentCount,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
   }
 
@@ -943,7 +942,7 @@ export class NotificationManagementService {
       '7d': 7,
       '30d': 30,
       '90d': 90,
-      '1y': 365,
+      '1y': 365
     };
 
     const days = timeframes[timeframe] || 30;
@@ -952,21 +951,21 @@ export class NotificationManagementService {
     const [totalNotifications, pendingNotifications, scheduledNotifications] = await Promise.all([
       this.prisma.adminNotification.count({
         where: {
-          createdAt: { gte: startDate },
-        },
+          createdAt: { gte: startDate }
+        }
       }),
       this.prisma.adminNotification.count({
         where: {
           createdAt: { gte: startDate },
-          status: 'PENDING',
-        },
+          status: 'PENDING'
+        }
       }),
       this.prisma.adminNotification.count({
         where: {
           scheduledFor: {
-            gte: new Date(),
-          },
-        },
+            gte: new Date()
+          }
+        }
       }),
     ]);
 
@@ -975,7 +974,7 @@ export class NotificationManagementService {
       totalNotifications,
       pendingNotifications,
       scheduledNotifications,
-      completedNotifications: totalNotifications - pendingNotifications,
+      completedNotifications: totalNotifications - pendingNotifications
     };
   }
 
@@ -1000,13 +999,13 @@ export class NotificationManagementService {
           ...validatedNotification.metadata,
           scheduled: true,
           timezone: scheduleData.timezone || 'UTC',
-          createdBy: adminId,
+          createdBy: adminId
         },
         status: 'SCHEDULED',
         scheduledFor,
         createdBy: adminId,
-        recipientCount: scheduleData.userId ? 1 : await this.estimateRecipientCount(scheduleData),
-      },
+        recipientCount: scheduleData.userId ? 1 : await this.estimateRecipientCount(scheduleData)
+      }
     });
 
     // Schedule the notification
@@ -1014,11 +1013,11 @@ export class NotificationManagementService {
       'scheduled',
       {
         notificationId: notification.id,
-        scheduledData,
+        scheduledData
       },
       {
         delay: scheduledFor.getTime() - Date.now(),
-        attempts: 3,
+        attempts: 3
       }
     );
 
@@ -1028,7 +1027,7 @@ export class NotificationManagementService {
       id: notification.id,
       title: validatedNotification.title,
       scheduledFor,
-      status: 'SCHEDULED',
+      status: 'SCHEDULED'
     };
   }
 
@@ -1038,7 +1037,7 @@ export class NotificationManagementService {
     status?: string;
   }) {
     const where: any = {
-      scheduledFor: { not: null },
+      scheduledFor: { not: null }
     };
 
     if (filters.status) {
@@ -1057,10 +1056,10 @@ export class NotificationManagementService {
               id: true,
               email: true,
               firstName: true,
-              lastName: true,
-            },
-          },
-        },
+              lastName: true
+            }
+          }
+        }
       }),
       this.prisma.adminNotification.count({ where }),
     ]);
@@ -1074,18 +1073,18 @@ export class NotificationManagementService {
         status: notification.status,
         recipientCount: notification.recipientCount,
         creator: notification.creator,
-        createdAt: notification.createdAt,
+        createdAt: notification.createdAt
       })),
       total,
       page: filters.page,
       limit: filters.limit,
-      totalPages: Math.ceil(total / filters.limit),
+      totalPages: Math.ceil(total / filters.limit)
     };
   }
 
   async cancelScheduledNotification(notificationId: string, adminId: string) {
     const notification = await this.prisma.adminNotification.findUnique({
-      where: { id: notificationId },
+      where: { id: notificationId }
     });
 
     if (!notification) {
@@ -1112,9 +1111,9 @@ export class NotificationManagementService {
         metadata: {
           ...notification.metadata,
           cancelledBy: adminId,
-          cancelledAt: new Date().toISOString(),
-        },
-      },
+          cancelledAt: new Date().toISOString()
+        }
+      }
     });
 
     this.logger.log(`Scheduled notification cancelled by admin ${adminId}: ${notificationId}`);
@@ -1122,7 +1121,7 @@ export class NotificationManagementService {
     return {
       notificationId,
       status: 'CANCELLED',
-      cancelledAt: new Date().toISOString(),
+      cancelledAt: new Date().toISOString()
     };
   }
 
@@ -1149,7 +1148,7 @@ export class NotificationManagementService {
       category: data.category || 'system',
       priority: data.priority || 'medium',
       channels: data.channels,
-      metadata: data.metadata || {},
+      metadata: data.metadata || {}
     };
   }
 
@@ -1161,7 +1160,7 @@ export class NotificationManagementService {
     return {
       name: segment.name || 'Custom Segment',
       description: segment.description || 'Custom user segment',
-      filters: segment.filters,
+      filters: segment.filters
     };
   }
 
@@ -1186,7 +1185,7 @@ export class NotificationManagementService {
       subject: data.subject || data.name,
       content: data.content,
       variables: data.variables || [],
-      metadata: data.metadata || {},
+      metadata: data.metadata || {}
     };
   }
 
@@ -1198,7 +1197,7 @@ export class NotificationManagementService {
       opened: 0,
       clicked: 0,
       failed: 0,
-      pending: 0,
+      pending: 0
     };
 
     for (const log of deliveryLogs) {
@@ -1209,7 +1208,7 @@ export class NotificationManagementService {
       ...stats,
       deliveryRate: stats.total > 0 ? (stats.delivered / stats.total) * 100 : 0,
       openRate: stats.delivered > 0 ? (stats.opened / stats.delivered) * 100 : 0,
-      clickRate: stats.opened > 0 ? (stats.clicked / stats.opened) * 100 : 0,
+      clickRate: stats.opened > 0 ? (stats.clicked / stats.opened) * 100 : 0
     };
   }
 
@@ -1218,15 +1217,15 @@ export class NotificationManagementService {
       by: ['channel'],
       where: {
         notification: {
-          createdAt: { gte: startDate },
-        },
+          createdAt: { gte: startDate }
+        }
       },
-      _count: true,
+      _count: true
     });
 
     return deliveries.map(d => ({
       channel: d.channel,
-      count: d._count,
+      count: d._count
     }));
   }
 
@@ -1234,14 +1233,14 @@ export class NotificationManagementService {
     const notifications = await this.prisma.adminNotification.groupBy({
       by: ['category'],
       where: {
-        createdAt: { gte: startDate },
+        createdAt: { gte: startDate }
       },
-      _count: true,
+      _count: true
     });
 
     return notifications.map(n => ({
       category: n.category,
-      count: n._count,
+      count: n._count
     }));
   }
 
@@ -1281,8 +1280,8 @@ export class NotificationManagementService {
     return await this.prisma.user.count({
       where: {
         status: 'ACTIVE',
-        emailVerified: true,
-      },
+        emailVerified: true
+      }
     });
   }
 }

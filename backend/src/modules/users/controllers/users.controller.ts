@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Put,
@@ -11,20 +11,19 @@ import {
   ParseUUIDPipe,
   HttpStatus,
   HttpCode,
-  NotFoundException,
-} from '@nestjs/common';
+  NotFoundException, Req } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
   ApiQuery,
-  ApiBearerAuth,
+  ApiBearerAuth
 } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { UsersService } from '../services/users.service';
 import { UserProfileService } from '../services/user-profile.service';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
@@ -37,13 +36,12 @@ import { UserQueryDto } from '../dto/user-query.dto';
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
-    private readonly userProfileService: UserProfileService,
-  ) {}
+    private readonly userProfileService: UserProfileService) {}
 
   @Get('me')
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiResponse({ status: 200, description: 'User profile retrieved successfully' })
-  async getCurrentUser(@Request() req) {
+  async getCurrentUser(@Req() req) {
     const user = await this.usersService.findById(req.user.userId);
     const profileCompletion = await this.userProfileService.calculateProfileCompletion(req.user.userId);
     const stats = await this.usersService.getUserStats(req.user.userId);
@@ -51,7 +49,7 @@ export class UsersController {
     return {
       ...user,
       profileCompletion,
-      stats,
+      stats
     };
   }
 
@@ -62,29 +60,28 @@ export class UsersController {
   @ApiResponse({ status: 400, description: 'Invalid input data' })
   @ApiResponse({ status: 409, description: 'Email or username already exists' })
   async updateProfile(
-    @Request() req,
-    @Body() updateProfileDto: UpdateProfileDto,
-  ) {
+    @Req() req,
+    @Body() updateProfileDto: UpdateProfileDto) {
     return this.usersService.updateProfile(req.user.userId, updateProfileDto);
   }
 
   @Get('me/stats')
   @ApiOperation({ summary: 'Get current user statistics' })
   @ApiResponse({ status: 200, description: 'User statistics retrieved successfully' })
-  async getUserStats(@Request() req) {
+  async getUserStats(@Req() req) {
     return this.usersService.getUserStats(req.user.userId);
   }
 
   @Get('me/profile-completion')
   @ApiOperation({ summary: 'Get profile completion status' })
   @ApiResponse({ status: 200, description: 'Profile completion data retrieved successfully' })
-  async getProfileCompletion(@Request() req) {
+  async getProfileCompletion(@Req() req) {
     const completion = await this.userProfileService.calculateProfileCompletion(req.user.userId);
     const suggestions = await this.userProfileService.getProfileCompletionSuggestions(req.user.userId);
 
     return {
       ...completion,
-      suggestions,
+      suggestions
     };
   }
 
@@ -126,7 +123,7 @@ export class UsersController {
     return this.usersService.listUsers({
       ...query,
       page,
-      limit,
+      limit
     });
   }
 
@@ -139,8 +136,7 @@ export class UsersController {
   @ApiResponse({ status: 404, description: 'User not found' })
   async suspendUser(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { reason: string },
-  ) {
+    @Body() body: { reason: string }) {
     return this.usersService.suspendUser(id, body.reason);
   }
 

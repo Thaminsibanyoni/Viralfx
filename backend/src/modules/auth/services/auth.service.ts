@@ -1,6 +1,5 @@
-import { Injectable, Logger, UnauthorizedException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Injectable, Logger, UnauthorizedException, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -8,7 +7,8 @@ import * as speakeasy from 'speakeasy';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 
-import { User } from '../entities/user.entity';
+// Import types from Prisma schema
+import { User, UserRole, UserStatus, KycStatus } from '@prisma/client';
 import { LoginDto } from '../dto/login.dto';
 import { RegisterDto } from '../dto/register.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
@@ -20,8 +20,7 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     @InjectRedis() private readonly redis: Redis
@@ -33,11 +32,13 @@ export class AuthService {
   async register(registerDto: RegisterDto): Promise<{ user: User; tokens: any }> {
     try {
       // Check if user already exists
-      const existingUser = await this.userRepository.findOne({
-        where: [
-          { email: registerDto.email },
-          { username: registerDto.username }
-        ]
+      const existingUser = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: registerDto.email },
+            { username: registerDto.username }
+          ]
+        }
       });
 
       if (existingUser) {
@@ -47,20 +48,20 @@ export class AuthService {
       // Hash password
       const hashedPassword = await bcrypt.hash(registerDto.password, 12);
 
-      // Create user
-      const user = this.userRepository.create({
-        email: registerDto.email,
-        username: registerDto.username,
-        firstName: registerDto.firstName,
-        lastName: registerDto.lastName,
-        phoneNumber: registerDto.phoneNumber,
-        password: hashedPassword,
-        isActive: true,
-        isEmailVerified: false,
-        role: 'USER'
+      // Create user with Prisma
+      const savedUser = await this.prisma.user.create({
+        data: {
+          email: registerDto.email,
+          username: registerDto.username,
+          firstName: registerDto.firstName,
+          lastName: registerDto.lastName,
+          country: registerDto.country || 'ZA',
+          password: hashedPassword,
+          isActive: true,
+          emailVerified: false,
+          role: UserRole.USER
+        }
       });
-
-      const savedUser = await this.userRepository.save(user);
 
       // Generate tokens
       const tokens = await this.generateTokens(savedUser);
@@ -79,11 +80,13 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<{ user: User; tokens: any; requires2FA: boolean }> {
     try {
       // Find user by email or username
-      const user = await this.userRepository.findOne({
-        where: [
-          { email: loginDto.identifier },
-          { username: loginDto.identifier }
-        ]
+      const user = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: loginDto.identifier },
+            { username: loginDto.identifier }
+          ]
+        }
       });
 
       if (!user) {
@@ -101,7 +104,7 @@ export class AuthService {
       }
 
       // Check if 2FA is enabled
-      if (user.isTwoFactorEnabled) {
+      if (user.twoFactorEnabled) {
         return {
           user,
           tokens: null,
@@ -134,12 +137,12 @@ export class AuthService {
         throw new UnauthorizedException('Invalid or expired 2FA session');
       }
 
-      const user = await this.userRepository.findOne({ where: { id: JSON.parse(tempData).userId } });
+      const user = await this.prisma.user.findUnique({ where: { id: JSON.parse(tempData).userId } });
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
 
-      if (!user.isTwoFactorEnabled || !user.twoFactorSecret) {
+      if (!user.twoFactorEnabled || !user.twoFactorSecret) {
         throw new BadRequestException('2FA is not enabled for this user');
       }
 
@@ -177,7 +180,7 @@ export class AuthService {
    */
   async enable2FA(userId: string, enable2FADto: Enable2FADto): Promise<{ secret: string; qrCode: string; backupCodes: string[] }> {
     try {
-      const user = await this.userRepository.findOne({ where: { id: userId } });
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
@@ -188,7 +191,7 @@ export class AuthService {
         throw new UnauthorizedException('Invalid password');
       }
 
-      if (user.isTwoFactorEnabled) {
+      if (user.twoFactorEnabled) {
         throw new BadRequestException('2FA is already enabled');
       }
 
@@ -256,10 +259,12 @@ export class AuthService {
       }
 
       // Update user
-      await this.userRepository.update(userId, {
-        isTwoFactorEnabled: true,
-        twoFactorSecret: secret,
-        backupCodes
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          twoFactorEnabled: true,
+          twoFactorSecret: secret
+        }
       });
 
       // Clean up
@@ -277,12 +282,12 @@ export class AuthService {
    */
   async disable2FA(userId: string, password: string, token: string): Promise<void> {
     try {
-      const user = await this.userRepository.findOne({ where: { id: userId } });
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
 
-      if (!user.isTwoFactorEnabled) {
+      if (!user.twoFactorEnabled) {
         throw new BadRequestException('2FA is not enabled');
       }
 
@@ -305,10 +310,12 @@ export class AuthService {
       }
 
       // Disable 2FA
-      await this.userRepository.update(userId, {
-        isTwoFactorEnabled: false,
-        twoFactorSecret: null,
-        backupCodes: []
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          twoFactorEnabled: false,
+          twoFactorSecret: null
+        }
       });
 
       this.logger.log(`2FA disabled for user: ${userId}`);
@@ -327,7 +334,7 @@ export class AuthService {
         secret: this.config.get('JWT_REFRESH_SECRET')
       });
 
-      const user = await this.userRepository.findOne({ where: { id: payload.sub } });
+      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
       if (!user || !user.isActive) {
         throw new UnauthorizedException('User not found or inactive');
       }
@@ -347,7 +354,7 @@ export class AuthService {
    */
   async changePassword(userId: string, changePasswordDto: ChangePasswordDto): Promise<void> {
     try {
-      const user = await this.userRepository.findOne({ where: { id: userId } });
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
@@ -362,9 +369,11 @@ export class AuthService {
       const hashedNewPassword = await bcrypt.hash(changePasswordDto.newPassword, 12);
 
       // Update password
-      await this.userRepository.update(userId, {
-        password: hashedNewPassword,
-        passwordChangedAt: new Date()
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          password: hashedNewPassword
+        }
       });
 
       // Invalidate all refresh tokens
@@ -408,7 +417,7 @@ export class AuthService {
         secret: this.config.get('JWT_SECRET')
       });
 
-      const user = await this.userRepository.findOne({ where: { id: payload.sub } });
+      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
       if (!user || !user.isActive) {
         throw new UnauthorizedException('User not found or inactive');
       }
@@ -448,8 +457,11 @@ export class AuthService {
    * Update last login timestamp
    */
   private async updateLastLogin(userId: string): Promise<void> {
-    await this.userRepository.update(userId, {
-      lastLoginAt: new Date()
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        lastLoginAt: new Date()
+      }
     });
   }
 
@@ -508,7 +520,7 @@ export class AuthService {
    * Get user by ID
    */
   async getUserById(userId: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { id: userId } });
+    return this.prisma.user.findUnique({ where: { id: userId } });
   }
 
   /**
@@ -516,16 +528,18 @@ export class AuthService {
    */
   async updateProfile(userId: string, profileData: Partial<User>): Promise<User> {
     try {
-      const user = await this.userRepository.findOne({ where: { id: userId } });
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
       if (!user) {
         throw new NotFoundException('User not found');
       }
 
-      // Remove sensitive fields
-      const { password, twoFactorSecret, ...allowedUpdates } = profileData;
+      // Remove sensitive fields that shouldn't be updated via this method
+      const { password, twoFactorSecret, id, createdAt, updatedAt, ...allowedUpdates } = profileData;
 
-      Object.assign(user, allowedUpdates);
-      const updatedUser = await this.userRepository.save(user);
+      const updatedUser = await this.prisma.user.update({
+        where: { id: userId },
+        data: allowedUpdates
+      });
 
       this.logger.log(`Profile updated for user: ${userId}`);
       return updatedUser;

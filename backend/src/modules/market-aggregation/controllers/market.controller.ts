@@ -9,7 +9,7 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
-  InternalServerErrorException,
+  InternalServerErrorException
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,14 +17,14 @@ import {
   ApiResponse,
   ApiParam,
   ApiQuery,
-  ApiBearerAuth,
+  ApiBearerAuth
 } from '@nestjs/swagger';
 
 import { MarketAggregationService } from '../services/market-aggregation.service';
 import { MarketDataService } from '../services/market-data.service';
 import { PricingEngineService } from '../services/pricing-engine.service';
 import { SymbolNormalizerService } from '../services/symbol-normalizer.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { GetMarketDto, PriceInterval } from '../dto/get-market.dto';
 import { GetTrendingMarketsDto, SortBy, Timeframe } from '../dto/get-trending-markets.dto';
 import { MarketDataResponseDto, TrendingMarketDto } from '../dto/market-response.dto';
@@ -36,8 +36,7 @@ export class MarketController {
     private readonly marketAggregationService: MarketAggregationService,
     private readonly marketDataService: MarketDataService,
     private readonly pricingEngineService: PricingEngineService,
-    private readonly symbolNormalizerService: SymbolNormalizerService,
-  ) {}
+    private readonly symbolNormalizerService: SymbolNormalizerService) {}
 
   @Get('market/:symbol')
   @ApiOperation({ summary: 'Get market data for a symbol' })
@@ -47,8 +46,7 @@ export class MarketController {
   @ApiResponse({ status: 404, description: 'Symbol not found' })
   async getMarket(
     @Param('symbol') symbol: string,
-    @Query() query: GetMarketDto,
-  ): Promise<any> {
+    @Query() query: GetMarketDto): Promise<any> {
     try {
       // Validate symbol format using SymbolNormalizerService
       const isValidSymbol = await this.symbolNormalizerService.validateSymbol(symbol);
@@ -76,7 +74,7 @@ export class MarketController {
         sentiment: symbolData.lastSentiment || 0,
         totalTrades: symbolData.totalTrades || 0,
         marketCap: symbolData.market_cap || 0,
-        lastUpdated: symbolData.updatedAt.toISOString(),
+        lastUpdated: symbolData.updatedAt.toISOString()
       };
 
       // Include order book if requested
@@ -89,7 +87,7 @@ export class MarketController {
             spread: orderBook.spread || 0,
             bestBid: orderBook.bestBid || 0,
             bestAsk: orderBook.bestAsk || 0,
-            midPrice: orderBook.midPrice || 0,
+            midPrice: orderBook.midPrice || 0
           };
         }
       }
@@ -99,8 +97,7 @@ export class MarketController {
         const priceHistory = await this.marketDataService.getPriceHistory(
           symbol,
           query.historyInterval,
-          query.historyLimit,
-        );
+          query.historyLimit);
         response.priceHistory = priceHistory.map(price => ({
           timestamp: price.timestamp.toISOString(),
           open: price.open || price.price,
@@ -108,14 +105,14 @@ export class MarketController {
           low: price.low || price.price,
           close: price.close || price.price,
           volume: price.volume,
-          viralityScore: price.viralityScore,
+          viralityScore: price.viralityScore
         }));
       }
 
       return {
         success: true,
         data: response,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       // Rethrow as appropriate HTTP exception
@@ -137,8 +134,7 @@ export class MarketController {
       const trendingSymbols = await this.marketAggregationService.getTrendingSymbols(
         query.limit,
         query.sortBy,
-        query.timeframe,
-      );
+        query.timeframe);
 
       const trendingMarkets = await Promise.all(
         trendingSymbols.map(async (symbol, index) => {
@@ -146,10 +142,9 @@ export class MarketController {
           return {
             ...marketData,
             rank: index + 1,
-            trendScore: this.calculateTrendScore(symbol),
+            trendScore: this.calculateTrendScore(symbol)
           };
-        }),
-      );
+        }));
 
       // Apply filters
       let filtered = trendingMarkets;
@@ -166,7 +161,7 @@ export class MarketController {
       return {
         success: true,
         data: filtered,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
@@ -182,8 +177,7 @@ export class MarketController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   async getMarketsByCategory(
     @Param('category') category: string,
-    @Query('limit') limit?: number,
-  ): Promise<any> {
+    @Query('limit') limit?: number): Promise<any> {
     try {
       const symbols = await this.marketAggregationService.getSymbolsByCategory(category);
       const limitedSymbols = limit ? symbols.slice(0, limit) : symbols;
@@ -191,13 +185,12 @@ export class MarketController {
       const markets = await Promise.all(
         limitedSymbols.map(async symbol => {
           return await this.marketDataService.getMarketData(symbol.topicId);
-        }),
-      );
+        }));
 
       return {
         success: true,
         data: markets.filter(Boolean),
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
@@ -213,8 +206,7 @@ export class MarketController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   async getMarketsByRegion(
     @Param('region') region: string,
-    @Query('limit') limit?: number,
-  ): Promise<any> {
+    @Query('limit') limit?: number): Promise<any> {
     try {
       const symbols = await this.marketAggregationService.getSymbolsByRegion(region);
       const limitedSymbols = limit ? symbols.slice(0, limit) : symbols;
@@ -222,13 +214,12 @@ export class MarketController {
       const markets = await Promise.all(
         limitedSymbols.map(async symbol => {
           return await this.marketDataService.getMarketData(symbol.topicId);
-        }),
-      );
+        }));
 
       return {
         success: true,
         data: markets.filter(Boolean),
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
@@ -246,8 +237,7 @@ export class MarketController {
   async getPriceHistory(
     @Param('symbol') symbol: string,
     @Query('interval') interval: string = '1h',
-    @Query('limit') limit: number = 100,
-  ): Promise<any> {
+    @Query('limit') limit: number = 100): Promise<any> {
     try {
       // Validate symbol format using SymbolNormalizerService
       const isValidSymbol = await this.symbolNormalizerService.validateSymbol(symbol);
@@ -266,9 +256,9 @@ export class MarketController {
           low: price.low || price.price,
           close: price.close || price.price,
           volume: price.volume,
-          viralityScore: price.viralityScore,
+          viralityScore: price.viralityScore
         })),
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
@@ -294,7 +284,7 @@ export class MarketController {
       return {
         success: true,
         data: stats,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
@@ -313,7 +303,7 @@ export class MarketController {
       return {
         success: true,
         data: summary,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       throw new InternalServerErrorException('Failed to retrieve market summary');

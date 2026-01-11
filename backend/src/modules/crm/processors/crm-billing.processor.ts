@@ -1,14 +1,12 @@
-import { Processor, Process } from '@nestjs/bull';
-import { Job } from 'bull';
+import {Processor, WorkerHost} from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { BrokerInvoice } from '../entities/broker-invoice.entity';
-import { BrokerAccount } from '../entities/broker-account.entity';
-import { BrokerPayment } from '../entities/broker-payment.entity';
-import { BrokerSubscription } from '../entities/broker-subscription.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerInvoice } from '../entities/broker-invoice.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerAccount } from '../entities/broker-account.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerPayment } from '../entities/broker-payment.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerSubscription } from '../entities/broker-subscription.entity';
 import { BillingService } from '../services/billing.service';
-import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationService } from "../../notifications/notifications.service";
 
 interface RecurringInvoiceJob {
   brokerId: string;
@@ -33,37 +31,50 @@ interface PaymentReminderJob {
 }
 
 @Processor('crm-billing')
-export class CrmBillingProcessor {
+export class CrmBillingProcessor extends WorkerHost {
   private readonly logger = new Logger(CrmBillingProcessor.name);
 
   constructor(
-    @InjectRepository(BrokerInvoice)
-    private readonly invoiceRepository: Repository<BrokerInvoice>,
-    @InjectRepository(BrokerAccount)
-    private readonly brokerAccountRepository: Repository<BrokerAccount>,
-    @InjectRepository(BrokerPayment)
-    private readonly paymentRepository: Repository<BrokerPayment>,
-    @InjectRepository(BrokerSubscription)
-    private readonly subscriptionRepository: Repository<BrokerSubscription>,
+    private readonly prisma: PrismaService,
     private readonly billingService: BillingService,
-    private readonly notificationsService: NotificationsService,
-  ) {}
+    private readonly notificationsService: NotificationService) {
+    super();
+}
 
-  @Process('generate-recurring-invoice')
-  async handleRecurringInvoiceGeneration(job: Job<RecurringInvoiceJob>) {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'generate-recurring-invoice':
+        return this.handleRecurringInvoiceGeneration(job);
+      case 'retry-payment':
+        return this.handlePaymentRetry(job);
+      case 'check-overdue-invoices':
+        return this.handleOverdueCheck(job);
+      case 'generate-monthly-statements':
+        return this.handleMonthlyStatementGeneration(job);
+      case 'process-payment-webhooks':
+        return this.handlePaymentWebhooks(job);
+      case 'cleanup-old-invoices':
+        return this.handleOldInvoiceCleanup(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleRecurringInvoiceGeneration(job: Job<RecurringInvoiceJob>) {
     try {
       this.logger.log(`Processing recurring invoice generation for broker ${job.data.brokerId}`);
 
       const { brokerId, subscriptionId, dueDate } = job.data;
 
       // Get broker and subscription details
-      const broker = await this.brokerAccountRepository.findOne({
+      const broker = await this.prisma.brokeraccountrepository.findFirst({
         where: { id: brokerId },
-        relations: ['user'],
+        relations: ['user']
       });
 
-      const subscription = await this.subscriptionRepository.findOne({
-        where: { id: subscriptionId },
+      const subscription = await this.prisma.subscriptionrepository.findFirst({
+        where: { id: subscriptionId }
       });
 
       if (!broker || !subscription) {
@@ -72,13 +83,13 @@ export class CrmBillingProcessor {
       }
 
       // Check if invoice for this period already exists
-      const existingInvoice = await this.invoiceRepository.findOne({
+      const existingInvoice = await this.prisma.invoicerepository.findFirst({
         where: {
           brokerId,
           subscriptionId,
           dueDate: new Date(dueDate),
-          status: ['DRAFT', 'SENT'],
-        },
+          status: ['DRAFT', 'SENT']
+        }
       });
 
       if (existingInvoice) {
@@ -100,8 +111,8 @@ export class CrmBillingProcessor {
         metadata: {
           invoiceId: invoice.id,
           invoiceNumber: invoice.invoiceNumber,
-          amount: invoice.totalAmount,
-        },
+          amount: invoice.totalAmount
+        }
       });
 
       return { success: true, invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber };
@@ -112,8 +123,7 @@ export class CrmBillingProcessor {
     }
   }
 
-  @Process('retry-payment')
-  async handlePaymentRetry(job: Job<PaymentRetryJob>) {
+  private async handlePaymentRetry(job: Job<PaymentRetryJob>) {
     try {
       this.logger.log(`Processing payment retry for invoice ${job.data.invoiceId}, payment ${job.data.paymentId}`);
 
@@ -123,16 +133,16 @@ export class CrmBillingProcessor {
         this.logger.warn(`Max retries reached for payment ${paymentId}`);
 
         // Mark payment as failed permanently
-        await this.paymentRepository.update(paymentId, {
+        await this.prisma.paymentrepository.update(paymentId, {
           status: 'FAILED',
           failureReason: 'Maximum retry attempts reached',
-          retriedAt: new Date(),
+          retriedAt: new Date()
         });
 
         // Send notification about payment failure
-        const payment = await this.paymentRepository.findOne({
+        const payment = await this.prisma.paymentrepository.findFirst({
           where: { id: paymentId },
-          relations: ['invoice', 'invoice.broker', 'invoice.broker.user'],
+          relations: ['invoice', 'invoice.broker', 'invoice.broker.user']
         });
 
         if (payment?.invoice?.broker?.user) {
@@ -144,8 +154,8 @@ export class CrmBillingProcessor {
             metadata: {
               invoiceId: payment.invoiceId,
               paymentId: payment.id,
-              amount: payment.amount,
-            },
+              amount: payment.amount
+            }
           });
         }
 
@@ -153,9 +163,9 @@ export class CrmBillingProcessor {
       }
 
       // Get payment details
-      const payment = await this.paymentRepository.findOne({
+      const payment = await this.prisma.paymentrepository.findFirst({
         where: { id: paymentId },
-        relations: ['invoice', 'invoice.broker'],
+        relations: ['invoice', 'invoice.broker']
       });
 
       if (!payment || payment.status === 'COMPLETED') {
@@ -167,11 +177,11 @@ export class CrmBillingProcessor {
       const retryResult = await this.billingService.retryPayment(paymentId);
 
       // Update retry count
-      await this.paymentRepository.update(paymentId, {
+      await this.prisma.paymentrepository.update(paymentId, {
         retryCount: retryCount + 1,
         retriedAt: new Date(),
         status: retryResult.success ? 'COMPLETED' : 'PENDING',
-        failureReason: retryResult.error,
+        failureReason: retryResult.error
       });
 
       if (retryResult.success) {
@@ -180,9 +190,9 @@ export class CrmBillingProcessor {
         // Update invoice status
         const totalPaid = await this.billingService.getTotalPaidAmount(invoiceId);
         if (totalPaid >= payment.invoice.totalAmount) {
-          await this.invoiceRepository.update(invoiceId, {
+          await this.prisma.invoicerepository.update(invoiceId, {
             status: 'PAID',
-            paidAt: new Date(),
+            paidAt: new Date()
           });
         }
 
@@ -196,8 +206,8 @@ export class CrmBillingProcessor {
             metadata: {
               invoiceId: payment.invoiceId,
               paymentId: payment.id,
-              amount: payment.amount,
-            },
+              amount: payment.amount
+            }
           });
         }
 
@@ -212,8 +222,7 @@ export class CrmBillingProcessor {
           paymentId,
           retryCount + 1,
           maxRetries,
-          nextRetryDate,
-        );
+          nextRetryDate);
 
         this.logger.log(`Payment retry failed, next retry scheduled for ${nextRetryDate}`);
         return { success: false, nextRetryDate };
@@ -225,8 +234,7 @@ export class CrmBillingProcessor {
     }
   }
 
-  @Process('check-overdue-invoices')
-  async handleOverdueCheck(job: Job<OverdueCheckJob>) {
+  private async handleOverdueCheck(job: Job<OverdueCheckJob>) {
     try {
       this.logger.log(`Processing overdue invoice check for ${job.data.invoiceIds.length} invoices`);
 
@@ -272,34 +280,34 @@ export class CrmBillingProcessor {
             metadata: {
               invoiceId: invoice.id,
               daysOverdue,
-              amount: invoice.totalAmount,
-            },
+              amount: invoice.totalAmount
+            }
           });
 
           // Update last reminder sent
-          await this.invoiceRepository.update(invoice.id, {
-            lastReminderSent: new Date(),
+          await this.prisma.invoicerepository.update(invoice.id, {
+            lastReminderSent: new Date()
           });
 
           results.push({
             invoiceId: invoice.id,
             daysOverdue,
             reminderSent: true,
-            reminderType,
+            reminderType
           });
         } else {
           results.push({
             invoiceId: invoice.id,
             daysOverdue,
             reminderSent: false,
-            reason: 'Reminder sent within last 24 hours',
+            reason: 'Reminder sent within last 24 hours'
           });
         }
 
         // Check if invoice needs to be marked as critically overdue
         if (daysOverdue >= 30 && invoice.status !== 'OVERDUE_CRITICAL') {
-          await this.invoiceRepository.update(invoice.id, {
-            status: 'OVERDUE_CRITICAL',
+          await this.prisma.invoicerepository.update(invoice.id, {
+            status: 'OVERDUE_CRITICAL'
           });
 
           // Send critical overdue notification to admin users
@@ -312,8 +320,8 @@ export class CrmBillingProcessor {
               invoiceId: invoice.id,
               brokerId: invoice.brokerId,
               daysOverdue,
-              amount: invoice.totalAmount,
-            },
+              amount: invoice.totalAmount
+            }
           });
         }
       }
@@ -327,8 +335,7 @@ export class CrmBillingProcessor {
     }
   }
 
-  @Process('generate-monthly-statements')
-  async handleMonthlyStatementGeneration(job: Job) {
+  private async handleMonthlyStatementGeneration(job: Job) {
     try {
       this.logger.log('Processing monthly statement generation');
 
@@ -337,9 +344,9 @@ export class CrmBillingProcessor {
       const endOfLastMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0);
 
       // Get all active brokers
-      const activeBrokers = await this.brokerAccountRepository.find({
+      const activeBrokers = await this.prisma.brokeraccountrepository.findMany({
         where: { status: 'APPROVED' },
-        relations: ['user'],
+        relations: ['user']
       });
 
       const statements = [];
@@ -350,8 +357,7 @@ export class CrmBillingProcessor {
           const statement = await this.billingService.generateMonthlyStatement(
             broker.id,
             lastMonth,
-            endOfLastMonth,
-          );
+            endOfLastMonth);
 
           // Send notification about statement
           await this.notificationsService.sendNotification({
@@ -361,14 +367,14 @@ export class CrmBillingProcessor {
             type: 'INFO',
             metadata: {
               statementId: statement.id,
-              period: lastMonth.toISOString(),
-            },
+              period: lastMonth.toISOString()
+            }
           });
 
           statements.push({
             brokerId: broker.id,
             statementId: statement.id,
-            success: true,
+            success: true
           });
 
         } catch (error) {
@@ -376,7 +382,7 @@ export class CrmBillingProcessor {
           statements.push({
             brokerId: broker.id,
             success: false,
-            error: error.message,
+            error: error.message
           });
         }
       }
@@ -390,8 +396,7 @@ export class CrmBillingProcessor {
     }
   }
 
-  @Process('process-payment-webhooks')
-  async handlePaymentWebhooks(job: Job) {
+  private async handlePaymentWebhooks(job: Job) {
     try {
       this.logger.log('Processing payment webhooks batch');
 
@@ -409,8 +414,7 @@ export class CrmBillingProcessor {
     }
   }
 
-  @Process('cleanup-old-invoices')
-  async handleOldInvoiceCleanup(job: Job) {
+  private async handleOldInvoiceCleanup(job: Job) {
     try {
       this.logger.log('Processing old invoice cleanup');
 
@@ -419,11 +423,11 @@ export class CrmBillingProcessor {
       cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
 
       // Find old paid/cancelled invoices
-      const oldInvoices = await this.invoiceRepository.find({
+      const oldInvoices = await this.prisma.invoicerepository.findMany({
         where: {
           createdAt: { $lt: cutoffDate },
-          status: ['PAID', 'CANCELLED'],
-        },
+          status: ['PAID', 'CANCELLED']
+        }
       });
 
       // Archive or delete old invoices

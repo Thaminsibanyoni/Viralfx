@@ -1,51 +1,40 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger, Inject } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThan } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import { RedisService } from '../../redis/redis.service';
-import { Ticket } from '../entities/ticket.entity';
-import { TicketMessage } from '../entities/ticket-message.entity';
-import { TicketAssignment } from '../entities/ticket-assignment.entity';
-import { NotificationsService } from '../../notifications/services/notification.service';
-import { User } from '../../../database/entities/user.entity';
+import { RedisService } from "../../redis/redis.service";
+// COMMENTED OUT (TypeORM entity deleted): import { Ticket } from '../entities/ticket.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { TicketMessage } from '../entities/ticket-message.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { TicketAssignment } from '../entities/ticket-assignment.entity';
+import { NotificationService } from "../../notifications/services/notification.service";
+// COMMENTED OUT (TypeORM entity deleted): import { User } from "../../../database/entities/user.entity";
 
 @Processor('crm-ticket-sla')
-export class CrmTicketSlaProcessor {
+export class CrmTicketSlaProcessor extends WorkerHost {
   private readonly logger = new Logger(CrmTicketSlaProcessor.name);
 
   constructor(
-    @InjectRepository(Ticket)
-    private ticketRepository: Repository<Ticket>,
-    @InjectRepository(TicketMessage)
-    private ticketMessageRepository: Repository<TicketMessage>,
-    @InjectRepository(TicketAssignment)
-    private ticketAssignmentRepository: Repository<TicketAssignment>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    private redisService: RedisService,
-    private notificationsService: NotificationsService,
+        private redisService: RedisService,
+    private notificationsService: NotificationService,
     @Inject(ConfigService)
-    private configService: ConfigService,
-  ) {}
+    private configService: ConfigService) {}
 
-  @Process('check-breaches')
-  async handleSlaBreachCheck(job: Job<{ ticketIds?: string[] }>) {
+  private async handleSlaBreachCheck(job: Job<{ ticketIds?: string[] }>) {
     const { ticketIds } = job.data;
 
     let tickets;
     if (ticketIds) {
-      tickets = await this.ticketRepository.findByIds(ticketIds, {
-        relations: ['category', 'priority', 'assignments', 'assignments.staff'],
+      tickets = await this.prisma.findByIds(ticketIds, {
+        relations: ['category', 'priority', 'assignments', 'assignments.staff']
       });
     } else {
       // Find all active tickets that might breach SLA
-      tickets = await this.ticketRepository.find({
+      tickets = await this.prisma.ticket.findMany({
         where: {
-          status: ['OPEN', 'IN_PROGRESS'],
+          status: ['OPEN', 'IN_PROGRESS']
         },
-        relations: ['category', 'priority', 'assignments', 'assignments.staff'],
+        relations: ['category', 'priority', 'assignments', 'assignments.staff']
       });
     }
 
@@ -65,7 +54,7 @@ export class CrmTicketSlaProcessor {
             breachType: slaInfo.isBreached ? 'BREACHED' : 'IMMINENT',
             priority: ticket.priority.name,
             assignedTo: ticket.assignments[0]?.staff?.email,
-            timeOverdue: slaInfo.timeOverdue,
+            timeOverdue: slaInfo.timeOverdue
           });
 
           // Handle breach
@@ -89,21 +78,20 @@ export class CrmTicketSlaProcessor {
         data: {
           breaches,
           timestamp: now.toISOString(),
-          total: breaches.length,
-        },
+          total: breaches.length
+        }
       });
     }
 
     return { checked: tickets.length, breaches: breaches.length };
   }
 
-  @Process('auto-escalate')
-  async handleAutoEscalation(job: Job<{ ticketId: string; reason: string }>) {
+  private async handleAutoEscalation(job: Job<{ ticketId: string; reason: string }>) {
     const { ticketId, reason } = job.data;
 
-    const ticket = await this.ticketRepository.findOne({
+    const ticket = await this.prisma.ticket.findFirst({
       where: { id: ticketId },
-      relations: ['priority', 'category', 'assignments'],
+      relations: ['priority', 'category', 'assignments']
     });
 
     if (!ticket) {
@@ -118,19 +106,19 @@ export class CrmTicketSlaProcessor {
     ticket.priorityId = newPriority.id;
     ticket.status = 'ESCALATED';
     ticket.escalationLevel = escalationLevel;
-    await this.ticketRepository.save(ticket);
+    await this.prisma.ticket.upsert(ticket);
 
     // Find escalation target (higher-level support)
     const escalationTarget = await this.findEscalationTarget(ticket, escalationLevel);
 
     if (escalationTarget) {
       // Create new assignment
-      await this.ticketAssignmentRepository.save({
+      await this.prisma.ticketAssignment.upsert({
         ticketId,
         staffId: escalationTarget.id,
         assignedAt: new Date(),
         assignedBy: 'system',
-        isEscalation: true,
+        isEscalation: true
       });
 
       // Notify escalation target
@@ -143,18 +131,18 @@ export class CrmTicketSlaProcessor {
           ticketNumber: ticket.ticketNumber,
           escalationLevel,
           reason,
-          priority: newPriority.name,
-        },
+          priority: newPriority.name
+        }
       });
     }
 
     // Add system message about escalation
-    await this.ticketMessageRepository.save({
+    await this.prisma.ticketMessage.upsert({
       ticketId,
       message: `Ticket automatically escalated to level ${escalationLevel} due to: ${reason}`,
       messageType: 'SYSTEM',
       isInternal: true,
-      createdBy: 'system',
+      createdBy: 'system'
     });
 
     this.logger.log(`Ticket ${ticketId} escalated to level ${escalationLevel}`);
@@ -162,8 +150,7 @@ export class CrmTicketSlaProcessor {
     return { escalated: true, level: escalationLevel, assignedTo: escalationTarget?.email };
   }
 
-  @Process('start-sla-timer')
-  async handleSlaTimerStart(job: Job<{ ticketId: string }>) {
+  private async handleSlaTimerStart(job: Job<{ ticketId: string }>) {
     const { ticketId } = job.data;
 
     // Store SLA start time in Redis for tracking
@@ -197,7 +184,7 @@ export class CrmTicketSlaProcessor {
       isBreached,
       timeToBreach: Math.round(timeToBreach),
       timeOverdue: Math.round(timeOverdue),
-      warningThreshold: slaMinutes * warningThresholdPercent,
+      warningThreshold: slaMinutes * warningThresholdPercent
     };
   }
 
@@ -222,15 +209,15 @@ export class CrmTicketSlaProcessor {
   private async handleSLABreach(ticket: Ticket, slaInfo: any): Promise<void> {
     // Update ticket status
     ticket.status = 'SLA_BREACHED';
-    await this.ticketRepository.save(ticket);
+    await this.prisma.ticket.upsert(ticket);
 
     // Create breach message
-    await this.ticketMessageRepository.save({
+    await this.prisma.ticketMessage.upsert({
       ticketId: ticket.id,
       message: `SLA breached! Ticket is ${slaInfo.timeOverdue} minutes overdue.`,
       messageType: 'SYSTEM',
       isInternal: true,
-      createdBy: 'system',
+      createdBy: 'system'
     });
 
     // Escalate automatically for critical tickets
@@ -251,8 +238,8 @@ export class CrmTicketSlaProcessor {
           ticketId: ticket.id,
           ticketNumber: ticket.ticketNumber,
           overdueMinutes: slaInfo.timeOverdue,
-          priority: ticket.priority.name,
-        },
+          priority: ticket.priority.name
+        }
       });
     }
   }
@@ -278,8 +265,8 @@ export class CrmTicketSlaProcessor {
           ticketId: ticket.id,
           ticketNumber: ticket.ticketNumber,
           minutesToBreach: slaInfo.timeToBreach,
-          priority: ticket.priority.name,
-        },
+          priority: ticket.priority.name
+        }
       });
     }
 
@@ -321,13 +308,13 @@ export class CrmTicketSlaProcessor {
       2: 'SUPPORT_MANAGER',
       3: 'HEAD_OF_SUPPORT',
       4: 'COMPLIANCE_MANAGER',
-      5: 'CTO',
+      5: 'CTO'
     };
 
     const targetRole = roleMap[level] || 'TEAM_LEAD';
 
-    const target = await this.userRepository.findOne({
-      where: { role: targetRole, isActive: true },
+    const target = await this.prisma.user.findFirst({
+      where: { role: targetRole, isActive: true }
     });
 
     return target;
@@ -343,8 +330,8 @@ export class CrmTicketSlaProcessor {
 
     // Add ticket creator
     if (ticket.createdBy) {
-      const creator = await this.userRepository.findOne({
-        where: { id: ticket.createdBy },
+      const creator = await this.prisma.user.findFirst({
+        where: { id: ticket.createdBy }
       });
       if (creator) {
         stakeholders.push(creator);
@@ -353,8 +340,8 @@ export class CrmTicketSlaProcessor {
 
     // Add support managers for critical tickets
     if (ticket.priority.name === 'CRITICAL') {
-      const managers = await this.userRepository.find({
-        where: { role: 'SUPPORT_MANAGER', isActive: true },
+      const managers = await this.prisma.user.findMany({
+        where: { role: 'SUPPORT_MANAGER', isActive: true }
       });
       stakeholders.push(...managers);
     }
@@ -362,17 +349,17 @@ export class CrmTicketSlaProcessor {
     return stakeholders;
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onActive(job: Job) {
     this.logger.log(`Processing SLA job ${job.id} of type ${job.name}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job, result: any) {
     this.logger.log(`Completed SLA job ${job.id} of type ${job.name}. Result:`, result);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job, error: Error) {
     this.logger.error(`Failed SLA job ${job.id} of type ${job.name}:`, error);
   }

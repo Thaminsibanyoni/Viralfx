@@ -1,30 +1,71 @@
+# ==========================================
+# ViralFX Platform - Comprehensive .gitignore
+# ==========================================
+
+# ==========================================
 # Dependencies
+# ==========================================
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
-# Production builds
-dist/
-build/
-.next/
-out/
-
-# Environment variables
+# ==========================================
+# Environment Variables (NEVER COMMIT THESE)
+# ==========================================
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+*.env
 
-# IDE files
+# ==========================================
+# Build Outputs
+# ==========================================
+dist/
+build/
+.next/
+out/
+.nuxt/
+.vuepress/dist/
+
+# ==========================================
+# Logs
+# ==========================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+server.log
+backend.log
+frontend.log
+monitor.log
+*.log.*
+
+# ==========================================
+# IDE & Editor Files
+# ==========================================
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+.history/
 
-# OS generated files
+# ==========================================
+# OS Generated Files
+# ==========================================
 .DS_Store
 .DS_Store?
 ._*
@@ -32,60 +73,160 @@ out/
 .Trashes
 ehthumbs.db
 Thumbs.db
+Desktop.ini
 
-# Logs
-logs
-*.log
+# ==========================================
+# Testing & Coverage
+# ==========================================
+coverage/
+.nyc_output/
+*.lcov
+test-results/
 
-# Runtime data
-pids
+# ==========================================
+# Temporary Files
+# ==========================================
+tmp/
+temp/
+*.tmp
+*.temp
+.cache/
+.parcel-cache/
+
+# ==========================================
+# Database & Backups
+# ==========================================
+*.sql
+*.sqlite
+*.db
+backups/
+*.backup
+
+# ==========================================
+# Docker & Containers
+# ==========================================
 *.pid
 *.seed
 *.pid.lock
 
-# Coverage directory used by tools like istanbul
-coverage/
+# ==========================================
+# Claude Code & AI Assistant Files
+# ==========================================
+.claude/
+*.claude
+.claude-*/
+tmp.*.*/
 
-# nyc test coverage
-.nyc_output
+# ==========================================
+# Project-Specific Temporary Files
+# ==========================================
+backend-bullmq-fix-backup/
+backend-direct.log
+backend-final.log
+backend-localhost.log
+backend-latest.log
+backend-running.log
+backend-verbose.log
+backend-*.log
+frontend-dev.log
+frontend-*.log
 
-# Dependency directories
-node_modules/
-jspm_packages/
+# ==========================================
+# Scripts & Automation (Keep useful ones)
+# ==========================================
+# Exclude Python fix scripts but keep essential ones
+*.pyc
+__pycache__/
+*.py
+fix-*.js
+fix-*.sh
+*fix*.py
+comprehensive_*.py
+final_*.py
+rapid_*.py
+absolute_*.py
+corrected_*.py
+simple_*.py
+safe_*.py
+smart_*.py
+nuclear_*.py
+precise_*.py
+manual_*.py
 
-# Optional npm cache directory
-.npm
-
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
+# ==========================================
+# Build & Development Artifacts
+# ==========================================
 *.tgz
+webpack.config.js.backup
+*.bak
+*.backup
 
-# Yarn Integrity file
-.yarn-integrity
+# ==========================================
+# Documentation (Keep important ones)
+# ==========================================
+# Exclude:
+ARCHIVED*.md
+*_ARCHIVED.md
+*TROUBLESHOOTING.md
+TEMP*.md
+TODO*.md
+backup/
+*.old
 
-# dotenv environment variables file
-.env
+# ==========================================
+# Prisma & Database
+# ==========================================
+# Keep schema and migrations
+prisma/migrations/
 
-# parcel-bundler cache (https://parceljs.org/)
-.cache
-.parcel-cache
+# ==========================================
+# Certificates & Keys (NEVER COMMIT)
+# ==========================================
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+secrets/
+credentials/
 
-# next.js build output
-.next
+# ==========================================
+# Reports & Generated Files
+# ==========================================
+*-report.txt
+*-report.json
+*-REPORT.md
+AGENT3_*.md
+CIRCULAR_*.md
+BUILD_*.md
+FIXES_*.md
+IMPLEMENTATION_*.md
+STARTUP_*.md
+TYPEORM_*.md
+*_FIX_REPORT.md
 
-# nuxt.js build output
-.nuxt
+# ==========================================
+# Vercel & Deployment
+# ==========================================
+.vercel
+.now
 
-# vuepress build output
-.vuepress/dist
+# ==========================================
+# AWS & Cloud
+# ==========================================
+.aws-sam/
 
-# Serverless directories
-.serverless
+# ==========================================
+# Local Configuration
+# ==========================================
+local.config.js
+local.settings.json
 
-# FuseBox cache
-.fusebox/
-
-# DynamoDB Local files
-.dynamodb/
+# ==========================================
+# Misc
+# ==========================================
+.pnp.*
+.pnp.js
+*.tsbuildinfo
+.eslintcache

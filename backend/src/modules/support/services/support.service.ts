@@ -1,30 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
-import { Ticket, TicketStatus } from '../entities/ticket.entity';
-import { TicketMessage } from '../entities/ticket-message.entity';
-import { TicketCategory } from '../entities/ticket-category.entity';
-import { KnowledgeBaseArticle } from '../entities/knowledge-base-article.entity';
-import { TicketSLA } from '../entities/ticket-sla.entity';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class SupportService {
   constructor(
-    @InjectRepository(Ticket)
-    private readonly ticketRepository: Repository<Ticket>,
-    @InjectRepository(TicketMessage)
-    private readonly ticketMessageRepository: Repository<TicketMessage>,
-    @InjectRepository(TicketCategory)
-    private readonly ticketCategoryRepository: Repository<TicketCategory>,
-    @InjectRepository(KnowledgeBaseArticle)
-    private readonly knowledgeBaseArticleRepository: Repository<KnowledgeBaseArticle>,
-    @InjectRepository(TicketSLA)
-    private readonly ticketSLARepository: Repository<TicketSLA>,
+    private readonly prisma: PrismaService,
     @InjectQueue('support-tickets')
-    private readonly supportQueue: Queue,
-  ) {}
+    private readonly supportQueue: Queue) {}
 
   async getDashboardMetrics(period: 'day' | 'week' | 'month' | 'year' = 'month') {
     const now = new Date();
@@ -59,56 +43,49 @@ export class SupportService {
       slaComplianceRate,
       knowledgeBaseStats,
     ] = await Promise.all([
-      this.ticketRepository.count({
-        where: { createdAt: Between(startDate, now) },
+      this.prisma.ticket.count({
+        where: { createdAt: { gte: startDate, lte: now } }
       }),
-      this.ticketRepository.count({
+      this.prisma.ticket.count({
         where: {
-          createdAt: Between(startDate, now),
-          status: TicketStatus.NEW,
-        },
+          createdAt: { gte: startDate, lte: now },
+          status: 'NEW'
+        }
       }),
-      this.ticketRepository.count({
+      this.prisma.ticket.count({
         where: {
-          createdAt: Between(startDate, now),
-          status: TicketStatus.OPEN,
-        },
+          createdAt: { gte: startDate, lte: now },
+          status: 'OPEN'
+        }
       }),
-      this.ticketRepository.count({
+      this.prisma.ticket.count({
         where: {
-          resolvedAt: Between(startDate, now),
-        },
+          resolvedAt: { gte: startDate, lte: now }
+        }
       }),
-      this.ticketRepository.count({
+      this.prisma.ticket.count({
         where: {
-          closedAt: Between(startDate, now),
-        },
+          closedAt: { gte: startDate, lte: now }
+        }
       }),
       this.getOverdueTicketCount(),
-      this.ticketRepository
-        .createQueryBuilder('ticket')
-        .select('ticket.status', 'status')
-        .addSelect('COUNT(*)', 'count')
-        .where('ticket.createdAt BETWEEN :start AND :end', { start: startDate, end: now })
-        .groupBy('ticket.status')
-        .getRawMany(),
-      this.ticketRepository
-        .createQueryBuilder('ticket')
-        .select('ticket.priority', 'priority')
-        .addSelect('COUNT(*)', 'count')
-        .where('ticket.createdAt BETWEEN :start AND :end', { start: startDate, end: now })
-        .groupBy('ticket.priority')
-        .getRawMany(),
-      this.ticketRepository
-        .createQueryBuilder('ticket')
-        .leftJoin('ticket.category', 'category')
-        .select('category.name', 'category')
-        .addSelect('COUNT(*)', 'count')
-        .where('ticket.createdAt BETWEEN :start AND :end', { start: startDate, end: now })
-        .groupBy('category.name')
-        .orderBy('count', 'DESC')
-        .limit(10)
-        .getRawMany(),
+      this.prisma.ticket.groupBy({
+        by: ['status'],
+        where: { createdAt: { gte: startDate, lte: now } },
+        _count: true
+      }),
+      this.prisma.ticket.groupBy({
+        by: ['priority'],
+        where: { createdAt: { gte: startDate, lte: now } },
+        _count: true
+      }),
+      this.prisma.ticket.groupBy({
+        by: ['categoryId'],
+        where: { createdAt: { gte: startDate, lte: now } },
+        _count: true,
+        orderBy: { _count: { categoryId: 'desc' } },
+        take: 10
+      }),
       this.getAverageResolutionTime(startDate, now),
       this.getSLAComplianceRate(startDate, now),
       this.getKnowledgeBaseStats(),
@@ -124,14 +101,14 @@ export class SupportService {
         closedTickets,
         overdueTickets,
         avgResolutionTime,
-        slaComplianceRate,
+        slaComplianceRate
       },
       charts: {
         ticketsByStatus,
         ticketsByPriority,
-        ticketsByCategory,
+        ticketsByCategory
       },
-      knowledgeBase: knowledgeBaseStats,
+      knowledgeBase: knowledgeBaseStats
     };
   }
 
@@ -163,17 +140,17 @@ export class SupportService {
       slaComplianceRate,
       ticketsByDay,
     ] = await Promise.all([
-      this.ticketRepository.count({
+      this.prisma.ticket.count({
         where: {
           assignedTo: agentId,
-          createdAt: Between(startDate, now),
-        },
+          createdAt: { gte: startDate, lte: now }
+        }
       }),
-      this.ticketRepository.count({
+      this.prisma.ticket.count({
         where: {
           assignedTo: agentId,
-          resolvedAt: Between(startDate, now),
-        },
+          resolvedAt: { gte: startDate, lte: now }
+        }
       }),
       this.getAgentAverageResolutionTime(agentId, startDate, now),
       this.getAgentAverageFirstResponseTime(agentId, startDate, now),
@@ -192,11 +169,11 @@ export class SupportService {
         avgResolutionTime,
         avgFirstResponseTime,
         customerSatisfaction,
-        slaComplianceRate,
+        slaComplianceRate
       },
       charts: {
-        ticketsByDay,
-      },
+        ticketsByDay
+      }
     };
   }
 
@@ -221,81 +198,95 @@ export class SupportService {
         break;
     }
 
-    const resolvedTickets = await this.ticketRepository.count({
+    const resolvedTickets = await this.prisma.ticket.count({
       where: {
-        resolvedAt: Between(startDate, now),
-      },
+        resolvedAt: { gte: startDate, lte: now }
+      }
     });
 
     // Mock satisfaction scores - in real implementation, this would come from surveys
-    const satisfactionScores = await this.ticketRepository
-      .createQueryBuilder('ticket')
-      .select('DATE(ticket.resolvedAt)', 'date')
-      .addSelect('RANDOM() * 2 + 3', 'score') // Random score between 3-5
-      .where('ticket.resolvedAt BETWEEN :start AND :end', { start: startDate, end: now })
-      .groupBy('DATE(ticket.resolvedAt)')
-      .orderBy('date', 'ASC')
-      .getRawMany();
+    const satisfactionScores = await this.prisma.ticket.findMany({
+      where: {
+        resolvedAt: { gte: startDate, lte: now }
+      },
+      select: {
+        resolvedAt: true
+      }
+    });
 
-    const avgScore = satisfactionScores.length > 0
-      ? satisfactionScores.reduce((sum, item) => sum + parseFloat(item.score), 0) / satisfactionScores.length
+    // Group by date and generate random scores
+    const scoresByDate = satisfactionScores.reduce((acc, ticket) => {
+      const dateKey = ticket.resolvedAt.toISOString().split('T')[0];
+      if (!acc[dateKey]) {
+        acc[dateKey] = { date: dateKey, score: (Math.random() * 2 + 3).toFixed(2) };
+      }
+      return acc;
+    }, {} as Record<string, { date: string; score: string }>);
+
+    const scoresArray = Object.values(scoresByDate).sort((a, b) => a.date.localeCompare(b.date));
+
+    const avgScore = scoresArray.length > 0
+      ? scoresArray.reduce((sum, item) => sum + parseFloat(item.score), 0) / scoresArray.length
       : 0;
 
     return {
       period,
       totalResolved: resolvedTickets,
       averageScore: Math.round(avgScore * 100) / 100,
-      scores: satisfactionScores,
+      scores: scoresArray
     };
   }
 
   async getTicketTrends(period: 'week' | 'month' | 'quarter' | 'year' = 'month') {
     const now = new Date();
     let startDate: Date;
-    let groupBy: string;
 
     switch (period) {
       case 'week':
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        groupBy = 'DATE(ticket.createdAt)';
         break;
       case 'month':
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        groupBy = 'DATE(ticket.createdAt)';
         break;
       case 'quarter':
         startDate = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
-        groupBy = 'DATE_TRUNC(\'week\', ticket.createdAt)';
         break;
       case 'year':
         startDate = new Date(now.getFullYear(), 0, 1);
-        groupBy = 'DATE_TRUNC(\'month\', ticket.createdAt)';
         break;
     }
 
-    const ticketTrends = await this.ticketRepository
-      .createQueryBuilder('ticket')
-      .select(groupBy, 'date')
-      .addSelect('COUNT(*)', 'count')
-      .addSelect('COUNT(CASE WHEN ticket.status = :resolved THEN 1 END)', 'resolved')
-      .addSelect('COUNT(CASE WHEN ticket.status = :closed THEN 1 END)', 'closed')
-      .where('ticket.createdAt BETWEEN :start AND :end', { start: startDate, end: now })
-      .groupBy(groupBy)
-      .orderBy('date', 'ASC')
-      .setParameters({
-        resolved: TicketStatus.RESOLVED,
-        closed: TicketStatus.CLOSED,
-      })
-      .getRawMany();
+    const tickets = await this.prisma.ticket.findMany({
+      where: {
+        createdAt: { gte: startDate, lte: now }
+      },
+      select: {
+        createdAt: true,
+        status: true
+      }
+    });
+
+    // Group by date
+    const trendsMap = new Map<string, { created: number; resolved: number; closed: number }>();
+
+    tickets.forEach(ticket => {
+      const dateKey = ticket.createdAt.toISOString().split('T')[0];
+      if (!trendsMap.has(dateKey)) {
+        trendsMap.set(dateKey, { created: 0, resolved: 0, closed: 0 });
+      }
+      const stats = trendsMap.get(dateKey)!;
+      stats.created++;
+      if (ticket.status === 'RESOLVED') stats.resolved++;
+      if (ticket.status === 'CLOSED') stats.closed++;
+    });
+
+    const ticketTrends = Array.from(trendsMap.entries())
+      .map(([date, stats]) => ({ date, ...stats }))
+      .sort((a, b) => a.date.localeCompare(b.date));
 
     return {
       period,
-      trends: ticketTrends.map(item => ({
-        date: item.date,
-        created: parseInt(item.count),
-        resolved: parseInt(item.resolved),
-        closed: parseInt(item.closed),
-      })),
+      trends: ticketTrends
     };
   }
 
@@ -311,19 +302,19 @@ export class SupportService {
       agents,
       knowledgeBaseUsage,
     ] = await Promise.all([
-      this.ticketRepository.count({
+      this.prisma.ticket.count({
         where: {
-          createdAt: Between(lastMonth, thisMonth),
-        },
+          createdAt: { gte: lastMonth, lte: thisMonth }
+        }
       }),
-      this.ticketRepository.count({
+      this.prisma.ticket.count({
         where: {
-          createdAt: Between(thisMonth, now),
-        },
+          createdAt: { gte: thisMonth, lte: now }
+        }
       }),
-      this.ticketCategoryRepository.find({
+      this.prisma.ticketCategory.findMany({
         where: { isActive: true },
-        order: { sortOrder: 'ASC' },
+        orderBy: { sortOrder: 'asc' }
       }),
       this.getActiveAgents(),
       this.getKnowledgeBaseUsage(),
@@ -339,11 +330,11 @@ export class SupportService {
         thisMonthTickets,
         growthRate: Math.round(growthRate * 100) / 100,
         activeCategories: categories.length,
-        activeAgents: agents.length,
+        activeAgents: agents.length
       },
       categories,
       agents,
-      knowledgeBaseUsage,
+      knowledgeBaseUsage
     };
   }
 
@@ -373,7 +364,7 @@ export class SupportService {
     const report = {
       period: {
         startDate,
-        endDate,
+        endDate
       },
       ticketMetrics,
       agentPerformance,
@@ -381,7 +372,7 @@ export class SupportService {
       slaMetrics,
       customerSatisfaction,
       knowledgeBaseStats,
-      generatedAt: new Date(),
+      generatedAt: new Date()
     };
 
     if (format === 'csv') {
@@ -393,40 +384,61 @@ export class SupportService {
 
   // Private helper methods
   private async getOverdueTicketCount(): Promise<number> {
-    return await this.ticketSLARepository
-      .createQueryBuilder('ticketSLA')
-      .leftJoin('ticketSLA.ticket', 'ticket')
-      .where('ticket.status NOT IN (:...closedStatuses)', {
-        closedStatuses: [TicketStatus.RESOLVED, TicketStatus.CLOSED],
-      })
-      .andWhere('(ticketSLA.responseDueAt < :now OR ticketSLA.resolutionDueAt < :now)', {
-        now: new Date(),
-      })
-      .getCount();
+    const overdueTickets = await this.prisma.ticketSLA.findMany({
+      where: {
+        OR: [
+          { responseDueAt: { lt: new Date() } },
+          { resolutionDueAt: { lt: new Date() } }
+        ],
+        ticket: {
+          status: {
+            notIn: ['RESOLVED', 'CLOSED']
+          }
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    return overdueTickets.length;
   }
 
   private async getAverageResolutionTime(startDate: Date, endDate: Date): Promise<number> {
-    const result = await this.ticketRepository
-      .createQueryBuilder('ticket')
-      .select('AVG(EXTRACT(EPOCH FROM (ticket.resolvedAt - ticket.createdAt)) / 60)', 'avgMinutes')
-      .where('ticket.resolvedAt BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('ticket.status = :status', { status: TicketStatus.RESOLVED })
-      .getRawOne();
+    const tickets = await this.prisma.ticket.findMany({
+      where: {
+        resolvedAt: { gte: startDate, lte: endDate },
+        status: 'RESOLVED'
+      },
+      select: {
+        createdAt: true,
+        resolvedAt: true
+      }
+    });
 
-    return Math.round(parseFloat(result?.avgMinutes || 0));
+    if (tickets.length === 0) return 0;
+
+    const totalMinutes = tickets.reduce((sum, ticket) => {
+      const diff = ticket.resolvedAt.getTime() - ticket.createdAt.getTime();
+      return sum + (diff / (1000 * 60));
+    }, 0);
+
+    return Math.round(totalMinutes / tickets.length);
   }
 
   private async getSLAComplianceRate(startDate: Date, endDate: Date): Promise<number> {
     const [totalTickets, compliantTickets] = await Promise.all([
-      this.ticketSLARepository.count({
-        where: { createdAt: Between(startDate, endDate) },
+      this.prisma.ticket.count({
+        where: { createdAt: { gte: startDate, lte: endDate } }
       }),
-      this.ticketSLARepository.count({
+      this.prisma.ticketSLA.count({
         where: {
-          createdAt: Between(startDate, endDate),
-          responseMetAt: Between(startDate, endDate),
-          resolutionMetAt: Between(startDate, endDate),
-        },
+          ticket: {
+            createdAt: { gte: startDate, lte: endDate }
+          },
+          responseMetAt: { not: null },
+          resolutionMetAt: { not: null }
+        }
       }),
     ]);
 
@@ -434,44 +446,69 @@ export class SupportService {
   }
 
   private async getKnowledgeBaseStats() {
-    const [totalArticles, publishedArticles, totalViews] = await Promise.all([
-      this.knowledgeBaseArticleRepository.count(),
-      this.knowledgeBaseArticleRepository.count({
-        where: { status: 'PUBLISHED' },
+    const [totalArticles, publishedArticles, articles] = await Promise.all([
+      this.prisma.knowledgeBaseArticle.count(),
+      this.prisma.knowledgeBaseArticle.count({
+        where: { status: 'PUBLISHED' }
       }),
-      this.knowledgeBaseArticleRepository
-        .createQueryBuilder('article')
-        .select('SUM(article.views)', 'total')
-        .getRawOne(),
+      this.prisma.knowledgeBaseArticle.findMany({
+        select: {
+          views: true
+        }
+      }),
     ]);
+
+    const totalViews = articles.reduce((sum, article) => sum + (article.views || 0), 0);
 
     return {
       totalArticles,
       publishedArticles,
-      totalViews: parseInt(totalViews?.total || 0),
+      totalViews
     };
   }
 
   private async getAgentAverageResolutionTime(agentId: string, startDate: Date, endDate: Date): Promise<number> {
-    const result = await this.ticketRepository
-      .createQueryBuilder('ticket')
-      .select('AVG(EXTRACT(EPOCH FROM (ticket.resolvedAt - ticket.createdAt)) / 60)', 'avgMinutes')
-      .where('ticket.assignedTo = :agentId', { agentId })
-      .andWhere('ticket.resolvedAt BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .getRawOne();
+    const tickets = await this.prisma.ticket.findMany({
+      where: {
+        assignedTo: agentId,
+        resolvedAt: { gte: startDate, lte: endDate }
+      },
+      select: {
+        createdAt: true,
+        resolvedAt: true
+      }
+    });
 
-    return Math.round(parseFloat(result?.avgMinutes || 0));
+    if (tickets.length === 0) return 0;
+
+    const totalMinutes = tickets.reduce((sum, ticket) => {
+      const diff = ticket.resolvedAt.getTime() - ticket.createdAt.getTime();
+      return sum + (diff / (1000 * 60));
+    }, 0);
+
+    return Math.round(totalMinutes / tickets.length);
   }
 
   private async getAgentAverageFirstResponseTime(agentId: string, startDate: Date, endDate: Date): Promise<number> {
-    const result = await this.ticketRepository
-      .createQueryBuilder('ticket')
-      .select('AVG(EXTRACT(EPOCH FROM (ticket.firstResponseAt - ticket.createdAt)) / 60)', 'avgMinutes')
-      .where('ticket.assignedTo = :agentId', { agentId })
-      .andWhere('ticket.firstResponseAt BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .getRawOne();
+    const tickets = await this.prisma.ticket.findMany({
+      where: {
+        assignedTo: agentId,
+        firstResponseAt: { gte: startDate, lte: endDate }
+      },
+      select: {
+        createdAt: true,
+        firstResponseAt: true
+      }
+    });
 
-    return Math.round(parseFloat(result?.avgMinutes || 0));
+    if (tickets.length === 0) return 0;
+
+    const totalMinutes = tickets.reduce((sum, ticket) => {
+      const diff = ticket.firstResponseAt.getTime() - ticket.createdAt.getTime();
+      return sum + (diff / (1000 * 60));
+    }, 0);
+
+    return Math.round(totalMinutes / tickets.length);
   }
 
   private async getAgentCustomerSatisfaction(agentId: string, startDate: Date, endDate: Date): Promise<number> {
@@ -481,33 +518,48 @@ export class SupportService {
 
   private async getAgentSLAComplianceRate(agentId: string, startDate: Date, endDate: Date): Promise<number> {
     const [totalTickets, compliantTickets] = await Promise.all([
-      this.ticketSLARepository.count({
+      this.prisma.ticket.count({
         where: {
-          createdAt: Between(startDate, endDate),
-        },
+          createdAt: { gte: startDate, lte: endDate }
+        }
       }),
-      this.ticketSLARepository
-        .createQueryBuilder('ticketSLA')
-        .leftJoin('ticketSLA.ticket', 'ticket')
-        .where('ticket.assignedTo = :agentId', { agentId })
-        .andWhere('ticketSLA.createdAt BETWEEN :start AND :end', { start: startDate, end: endDate })
-        .andWhere('ticketSLA.responseMetAt IS NOT NULL AND ticketSLA.resolutionMetAt IS NOT NULL')
-        .getCount(),
+      this.prisma.ticketSLA.count({
+        where: {
+          ticket: {
+            assignedTo: agentId,
+            createdAt: { gte: startDate, lte: endDate }
+          },
+          responseMetAt: { not: null },
+          resolutionMetAt: { not: null }
+        }
+      }),
     ]);
 
     return totalTickets > 0 ? (compliantTickets / totalTickets) * 100 : 0;
   }
 
   private async getTicketsByDay(agentId: string, startDate: Date, endDate: Date) {
-    return await this.ticketRepository
-      .createQueryBuilder('ticket')
-      .select('DATE(ticket.createdAt)', 'date')
-      .addSelect('COUNT(*)', 'count')
-      .where('ticket.assignedTo = :agentId', { agentId })
-      .andWhere('ticket.createdAt BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .groupBy('DATE(ticket.createdAt)')
-      .orderBy('date', 'ASC')
-      .getRawMany();
+    const tickets = await this.prisma.ticket.findMany({
+      where: {
+        assignedTo: agentId,
+        createdAt: { gte: startDate, lte: endDate }
+      },
+      select: {
+        createdAt: true
+      }
+    });
+
+    // Group by date
+    const ticketsByDate = tickets.reduce((acc, ticket) => {
+      const dateKey = ticket.createdAt.toISOString().split('T')[0];
+      if (!acc[dateKey]) {
+        acc[dateKey] = { date: dateKey, count: 0 };
+      }
+      acc[dateKey].count++;
+      return acc;
+    }, {} as Record<string, { date: string; count: number }>);
+
+    return Object.values(ticketsByDate).sort((a, b) => a.date.localeCompare(b.date));
   }
 
   private async getActiveAgents() {
@@ -520,45 +572,43 @@ export class SupportService {
   }
 
   private async getKnowledgeBaseUsage() {
-    const [totalViews, topArticles] = await Promise.all([
-      this.knowledgeBaseArticleRepository
-        .createQueryBuilder('article')
-        .select('SUM(article.views)', 'total')
-        .getRawOne(),
-      this.knowledgeBaseArticleRepository
-        .createQueryBuilder('article')
-        .leftJoinAndSelect('article.category', 'category')
-        .where('article.status = :status', { status: 'PUBLISHED' })
-        .orderBy('article.views', 'DESC')
-        .limit(5)
-        .getMany(),
+    const [articles, totalViews] = await Promise.all([
+      this.prisma.knowledgeBaseArticle.findMany({
+        where: { status: 'PUBLISHED' },
+        include: {
+          category: true
+        },
+        orderBy: { views: 'desc' },
+        take: 5
+      }),
+      this.prisma.knowledgeBaseArticle.aggregate({
+        _sum: {
+          views: true
+        }
+      })
     ]);
 
     return {
-      totalViews: parseInt(totalViews?.total || 0),
-      topArticles,
+      totalViews: totalViews._sum.views || 0,
+      topArticles: articles
     };
   }
 
   private async getTicketMetricsForReport(startDate: Date, endDate: Date) {
     const [total, byStatus, byPriority, avgResolution] = await Promise.all([
-      this.ticketRepository.count({
-        where: { createdAt: Between(startDate, endDate) },
+      this.prisma.ticket.count({
+        where: { createdAt: { gte: startDate, lte: endDate } }
       }),
-      this.ticketRepository
-        .createQueryBuilder('ticket')
-        .select('ticket.status', 'status')
-        .addSelect('COUNT(*)', 'count')
-        .where('ticket.createdAt BETWEEN :start AND :end', { start: startDate, end: endDate })
-        .groupBy('ticket.status')
-        .getRawMany(),
-      this.ticketRepository
-        .createQueryBuilder('ticket')
-        .select('ticket.priority', 'priority')
-        .addSelect('COUNT(*)', 'count')
-        .where('ticket.createdAt BETWEEN :start AND :end', { start: startDate, end: endDate })
-        .groupBy('ticket.priority')
-        .getRawMany(),
+      this.prisma.ticket.groupBy({
+        by: ['status'],
+        where: { createdAt: { gte: startDate, lte: endDate } },
+        _count: true
+      }),
+      this.prisma.ticket.groupBy({
+        by: ['priority'],
+        where: { createdAt: { gte: startDate, lte: endDate } },
+        _count: true
+      }),
       this.getAverageResolutionTime(startDate, endDate),
     ]);
 
@@ -571,34 +621,49 @@ export class SupportService {
   }
 
   private async getCategoryBreakdownForReport(startDate: Date, endDate: Date) {
-    return await this.ticketRepository
-      .createQueryBuilder('ticket')
-      .leftJoin('ticket.category', 'category')
-      .select('category.name', 'category')
-      .addSelect('COUNT(*)', 'count')
-      .where('ticket.createdAt BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .groupBy('category.name')
-      .orderBy('count', 'DESC')
-      .getRawMany();
+    const ticketsByCategory = await this.prisma.ticket.groupBy({
+      by: ['categoryId'],
+      where: { createdAt: { gte: startDate, lte: endDate } },
+      _count: true,
+      orderBy: { _count: { categoryId: 'desc' } }
+    });
+
+    // Get category names
+    const categoryIds = ticketsByCategory.map(t => t.categoryId).filter(Boolean);
+    const categories = await this.prisma.ticketCategory.findMany({
+      where: { id: { in: categoryIds } },
+      select: { id: true, name: true }
+    });
+
+    const categoryMap = new Map(categories.map(c => [c.id, c.name]));
+
+    return ticketsByCategory.map(item => ({
+      category: item.categoryId ? categoryMap.get(item.categoryId) || 'Unknown' : 'Uncategorized',
+      count: item._count
+    }));
   }
 
   private async getSLAMetricsForReport(startDate: Date, endDate: Date) {
     const [total, compliant, breached] = await Promise.all([
-      this.ticketSLARepository.count({
-        where: { createdAt: Between(startDate, endDate) },
+      this.prisma.ticket.count({
+        where: { createdAt: { gte: startDate, lte: endDate } }
       }),
-      this.ticketSLARepository.count({
+      this.prisma.ticketSLA.count({
         where: {
-          createdAt: Between(startDate, endDate),
-          responseMetAt: Between(startDate, endDate),
-          resolutionMetAt: Between(startDate, endDate),
-        },
+          ticket: {
+            createdAt: { gte: startDate, lte: endDate }
+          },
+          responseMetAt: { not: null },
+          resolutionMetAt: { not: null }
+        }
       }),
-      this.ticketSLARepository.count({
+      this.prisma.ticketSLA.count({
         where: {
-          createdAt: Between(startDate, endDate),
-          responseBreachedAt: Between(startDate, endDate),
-        },
+          ticket: {
+            createdAt: { gte: startDate, lte: endDate }
+          },
+          responseBreachedAt: { gte: startDate, lte: endDate }
+        }
       }),
     ]);
 
@@ -618,32 +683,34 @@ export class SupportService {
         4: 40,
         3: 20,
         2: 7,
-        1: 3,
-      },
+        1: 3
+      }
     };
   }
 
   private async getKnowledgeBaseStatsForReport(startDate: Date, endDate: Date) {
     const [articles, views, helpful] = await Promise.all([
-      this.knowledgeBaseArticleRepository.count({
-        where: { createdAt: Between(startDate, endDate) },
+      this.prisma.knowledgeBaseArticle.count({
+        where: { createdAt: { gte: startDate, lte: endDate } }
       }),
-      this.knowledgeBaseArticleRepository
-        .createQueryBuilder('article')
-        .select('SUM(article.views)', 'total')
-        .where('article.createdAt BETWEEN :start AND :end', { start: startDate, end: endDate })
-        .getRawOne(),
-      this.knowledgeBaseArticleRepository
-        .createQueryBuilder('article')
-        .select('SUM(article.helpful)', 'total')
-        .where('article.createdAt BETWEEN :start AND :end', { start: startDate, end: endDate })
-        .getRawOne(),
+      this.prisma.knowledgeBaseArticle.aggregate({
+        where: { createdAt: { gte: startDate, lte: endDate } },
+        _sum: {
+          views: true
+        }
+      }),
+      this.prisma.knowledgeBaseArticle.aggregate({
+        where: { createdAt: { gte: startDate, lte: endDate } },
+        _sum: {
+          helpful: true
+        }
+      }),
     ]);
 
     return {
       articles,
-      views: parseInt(views?.total || 0),
-      helpful: parseInt(helpful?.total || 0),
+      views: views._sum.views || 0,
+      helpful: helpful._sum.helpful || 0
     };
   }
 

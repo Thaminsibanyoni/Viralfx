@@ -20,29 +20,21 @@ export class WebSocketAdapter extends IoAdapter {
 
       this.adapterConstructor = createAdapter(pubClient, subClient);
     } catch (error) {
-      this.logger.warn('Redis not available for WebSocket adapter, falling back to memory adapter');
-      // Will use default memory adapter if Redis is not available
+      this.logger.error('Failed to initialize Redis adapter', error);
     }
   }
 
-  createIOServer(port: number, options?: ServerOptions): any {
+  createIOServer(port: number, options?: ServerOptions) {
     const server = super.createIOServer(port, {
       ...options,
       cors: {
         origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3001'],
         methods: ['GET', 'POST'],
-        credentials: true,
+        credentials: true
       },
       transports: ['websocket', 'polling'],
-      allowEIO3: true,
-      pingTimeout: 60000,
-      pingInterval: 25000,
+      adapter: this.adapterConstructor
     });
-
-    // Apply Redis adapter if available
-    if (this.adapterConstructor) {
-      server.adapter(this.adapterConstructor);
-    }
 
     return server;
   }

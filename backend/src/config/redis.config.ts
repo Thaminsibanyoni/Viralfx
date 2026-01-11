@@ -7,5 +7,5 @@ export default registerAs('redis', () => ({
   db: parseInt(process.env.REDIS_DB, 10) || 0,
   maxRetriesPerRequest: 3,
   retryDelayOnFailover: 100,
-  enableReadyCheck: false,
+  enableReadyCheck: false
 }));

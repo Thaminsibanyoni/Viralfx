@@ -1,10 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
-import { BrokerClient, ClientStatus } from '../entities/broker-client.entity';
-import { User } from '../../users/entities/user.entity';
-import { Order } from '../../trading/entities/order.entity';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerClient, ClientStatus } from '../entities/broker-client.entity';
+import { User } from "../../../common/enums/user-role.enum";
+import { Order } from "../../trading/entities/order.entity";
 
 export interface ClientDashboardMetrics {
   overview: {
@@ -121,12 +119,7 @@ export class ClientDashboardService {
   private readonly logger = new Logger(ClientDashboardService.name);
 
   constructor(
-    @InjectRepository(BrokerClient)
-    private brokerClientRepository: Repository<BrokerClient>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    private prismaService: PrismaService,
-  ) {}
+        private prismaService: PrismaService) {}
 
   async getDashboardMetrics(brokerId: string): Promise<ClientDashboardMetrics> {
     this.logger.log(`Generating dashboard metrics for broker ${brokerId}`);
@@ -137,9 +130,9 @@ export class ClientDashboardService {
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
 
     // Get all client relationships
-    const clients = await this.brokerClientRepository.find({
+    const clients = await this.prisma.brokerClient.findMany({
       where: { brokerId },
-      relations: ['client'],
+      relations: ['client']
     });
 
     // Calculate overview metrics
@@ -163,7 +156,7 @@ export class ClientDashboardService {
       totalRevenue: activeClients.reduce((sum, c) => sum + Number(c.totalCommission), 0),
       averageRevenuePerClient: activeClients.length > 0
         ? activeClients.reduce((sum, c) => sum + Number(c.totalCommission), 0) / activeClients.length
-        : 0,
+        : 0
     };
 
     // Get performance metrics
@@ -179,7 +172,7 @@ export class ClientDashboardService {
       overview,
       performanceMetrics,
       acquisitionMetrics,
-      retentionMetrics,
+      retentionMetrics
     };
   }
 
@@ -193,7 +186,7 @@ export class ClientDashboardService {
         clientName: `${client.client.firstName} ${client.client.lastName}`,
         totalRevenue: Number(client.totalCommission),
         totalTrades: client.totalTrades,
-        averageTradeSize: client.totalTrades > 0 ? Number(client.totalVolume) / client.totalTrades : 0,
+        averageTradeSize: client.totalTrades > 0 ? Number(client.totalVolume) / client.totalTrades : 0
       }));
 
     // At-risk clients (no trades in last 30 days)
@@ -222,7 +215,7 @@ export class ClientDashboardService {
         daysSinceLastTrade: client.lastTradeDate ?
           Math.floor((Date.now() - new Date(client.lastTradeDate).getTime()) / (1000 * 60 * 60 * 24)) :
           Math.floor((Date.now() - new Date(client.createdAt).getTime()) / (1000 * 60 * 60 * 24)),
-        totalRevenue: Number(client.totalCommission),
+        totalRevenue: Number(client.totalCommission)
       }));
 
     // Recent activity (mock data for now)
@@ -232,14 +225,14 @@ export class ClientDashboardService {
         clientName: topPerformers[0]?.clientName || '',
         action: 'Large Trade Executed',
         timestamp: new Date(),
-        details: { tradeSize: 50000, asset: 'AAPL' },
+        details: { tradeSize: 50000, asset: 'AAPL' }
       },
       {
         clientId: newClients[0]?.clientId || '',
         clientName: newClients[0]?.clientName || '',
         action: 'New Client Onboarded',
         timestamp: new Date(),
-        details: { source: 'referral_code' },
+        details: { source: 'referral_code' }
       },
     ];
 
@@ -250,7 +243,7 @@ export class ClientDashboardService {
     return {
       topPerformers,
       atRiskClients,
-      recentActivity,
+      recentActivity
     };
   }
 
@@ -270,7 +263,7 @@ export class ClientDashboardService {
       type,
       count: data.count,
       revenue: data.revenue,
-      averageRevenuePerClient: data.count > 0 ? data.revenue / data.count : 0,
+      averageRevenuePerClient: data.count > 0 ? data.revenue / data.count : 0
     }));
 
     // Monthly acquisition (last 12 months)
@@ -288,7 +281,7 @@ export class ClientDashboardService {
       monthlyAcquisition.push({
         month: monthStart.toLocaleDateString('en-US', { year: 'numeric', month: 'short' }),
         newClients: monthClients.length,
-        totalRevenue: monthClients.reduce((sum, c) => sum + Number(c.totalCommission), 0),
+        totalRevenue: monthClients.reduce((sum, c) => sum + Number(c.totalCommission), 0)
       });
     }
 
@@ -296,7 +289,7 @@ export class ClientDashboardService {
       byAttributionType: attributionMetrics,
       monthlyAcquisition,
       conversionRate: 0.15, // Mock data
-      costPerAcquisition: 250, // Mock data
+      costPerAcquisition: 250 // Mock data
     };
   }
 
@@ -324,19 +317,19 @@ export class ClientDashboardService {
         cohort: 'Q1 2024',
         initialClients: 25,
         retainedClients: 20,
-        retentionRate: 0.8,
+        retentionRate: 0.8
       },
       {
         cohort: 'Q2 2024',
         initialClients: 30,
         retainedClients: 24,
-        retentionRate: 0.8,
+        retentionRate: 0.8
       },
       {
         cohort: 'Q3 2024',
         initialClients: 35,
         retainedClients: 28,
-        retentionRate: 0.8,
+        retentionRate: 0.8
       },
     ];
 
@@ -344,7 +337,7 @@ export class ClientDashboardService {
       clientRetentionRate: retentionRate,
       averageClientLifetime: Math.round(averageClientLifetime),
       churnRate,
-      retentionByCohort,
+      retentionByCohort
     };
   }
 
@@ -352,9 +345,9 @@ export class ClientDashboardService {
     this.logger.log(`Getting detail metrics for client ${clientId} of broker ${brokerId}`);
 
     // Verify broker-client relationship
-    const brokerClient = await this.brokerClientRepository.findOne({
+    const brokerClient = await this.prisma.brokerClient.findFirst({
       where: { brokerId, clientId },
-      relations: ['client'],
+      relations: ['client']
     });
 
     if (!brokerClient) {
@@ -367,9 +360,9 @@ export class ClientDashboardService {
     const orders = await this.prismaService.order.findMany({
       where: {
         userId: clientId,
-        brokerId: brokerId,
+        brokerId: brokerId
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' }
     });
 
     const totalTrades = orders.length;
@@ -390,7 +383,7 @@ export class ClientDashboardService {
       averageTradeSize,
       winRate,
       lastTradeDate: orders[0]?.createdAt || new Date(),
-      tradingFrequency: this.calculateTradingFrequency(orders),
+      tradingFrequency: this.calculateTradingFrequency(orders)
     };
 
     // Performance metrics (mock data for now)
@@ -400,8 +393,8 @@ export class ClientDashboardService {
       riskMetrics: {
         maxDrawdown: Math.random() * 0.2 + 0.05, // 5-25% drawdown
         volatility: Math.random() * 0.3 + 0.1, // 10-40% volatility
-        sharpeRatio: Math.random() * 2 + 0.5, // 0.5-2.5 Sharpe ratio
-      },
+        sharpeRatio: Math.random() * 2 + 0.5 // 0.5-2.5 Sharpe ratio
+      }
     };
 
     // Engagement metrics (mock data for now)
@@ -411,10 +404,10 @@ export class ClientDashboardService {
       featureUsage: {
         trading: Math.floor(Math.random() * 100) + 50,
         analytics: Math.floor(Math.random() * 50) + 10,
-        alerts: Math.floor(Math.random() * 30) + 5,
+        alerts: Math.floor(Math.random() * 30) + 5
       },
       supportTickets: Math.floor(Math.random() * 5),
-      satisfactionScore: Math.random() * 2 + 3, // 3-5 rating
+      satisfactionScore: Math.random() * 2 + 3 // 3-5 rating
     };
 
     return {
@@ -425,11 +418,11 @@ export class ClientDashboardService {
         phone: client.phoneNumber,
         joinDate: brokerClient.createdAt,
         attributionType: brokerClient.attributionType,
-        status: brokerClient.status,
+        status: brokerClient.status
       },
       tradingActivity,
       performance,
-      engagement,
+      engagement
     };
   }
 
@@ -462,7 +455,7 @@ export class ClientDashboardService {
         trades: monthOrders.length,
         volume: monthOrders.reduce((sum, order) => sum + Number(order.totalValue), 0),
         revenue: monthOrders.reduce((sum, order) => sum + Number(order.feeAmount), 0),
-        profit: monthOrders.reduce((sum, order) => sum + (Number(order.totalValue) * 0.02), 0), // Mock 2% profit
+        profit: monthOrders.reduce((sum, order) => sum + (Number(order.totalValue) * 0.02), 0) // Mock 2% profit
       });
     }
 
@@ -484,7 +477,7 @@ export class ClientDashboardService {
           asset,
           trades: assetOrders.length,
           volume: assetVolume,
-          percentage: totalVolume > 0 ? (assetVolume / totalVolume) * 100 : 0,
+          percentage: totalVolume > 0 ? (assetVolume / totalVolume) * 100 : 0
         });
       }
     });

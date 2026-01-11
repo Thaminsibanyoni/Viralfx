@@ -1,9 +1,9 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy, forwardRef, Inject } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { PrismaService } from '../../../prisma/prisma.service';
 import { VectorClock, StateVersion, StateDelta, SyncRequest, SyncResponse, ConflictResolution, SyncStrategy, ConflictStrategy, LamportClock, BandwidthValidationResult, ConnectionQualityMetrics, ConnectionEvent } from '../interfaces/differential-sync.interface';
-import { ConnectionQualityMonitorService } from './connection-quality-monitor.service';
+import { ConnectionQualityMonitorService } from "./connection-quality-monitor.service";
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -42,9 +42,9 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @InjectRedis() private readonly redis: Redis,
     private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => ConnectionQualityMonitorService))
     private readonly connectionQualityMonitor: ConnectionQualityMonitorService,
-    private readonly configService: ConfigService,
-  ) {}
+    private readonly configService: ConfigService) {}
 
   async onModuleInit() {
     this.logger.log('Initializing Differential Sync Service');
@@ -385,7 +385,7 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
         deltaCount: deltas.length,
         bytesTransferred: deltaSize,
         compressionRatio: entityState ? deltaSize / JSON.stringify(entityState).length : 1,
-        timestamp: Date.now(),
+        timestamp: Date.now()
       });
 
       // Record bandwidth metrics
@@ -657,7 +657,7 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
                 emailVerified: true,
                 lastLoginAt: true,
                 brokerId: true,
-                updatedAt: true,
+                updatedAt: true
               }
             });
           } else {
@@ -669,7 +669,7 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
                 role: true,
                 status: true,
                 lastLoginAt: true,
-                updatedAt: true,
+                updatedAt: true
               },
               take: 100, // Limit for performance
               orderBy: { updatedAt: 'desc' }
@@ -686,7 +686,7 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
                   select: {
                     id: true,
                     username: true,
-                    status: true,
+                    status: true
                   },
                   take: 50
                 }
@@ -704,7 +704,7 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
                 totalVolume: true,
                 averageRating: true,
                 trustScore: true,
-                updatedAt: true,
+                updatedAt: true
               },
               take: 100,
               orderBy: { updatedAt: 'desc' }
@@ -1037,7 +1037,7 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
         errorCount: 0,
         errors: [],
         lastReset: now,
-        lastSyncTime: now,
+        lastSyncTime: now
       });
     }
 
@@ -1050,7 +1050,7 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
       errorData.errors.push({
         timestamp: now,
         errorType: errorType || 'UNKNOWN_ERROR',
-        errorMessage: errorMessage || 'Unknown error',
+        errorMessage: errorMessage || 'Unknown error'
       });
 
       // Keep only last 50 errors
@@ -1105,7 +1105,7 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
         totalOperations: 0,
         errorCount: 0,
         recentErrors: [],
-        lastSyncTime: 0,
+        lastSyncTime: 0
       };
     }
 
@@ -1117,7 +1117,7 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
       totalOperations: errorData.totalOperations,
       errorCount: errorData.errorCount,
       recentErrors,
-      lastSyncTime: errorData.lastSyncTime,
+      lastSyncTime: errorData.lastSyncTime
     };
   }
 
@@ -1350,7 +1350,7 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
         deltaCount: allDeltas.length,
         bytesTransferred: deltaSize,
         compressionRatio: 1.0, // No full state comparison for batch
-        timestamp: Date.now(),
+        timestamp: Date.now()
       });
 
       this.logger.debug(
@@ -1438,7 +1438,7 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
         averageLatency: performanceStats.avgSyncDuration,
         bandwidthReduction: bandwidthValidation?.actualReduction || 0,
         errorRate: parseFloat(errorStats.errorRate.toFixed(2)),
-        lastSyncTime: errorStats.lastSyncTime,
+        lastSyncTime: errorStats.lastSyncTime
       };
     } catch (error) {
       this.logger.error(`Failed to get sync statistics for client ${clientId}:`, error);
@@ -1447,7 +1447,7 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
         averageLatency: 0,
         bandwidthReduction: 0,
         errorRate: 0,
-        lastSyncTime: 0,
+        lastSyncTime: 0
       };
     }
   }
@@ -1476,7 +1476,7 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
         totalOperations: 0,
         errorCount: 0,
         recentErrors: [],
-        lastSyncTime: 0,
+        lastSyncTime: 0
       };
     }
   }
@@ -1511,7 +1511,7 @@ export class DifferentialSyncService implements OnModuleInit, OnModuleDestroy {
           errorRate: errorData.totalOperations > 0 ? (errorData.errorCount / errorData.totalOperations) * 100 : 0,
           totalOperations: errorData.totalOperations,
           errorCount: errorData.errorCount,
-          lastSyncTime: errorData.lastSyncTime,
+          lastSyncTime: errorData.lastSyncTime
         });
       }
 

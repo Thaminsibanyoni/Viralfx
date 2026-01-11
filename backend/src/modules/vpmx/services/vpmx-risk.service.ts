@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { VPMXCoreService } from './vpmx-core.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { VPMXCoreService } from "./vpmx-core.service";
 
 @Injectable()
 export class VPMXRiskService {
@@ -8,8 +8,7 @@ export class VPMXRiskService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly vpmxCoreService: VPMXCoreService,
-  ) {}
+    private readonly vpmxCoreService: VPMXCoreService) {}
 
   /**
    * Assess risk for a VTS symbol and position
@@ -18,8 +17,7 @@ export class VPMXRiskService {
     vtsSymbol: string,
     riskTolerance: string,
     positionSize: number,
-    timeframe: string,
-  ): Promise<any> {
+    timeframe: string): Promise<any> {
     try {
       this.logger.log(`Assessing risk for ${vtsSymbol} with position size ${positionSize}`);
 
@@ -41,8 +39,7 @@ export class VPMXRiskService {
       const recommendations = this.generateRiskRecommendations(
         riskLevel,
         exposureAnalysis,
-        riskMetrics,
-      );
+        riskMetrics);
 
       return {
         vtsSymbol,
@@ -54,9 +51,9 @@ export class VPMXRiskService {
           riskLevel,
           riskMetrics,
           exposureAnalysis,
-          recommendations,
+          recommendations
         },
-        timestamp: new Date(),
+        timestamp: new Date()
       };
     } catch (error) {
       this.logger.error(`Failed to assess risk for ${vtsSymbol}`, error);
@@ -70,7 +67,7 @@ export class VPMXRiskService {
   async getRiskSnapshot(vtsSymbol: string): Promise<any> {
     const latestSnapshot = await this.prisma.vpmxRiskSnapshot.findFirst({
       where: { vtsSymbol },
-      orderBy: { timestamp: 'desc' },
+      orderBy: { timestamp: 'desc' }
     });
 
     if (!latestSnapshot) {
@@ -117,7 +114,7 @@ export class VPMXRiskService {
       correlation: this.calculateCorrelation(values),
       skewness: this.calculateSkewness(returns),
       kurtosis: this.calculateKurtosis(returns),
-      autocorrelation: this.calculateAutocorrelation(returns),
+      autocorrelation: this.calculateAutocorrelation(returns)
     };
   }
 
@@ -136,7 +133,7 @@ export class VPMXRiskService {
       riskAdjustedReturn: (currentVPMX - 500) / 500 * (1 / riskMetrics.volatility),
       concentration: leverage > 2 ? 'HIGH' : leverage > 1 ? 'MEDIUM' : 'LOW',
       liquidityRisk: this.assessLiquidityRisk(currentVPMX),
-      counterpartyRisk: this.assessCounterpartyRisk(leverage),
+      counterpartyRisk: this.assessCounterpartyRisk(leverage)
     };
   }
 
@@ -161,7 +158,7 @@ export class VPMXRiskService {
     const thresholds: Record<string, { low: number; medium: number; high: number }> = {
       CONSERVATIVE: { low: 20, medium: 40, high: 60 },
       MODERATE: { low: 35, medium: 55, high: 75 },
-      AGGRESSIVE: { low: 50, medium: 70, high: 85 },
+      AGGRESSIVE: { low: 50, medium: 70, high: 85 }
     };
 
     const threshold = thresholds[riskTolerance] || thresholds.MODERATE;
@@ -178,8 +175,7 @@ export class VPMXRiskService {
   private generateRiskRecommendations(
     riskLevel: string,
     exposureAnalysis: any,
-    riskMetrics: any,
-  ): any[] {
+    riskMetrics: any): any[] {
     const recommendations = [];
 
     if (riskLevel === 'CRITICAL') {
@@ -187,7 +183,7 @@ export class VPMXRiskService {
         priority: 'HIGH',
         action: 'REDUCE_POSITION',
         reason: 'Critical risk level detected',
-        suggestedSize: exposureAnalysis.notionalValue * 0.5,
+        suggestedSize: exposureAnalysis.notionalValue * 0.5
       });
     }
 
@@ -196,7 +192,7 @@ export class VPMXRiskService {
         priority: 'MEDIUM',
         action: 'ADD_HEDGE',
         reason: 'High volatility detected',
-        suggestedHedge: 'PUT_OPTIONS',
+        suggestedHedge: 'PUT_OPTIONS'
       });
     }
 
@@ -205,7 +201,7 @@ export class VPMXRiskService {
         priority: 'HIGH',
         action: 'STOP_LOSS',
         reason: 'High maximum drawdown risk',
-        suggestedLevel: '10%',
+        suggestedLevel: '10%'
       });
     }
 
@@ -214,7 +210,7 @@ export class VPMXRiskService {
         priority: 'MEDIUM',
         action: 'REDUCE_LEVERAGE',
         reason: 'Excessive leverage',
-        targetLeverage: 2,
+        targetLeverage: 2
       });
     }
 
@@ -223,7 +219,7 @@ export class VPMXRiskService {
         priority: 'HIGH',
         action: 'LIQUIDITY_CHECK',
         reason: 'Low liquidity detected',
-        suggestedAction: 'STAGGERED_EXIT',
+        suggestedAction: 'STAGGERED_EXIT'
       });
     }
 
@@ -251,8 +247,8 @@ export class VPMXRiskService {
           sharpeRatio: riskMetrics.sharpeRatio,
           riskRating,
           riskScore,
-          marketCondition,
-        },
+          marketCondition
+        }
       });
 
       return snapshot;
@@ -458,7 +454,7 @@ export class VPMXRiskService {
   async updateExposureLimits(userId: string, updates: any): Promise<any> {
     return await this.prisma.vpmxExposure.updateMany({
       where: { userId, status: 'ACTIVE' },
-      data: updates,
+      data: updates
     });
   }
 
@@ -469,8 +465,8 @@ export class VPMXRiskService {
     const breaches = await this.prisma.vpmxExposure.findMany({
       where: {
         status: 'ACTIVE',
-        maxPotentialLoss: { gte: 10000 }, // Example limit
-      },
+        maxPotentialLoss: { gte: 10000 } // Example limit
+      }
     });
 
     return breaches;

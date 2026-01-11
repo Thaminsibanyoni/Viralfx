@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ConfigService } from '@nestjs/config';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
-import { NotificationTemplate } from '../entities/notification-template.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { NotificationTemplate } from '../entities/notification-template.entity';
 import { NotificationChannel } from '../interfaces/notification.interface';
 
 interface NotificationData {
@@ -192,7 +193,7 @@ export class NotificationService {
         loginUrl: `${this.config.get('FRONTEND_URL')}/login`,
         supportEmail: this.config.get('SUPPORT_EMAIL', 'support@viralfx.com'),
         hasBroker: false, // This would be determined by checking user's broker association
-        brokerName: undefined,
+        brokerName: undefined
       };
 
       // Generate email content using template
@@ -205,7 +206,7 @@ export class NotificationService {
         data: {
           html,
           text,
-          ...templateData,
+          ...templateData
         }
       });
     } catch (error) {
@@ -235,7 +236,7 @@ export class NotificationService {
           price: orderDetails.price,
           totalAmount: orderDetails.quantity * orderDetails.price,
           orderTime: new Date(orderDetails.createdAt).toLocaleString(),
-          userName: await this.getUserName(userId), // Would need to implement this method
+          userName: await this.getUserName(userId) // Would need to implement this method
         };
 
         // Generate email content using template
@@ -248,7 +249,7 @@ export class NotificationService {
           data: {
             html,
             text,
-            ...templateData,
+            ...templateData
           }
         });
       } catch (error) {
@@ -540,12 +541,12 @@ export class NotificationService {
         to: userEmail,
         subject: emailContent.subject,
         template: emailContent.template,
-        data: emailContent.data,
+        data: emailContent.data
       }, {
         attempts: 3,
         backoff: 'exponential',
         delay: priority === 'CRITICAL' ? 0 : 1000,
-        priority: priority === 'CRITICAL' ? 10 : 1,
+        priority: priority === 'CRITICAL' ? 10 : 1
       });
 
       this.logger.log(`Email notification queued for user ${userId}, type: ${type}`);
@@ -567,8 +568,8 @@ export class NotificationService {
             activityTitle: data.activityTitle,
             activityType: data.activityType,
             scheduledFor: data.scheduledFor,
-            category: data.category,
-          },
+            category: data.category
+          }
         };
 
       case 'lead_assigned':
@@ -580,8 +581,8 @@ export class NotificationService {
             leadCompany: data.leadCompany,
             leadSource: data.leadSource,
             leadId: data.leadId,
-            category: data.category,
-          },
+            category: data.category
+          }
         };
 
       case 'contract_created':
@@ -591,8 +592,8 @@ export class NotificationService {
           data: {
             contractType: data.contractType,
             contractValue: data.contractValue,
-            category: data.category,
-          },
+            category: data.category
+          }
         };
 
       case 'contract_signed':
@@ -602,8 +603,8 @@ export class NotificationService {
           data: {
             contractId: data.contractId,
             contractType: data.contractType,
-            category: data.category,
-          },
+            category: data.category
+          }
         };
 
       case 'contract_signature_required':
@@ -614,8 +615,8 @@ export class NotificationService {
             contractId: data.contractId,
             contractNumber: data.contractNumber,
             signatureUrl: data.signatureUrl,
-            category: data.category,
-          },
+            category: data.category
+          }
         };
 
       case 'contract_terminated':
@@ -625,8 +626,8 @@ export class NotificationService {
           data: {
             contractId: data.contractId,
             terminationReason: data.terminationReason,
-            category: data.category,
-          },
+            category: data.category
+          }
         };
 
       default:
@@ -636,8 +637,8 @@ export class NotificationService {
           template: 'generic-notification',
           data: {
             notificationType: type,
-            notificationData: data,
-          },
+            notificationData: data
+          }
         };
     }
   }
@@ -772,7 +773,7 @@ export class NotificationService {
             result: result.success ? 'Approved' : 'Rejected',
             message: result.message,
             nextSteps: result.nextSteps || [],
-            rejectionReason: result.rejectionReason,
+            rejectionReason: result.rejectionReason
           }
         });
       }
@@ -809,7 +810,7 @@ export class NotificationService {
             severity: alert.severity,
             message: alert.message,
             recommendations: alert.recommendations,
-            requiresAction: alert.severity === 'CRITICAL',
+            requiresAction: alert.severity === 'CRITICAL'
           }
         });
       }
@@ -861,7 +862,7 @@ export class NotificationService {
             clientCount: billData.clientCount || 0,
             totalVolume: billData.totalVolume || 0,
             commissionRate: billData.commissionRate || 0,
-            issueDate: new Date().toLocaleDateString(),
+            issueDate: new Date().toLocaleDateString()
           };
 
           // Generate email content using template
@@ -874,7 +875,7 @@ export class NotificationService {
             data: {
               html,
               text,
-              ...templateData,
+              ...templateData
             }
           });
         } catch (error) {
@@ -918,7 +919,7 @@ export class NotificationService {
             paymentMethod: paymentData.paymentMethod || 'Bank Transfer',
             processingFee: paymentData.processingFee || 0,
             netAmount: paymentData.netAmount || paymentData.amount,
-            estimatedArrival: paymentData.estimatedArrival || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+            estimatedArrival: paymentData.estimatedArrival || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString()
           };
 
           // Generate email content using template
@@ -931,7 +932,7 @@ export class NotificationService {
             data: {
               html,
               text,
-              ...templateData,
+              ...templateData
             }
           });
         } catch (error) {
@@ -980,7 +981,7 @@ export class NotificationService {
               brokerName: brokerData.companyName,
               integrationType: testResult.integrationType,
               errors: testResult.errors,
-              recommendations: testResult.recommendations || ['Check integration configuration', 'Review API documentation'],
+              recommendations: testResult.recommendations || ['Check integration configuration', 'Review API documentation']
             }
           });
         }
@@ -1022,7 +1023,7 @@ export class NotificationService {
         contactEmail: `broker-${brokerId}@example.com`,
         contactPhone: `+2712345${brokerId.slice(-4)}`,
         status: 'VERIFIED',
-        tier: 'PREMIUM',
+        tier: 'PREMIUM'
       };
     } catch (error) {
       this.logger.error(`Failed to get broker data for ${brokerId}:`, error);
@@ -1045,7 +1046,7 @@ export class NotificationService {
           title: 'Welcome to ViralFX',
           message: 'Get started with your trading journey',
           isRead: false,
-          createdAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
+          createdAt: new Date(Date.now() - 30 * 60 * 1000) // 30 minutes ago
         },
         {
           id: 'notif-2',
@@ -1054,7 +1055,7 @@ export class NotificationService {
           title: 'BTC Price Alert',
           message: 'Bitcoin has reached your target price',
           isRead: true,
-          createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+          createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000) // 2 hours ago
         },
       ];
     } catch (error) {
@@ -1117,8 +1118,8 @@ export class NotificationService {
         quietHours: {
           enabled: false,
           start: '22:00',
-          end: '08:00',
-        },
+          end: '08:00'
+        }
       };
     } catch (error) {
       this.logger.error(`Failed to get notification preferences for user ${userId}:`, error);

@@ -7,12 +7,12 @@ import {
   Query,
   UseGuards,
   HttpCode,
-  HttpStatus,
+  HttpStatus
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 
 import { TrendAnalyzerService } from '../services/trend-analyzer.service';
 import { ViralityPredictionService } from '../services/virality-prediction.service';
@@ -34,8 +34,7 @@ export class TrendMLController {
     private readonly viralityPredictionService: ViralityPredictionService,
     private readonly sentimentAnalysisService: SentimentAnalysisService,
     private readonly riskAssessmentService: RiskAssessmentService,
-    private readonly socialMediaService: SocialMediaService,
-  ) {}
+    private readonly socialMediaService: SocialMediaService) {}
 
   @Post('analyze')
   @Roles('USER', 'ADMIN', 'MODERATOR', 'PREMIUM')
@@ -54,13 +53,13 @@ export class TrendMLController {
       return {
         success: true,
         data: analysis,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -78,13 +77,13 @@ export class TrendMLController {
         success: true,
         data: Object.fromEntries(results),
         analyzed: results.size,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -100,7 +99,7 @@ export class TrendMLController {
       if (!trend) {
         return {
           success: false,
-          error: 'Trend not found',
+          error: 'Trend not found'
         };
       }
 
@@ -120,13 +119,13 @@ export class TrendMLController {
       return {
         success: true,
         data: prediction,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -142,7 +141,7 @@ export class TrendMLController {
       if (!trend) {
         return {
           success: false,
-          error: 'Trend not found',
+          error: 'Trend not found'
         };
       }
 
@@ -151,13 +150,13 @@ export class TrendMLController {
       return {
         success: true,
         data: analysis,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -181,13 +180,13 @@ export class TrendMLController {
       return {
         success: true,
         data: trends,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -203,7 +202,7 @@ export class TrendMLController {
       if (!trend) {
         return {
           success: false,
-          error: 'Trend not found',
+          error: 'Trend not found'
         };
       }
 
@@ -227,13 +226,13 @@ export class TrendMLController {
       return {
         success: true,
         data: assessment,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -254,7 +253,7 @@ export class TrendMLController {
       if (!trend) {
         return {
           success: false,
-          error: 'Trend not found',
+          error: 'Trend not found'
         };
       }
 
@@ -265,15 +264,15 @@ export class TrendMLController {
         data: {
           analysis,
           recommendations,
-          trend,
+          trend
         },
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -293,7 +292,7 @@ export class TrendMLController {
       if (!trend) {
         return {
           success: false,
-          error: 'Trend not found',
+          error: 'Trend not found'
         };
       }
 
@@ -307,13 +306,13 @@ export class TrendMLController {
       return {
         success: true,
         data: metrics,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -337,13 +336,13 @@ export class TrendMLController {
       return {
         success: true,
         data: updates,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -360,13 +359,13 @@ export class TrendMLController {
       return {
         success: true,
         data: analysis,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -383,13 +382,13 @@ export class TrendMLController {
       return {
         success: true,
         data: healthCheck,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -407,13 +406,13 @@ export class TrendMLController {
       return {
         success: true,
         data: portfolioRisk,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -430,13 +429,13 @@ export class TrendMLController {
       return {
         success: true,
         data: monitoring,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -452,7 +451,7 @@ export class TrendMLController {
       if (!trend) {
         return {
           success: false,
-          error: 'Trend not found',
+          error: 'Trend not found'
         };
       }
 
@@ -464,13 +463,13 @@ export class TrendMLController {
       return {
         success: true,
         data: impact,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -490,7 +489,7 @@ export class TrendMLController {
       if (!trend) {
         return {
           success: false,
-          error: 'Trend not found',
+          error: 'Trend not found'
         };
       }
 
@@ -502,13 +501,13 @@ export class TrendMLController {
       return {
         success: true,
         data: topics,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         success: false,
         error: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     }
   }
@@ -525,7 +524,7 @@ export class TrendMLController {
       keywords: ['social', 'media', 'trend'],
       createdAt: new Date().toISOString(),
       contentRiskScore: Math.random() * 100,
-      content: 'Sample content for trend analysis',
+      content: 'Sample content for trend analysis'
     };
   }
 
@@ -539,7 +538,7 @@ export class TrendMLController {
       bidPrice: Math.random() * 100,
       askPrice: Math.random() * 100,
       midPrice: Math.random() * 100,
-      liquidity: Math.random() * 100,
+      liquidity: Math.random() * 100
     };
   }
 }

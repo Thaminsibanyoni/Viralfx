@@ -4,16 +4,16 @@ import {
   ConflictException,
   BadRequestException,
   NotFoundException,
-  Logger,
+  Logger
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import * as speakeasy from 'speakeasy';
 import { v4 as uuidv4 } from 'uuid';
-import { LoginDto, RegisterDto, RefreshTokenDto, Enable2FADto, Verify2FADto } from './dto';
-import { JwtPayload, TokenPair } from './interfaces';
+import { LoginDto, RegisterDto, RefreshTokenDto, Enable2FADto, Verify2FADto } from "./dto/index";
+import { JwtPayload, TokenPair } from "./interfaces/index";
 
 @Injectable()
 export class AuthService {
@@ -25,8 +25,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-    private config: ConfigService,
-  ) {}
+    private config: ConfigService) {}
 
   async register(dto: RegisterDto): Promise<{ user: any; tokens: TokenPair }> {
     this.logger.log(`Registration attempt for email: ${dto.email}`);
@@ -34,8 +33,8 @@ export class AuthService {
     // Check if user exists
     const existingUser = await this.prisma.user.findFirst({
       where: {
-        OR: [{ email: dto.email }, { username: dto.username }],
-      },
+        OR: [{ email: dto.email }, { username: dto.username }]
+      }
     });
 
     if (existingUser) {
@@ -62,7 +61,7 @@ export class AuthService {
           password: hashedPassword,
           firstName: dto.firstName,
           lastName: dto.lastName,
-          referralCode,
+          referralCode
         },
         select: {
           id: true,
@@ -74,8 +73,8 @@ export class AuthService {
           status: true,
           emailVerified: false,
           twoFactorEnabled: false,
-          createdAt: true,
-        },
+          createdAt: true
+        }
       });
 
       // Create welcome bonus transaction if enabled
@@ -91,14 +90,14 @@ export class AuthService {
             description: 'Welcome bonus',
             metadata: { type: 'WELCOME_BONUS' },
             balanceBefore: 0,
-            balanceAfter: bonusAmount,
-          },
+            balanceAfter: bonusAmount
+          }
         });
 
         // Update user balance
         await tx.user.update({
           where: { id: newUser.id },
-          data: { balanceUsd: bonusAmount },
+          data: { balanceUsd: bonusAmount }
         });
       }
 
@@ -115,7 +114,7 @@ export class AuthService {
 
     return {
       user,
-      tokens,
+      tokens
     };
   }
 
@@ -124,7 +123,7 @@ export class AuthService {
 
     // Find user with login attempt tracking
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email: dto.email }
     });
 
     if (!user) {
@@ -159,7 +158,7 @@ export class AuthService {
         return {
           requiresTwoFactor: true,
           userId: user.id,
-          message: 'Please enter your 2FA code',
+          message: 'Please enter your 2FA code'
         };
       }
 
@@ -167,7 +166,7 @@ export class AuthService {
         secret: user.twoFactorSecret,
         encoding: 'base32',
         token: dto.twoFactorCode,
-        window: 2, // Allow 2 time steps
+        window: 2 // Allow 2 time steps
       });
 
       if (!verified) {
@@ -185,8 +184,8 @@ export class AuthService {
       data: {
         lastLoginAt: new Date(),
         lastLoginIp: dto.ipAddress,
-        deviceFingerprint: dto.deviceFingerprint,
-      },
+        deviceFingerprint: dto.deviceFingerprint
+      }
     });
 
     // Generate tokens
@@ -203,8 +202,8 @@ export class AuthService {
         entity: 'User',
         entityId: user.id,
         ipAddress: dto.ipAddress,
-        userAgent: dto.userAgent,
-      },
+        userAgent: dto.userAgent
+      }
     });
 
     this.logger.log(`User logged in successfully: ${user.email}`);
@@ -221,9 +220,9 @@ export class AuthService {
         avatar: user.avatar,
         twoFactorEnabled: user.twoFactorEnabled,
         emailVerified: user.emailVerified,
-        balanceUsd: user.balanceUsd,
+        balanceUsd: user.balanceUsd
       },
-      tokens,
+      tokens
     };
   }
 
@@ -231,13 +230,13 @@ export class AuthService {
     try {
       // Verify refresh token
       const payload = this.jwtService.verify(dto.refreshToken, {
-        secret: this.config.get('JWT_REFRESH_SECRET'),
+        secret: this.config.get('JWT_REFRESH_SECRET')
       });
 
       // Check session
       const session = await this.prisma.session.findUnique({
         where: { refreshToken: dto.refreshToken },
-        include: { user: true },
+        include: { user: true }
       });
 
       if (!session || session.expiresAt < new Date()) {
@@ -257,8 +256,8 @@ export class AuthService {
         data: {
           token: tokens.accessToken,
           refreshToken: tokens.refreshToken,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-        },
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+        }
       });
 
       this.logger.log(`Token refreshed for user: ${session.user.email}`);
@@ -275,8 +274,8 @@ export class AuthService {
     await this.prisma.session.deleteMany({
       where: {
         userId,
-        token,
-      },
+        token
+      }
     });
 
     // Create audit log
@@ -285,8 +284,8 @@ export class AuthService {
         userId,
         action: 'LOGOUT',
         entity: 'User',
-        entityId: userId,
-      },
+        entityId: userId
+      }
     });
 
     this.logger.log(`User logged out: ${userId}`);
@@ -297,7 +296,7 @@ export class AuthService {
   async logoutAllSessions(userId: string): Promise<{ message: string }> {
     // Delete all sessions for user
     await this.prisma.session.deleteMany({
-      where: { userId },
+      where: { userId }
     });
 
     // Create audit log
@@ -306,8 +305,8 @@ export class AuthService {
         userId,
         action: 'LOGOUT_ALL',
         entity: 'User',
-        entityId: userId,
-      },
+        entityId: userId
+      }
     });
 
     this.logger.log(`All sessions terminated for user: ${userId}`);
@@ -317,7 +316,7 @@ export class AuthService {
 
   async enable2FA(userId: string, dto: Enable2FADto): Promise<any> {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId }
     });
 
     if (!user) {
@@ -334,27 +333,27 @@ export class AuthService {
     const secret = speakeasy.generateSecret({
       name: `ViralFX (${user.email})`,
       issuer: 'ViralFX',
-      length: 32,
+      length: 32
     });
 
     // Temporarily store secret (not enabling yet)
     await this.prisma.user.update({
       where: { id: userId },
       data: {
-        twoFactorSecret: secret.base32,
-      },
+        twoFactorSecret: secret.base32
+      }
     });
 
     return {
       secret: secret.base32,
       qrCode: secret.otpauth_url,
-      backupCodes: this.generateBackupCodes(),
+      backupCodes: this.generateBackupCodes()
     };
   }
 
   async verify2FA(userId: string, dto: Verify2FADto): Promise<{ message: string }> {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId }
     });
 
     if (!user || !user.twoFactorSecret) {
@@ -366,7 +365,7 @@ export class AuthService {
       secret: user.twoFactorSecret,
       encoding: 'base32',
       token: dto.token,
-      window: 2,
+      window: 2
     });
 
     if (!verified) {
@@ -377,8 +376,8 @@ export class AuthService {
     await this.prisma.user.update({
       where: { id: userId },
       data: {
-        twoFactorEnabled: true,
-      },
+        twoFactorEnabled: true
+      }
     });
 
     // Create audit log
@@ -387,8 +386,8 @@ export class AuthService {
         userId,
         action: '2FA_ENABLED',
         entity: 'User',
-        entityId: userId,
-      },
+        entityId: userId
+      }
     });
 
     this.logger.log(`2FA enabled for user: ${user.email}`);
@@ -398,7 +397,7 @@ export class AuthService {
 
   async disable2FA(userId: string, password: string): Promise<{ message: string }> {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId }
     });
 
     if (!user) {
@@ -416,8 +415,8 @@ export class AuthService {
       where: { id: userId },
       data: {
         twoFactorEnabled: false,
-        twoFactorSecret: null,
-      },
+        twoFactorSecret: null
+      }
     });
 
     // Create audit log
@@ -426,8 +425,8 @@ export class AuthService {
         userId,
         action: '2FA_DISABLED',
         entity: 'User',
-        entityId: userId,
-      },
+        entityId: userId
+      }
     });
 
     this.logger.log(`2FA disabled for user: ${user.email}`);
@@ -439,39 +438,38 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: userId,
       email,
-      iat: Math.floor(Date.now() / 1000),
+      iat: Math.floor(Date.now() / 1000)
     };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: this.config.get('JWT_SECRET'),
-        expiresIn: this.config.get('JWT_EXPIRES_IN', '15m'),
+        expiresIn: this.config.get('JWT_EXPIRES_IN', '15m')
       }),
       this.jwtService.signAsync(payload, {
         secret: this.config.get('JWT_REFRESH_SECRET'),
-        expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN', '7d'),
+        expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN', '7d')
       }),
     ]);
 
     return {
       accessToken,
       refreshToken,
-      expiresIn: this.config.get('JWT_EXPIRES_IN', '15m'),
+      expiresIn: this.config.get('JWT_EXPIRES_IN', '15m')
     };
   }
 
   private async createSession(
     userId: string,
     token: string,
-    refreshToken: string,
-  ): Promise<void> {
+    refreshToken: string): Promise<void> {
     await this.prisma.session.create({
       data: {
         userId,
         token,
         refreshToken,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+      }
     });
   }
 
@@ -498,9 +496,9 @@ export class AuthService {
         userId,
         action: 'LOGIN_FAILED',
         createdAt: {
-          gte: new Date(Date.now() - this.LOCK_TIME),
-        },
-      },
+          gte: new Date(Date.now() - this.LOCK_TIME)
+        }
+      }
     });
     return attempts;
   }
@@ -509,14 +507,14 @@ export class AuthService {
     const lastAttempt = await this.prisma.auditLog.findFirst({
       where: {
         userId,
-        action: 'LOGIN_FAILED',
+        action: 'LOGIN_FAILED'
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: 'desc'
       },
       select: {
-        createdAt: true,
-      },
+        createdAt: true
+      }
     });
     return lastAttempt?.createdAt || null;
   }
@@ -527,8 +525,8 @@ export class AuthService {
         userId,
         action: success ? 'LOGIN_SUCCESS' : 'LOGIN_FAILED',
         entity: 'User',
-        entityId: userId,
-      },
+        entityId: userId
+      }
     });
   }
 
@@ -536,8 +534,8 @@ export class AuthService {
     await this.prisma.auditLog.deleteMany({
       where: {
         userId,
-        action: 'LOGIN_FAILED',
-      },
+        action: 'LOGIN_FAILED'
+      }
     });
   }
 }

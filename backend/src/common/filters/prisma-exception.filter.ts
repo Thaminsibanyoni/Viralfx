@@ -3,7 +3,7 @@ import {
   Catch,
   ArgumentsHost,
   HttpStatus,
-  Logger,
+  Logger
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
@@ -83,7 +83,7 @@ export class PrismaExceptionFilter implements ExceptionFilter {
         details: {
           type: exception.constructor.name,
           code: exception instanceof Prisma.PrismaClientKnownRequestError ? exception.code : undefined,
-          message: exception.message,
+          message: exception.message
         }
       })
     };
@@ -91,8 +91,7 @@ export class PrismaExceptionFilter implements ExceptionFilter {
     // Log error for debugging
     this.logger.error(
       `${request.method} ${request.url} - ${status} - ${message}`,
-      exception.stack,
-    );
+      exception.stack);
 
     response
       .status(status)

@@ -1,10 +1,10 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ConfigService } from '@nestjs/config';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Redis } from 'ioredis';
 import { Queue } from 'bullmq';
-import { PrismaService } from '../../../prisma/prisma.service';
 import { BaseConnector } from '../connectors/base.connector';
 import { TwitterConnector } from '../connectors/twitter.connector';
 import { TikTokConnector } from '../connectors/tiktok.connector';
@@ -32,8 +32,7 @@ export class IngestService {
     private readonly tiktokConnector: TikTokConnector,
     private readonly instagramConnector: InstagramConnector,
     private readonly youtubeConnector: YouTubeConnector,
-    private readonly facebookConnector: FacebookConnector,
-  ) {
+    private readonly facebookConnector: FacebookConnector) {
     this.connectors = new Map<string, BaseConnector>([
       ['twitter', this.twitterConnector],
       ['tiktok', this.tiktokConnector],
@@ -52,7 +51,7 @@ export class IngestService {
       failed: 0,
       errors: [],
       duration: 0,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
 
     try {
@@ -130,7 +129,7 @@ export class IngestService {
           failed: 1,
           errors: [error.message],
           duration: 0,
-          timestamp: new Date(),
+          timestamp: new Date()
         });
       }
     });
@@ -161,7 +160,7 @@ export class IngestService {
       totalCollected,
       totalFailed,
       isAnyRunning,
-      lastUpdated: new Date(),
+      lastUpdated: new Date()
     };
   }
 
@@ -190,8 +189,8 @@ export class IngestService {
         highPrioritySamples: [],
         sentimentStats: {
           avgPriority: 0,
-          viralContentCount: 0,
-        },
+          viralContentCount: 0
+        }
       };
     }
 
@@ -210,8 +209,8 @@ export class IngestService {
       sentimentStats: {
         avgPriority: highPriorityCount > 0 ? (highPriorityCount / priorityQueueSize) * 10 : 0,
         viralContentCount: highPriorityCount,
-        processingEfficiency: priorityQueueSize > 0 ? ((priorityQueueSize - highPriorityCount) / priorityQueueSize) : 1,
-      },
+        processingEfficiency: priorityQueueSize > 0 ? ((priorityQueueSize - highPriorityCount) / priorityQueueSize) : 1
+      }
     };
   }
 
@@ -242,7 +241,7 @@ export class IngestService {
       platform,
       content,
       retryCount: 0,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
 
     const queueKey = `ingest:${platform.toLowerCase()}`;
@@ -258,8 +257,8 @@ export class IngestService {
       attempts: 3,
       backoff: {
         type: 'exponential',
-        delay: 2000,
-      },
+        delay: 2000
+      }
     };
 
     await queue.add('process', jobData, options);
@@ -309,7 +308,7 @@ export class IngestService {
       lastRun: stats.lastRun ? new Date(stats.lastRun) : null,
       nextRun: stats.nextRun ? new Date(stats.nextRun) : null,
       totalCollected: parseInt(stats.totalCollected || '0'),
-      totalFailed: parseInt(stats.totalFailed || '0'),
+      totalFailed: parseInt(stats.totalFailed || '0')
     };
   }
 

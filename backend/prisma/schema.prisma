@@ -70,6 +70,7 @@ model User {
   // Relations
   bets          Bet[]
   vpmxBets      VPMXBet[] @relation("VPMXBets")
+  orders         Order[]
   transactions  Transaction[]
   watchlists    Watchlist[]
   notifications Notification[]
@@ -82,6 +83,7 @@ model User {
   notificationPreferences NotificationPreferences?
   verificationCodes VerificationCode[]
   apiKeys       ApiKey[]
+  commissions   Commission[]
 
   // CRM Relations
   clientRecord  ClientRecord?
@@ -112,6 +114,9 @@ model User {
   @@index([isDeleted])
   @@index([deletedAt])
   @@index([isActive])
+  @@index([role, status])
+  @@index([lastLoginAt])
+  @@index([createdAt])
 }
 
 enum UserRole {
@@ -227,6 +232,7 @@ model Broker {
   brokerClients           BrokerClient[]
   bills                   BrokerBill[]
   apiKeys                 ApiKey[]
+  commissions             Commission[]
 
   // CRM Relations
   brokerAccount           BrokerAccount?
@@ -243,6 +249,8 @@ model Broker {
   @@index([tier])
   @@index([isActive])
   @@index([trustScore])
+  @@index([status, tier]) // For broker filtering
+  @@index([isActive, createdAt]) // For active broker queries
 }
 
 model BrokerClient {
@@ -276,6 +284,7 @@ model BrokerClient {
   // Relations
   broker                    Broker   @relation(fields: [brokerId], references: [id], onDelete: Cascade)
   user                      User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  commissions               Commission[]
 
   @@unique([brokerId, clientId])
   @@index([brokerId, status])
@@ -320,6 +329,303 @@ model BrokerBill {
 
   @@index([brokerId, periodStart])
   @@index([status, dueDate])
+  @@index([brokerId, status])
+  @@index([createdAt])
+}
+
+// Commission Enums
+enum CommissionType {
+  TRADING_FEE
+  DEPOSIT_FEE
+  WITHDRAWAL_FEE
+  SUBSCRIPTION_FEE
+  PLATFORM_FEE
+  REFERRAL_BONUS
+}
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  PAID
+  CANCELLED
+  DISPUTED
+}
+
+model Commission {
+  id              String         @id @default(uuid())
+  brokerId        String         @map("broker_id")
+  userId          String?        @map("user_id")
+  brokerClientId  String?        @map("broker_client_id")
+  transactionId   String?        @unique @map("transaction_id")
+  betId           String?        @unique @map("bet_id")
+  type            CommissionType
+  status          CommissionStatus @default(PENDING)
+  totalAmount     Decimal        @db.Decimal(12, 2)
+  brokerAmount    Decimal        @db.Decimal(12, 2)
+  platformAmount  Decimal        @db.Decimal(12, 2)
+  currency        String         @default("USD")
+  commissionRate  Decimal?       @db.Decimal(5, 4)
+  baseAmount      Decimal?       @db.Decimal(12, 2)
+  description     String?
+  metadata        Json?
+  paidAt          DateTime?      @map("paid_at")
+  approvedAt      DateTime?      @map("approved_at")
+  approvedBy      String?        @map("approved_by")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  // Relations
+  broker          Broker         @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  user            User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  brokerClient    BrokerClient?  @relation(fields: [brokerClientId], references: [id], onDelete: SetNull)
+  transaction     Transaction?   @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  bet             Bet?           @relation(fields: [betId], references: [id], onDelete: SetNull)
+
+  @@index([brokerId, status])
+  @@index([type, status])
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([brokerId, createdAt])
+  @@index([userId])
+  @@index([transactionId])
+  @@index([betId])
+}
+
+// ============= ADMIN NOTIFICATION SYSTEM =============
+
+model AdminNotification {
+  id              String   @id @default(uuid())
+  type            String   // 'BROADCAST', 'TARGETED', 'ALERT', 'SYSTEM'
+  title           String
+  message         String   @db.Text
+  category        String   // 'SYSTEM', 'BROKER', 'USER', 'SECURITY', 'COMPLIANCE', 'MAINTENANCE'
+  priority        String   @default("MEDIUM") // 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+  channels        Json     // ['email', 'sms', 'push', 'in_app', 'webhook']
+  status          String   @default("DRAFT") // 'DRAFT', 'SCHEDULED', 'SENT', 'FAILED', 'CANCELLED'
+  recipientCount  Int      @default(0) @map("recipient_count")
+  scheduledFor    DateTime? @map("scheduled_for")
+  sentAt          DateTime? @map("sent_at")
+  createdBy       String   @map("created_by")
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  creator         AdminUser @relation("AdminNotificationCreator", fields: [createdBy], references: [id])
+
+  @@index([status, scheduledFor])
+  @@index([category, status])
+  @@index([priority, status])
+  @@index([createdBy])
+  @@index([createdAt])
+}
+
+model NotificationTemplate {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  description     String?
+  category        String   // 'SYSTEM', 'BROKER', 'USER', 'SECURITY', 'COMPLIANCE', 'MAINTENANCE'
+  channels        Json     // ['email', 'sms', 'push', 'in_app', 'webhook']
+  subject         String?
+  content         String   @db.Text
+  variables       Json?    // Template variables definition
+  isActive        Boolean  @default(true) @map("is_active")
+  version         Int      @default(1)
+  createdBy       String   @map("created_by")
+  updatedBy       String?  @map("updated_by")
+  deletedBy       String?  @map("deleted_by")
+  deletedAt       DateTime? @map("deleted_at")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  creator         AdminUser @relation("NotificationTemplateCreator", fields: [createdBy], references: [id])
+  updater         AdminUser? @relation("NotificationTemplateUpdater", fields: [updatedBy], references: [id])
+  deleter         AdminUser? @relation("NotificationTemplateDeleter", fields: [deletedBy], references: [id])
+  versions        NotificationTemplateVersion[]
+
+  @@index([category, isActive])
+  @@index([isActive])
+  @@index([version])
+  @@index([createdBy])
+  @@index([deletedAt])
+}
+
+model NotificationTemplateVersion {
+  id              String   @id @default(uuid())
+  templateId      String   @map("template_id")
+  name            String
+  subject         String?
+  content         String   @db.Text
+  variables       Json?    // Template variables definition
+  version         Int
+  createdBy       String   @map("created_by")
+  createdAt       DateTime @default(now())
+
+  // Relations
+  template        NotificationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  creator         AdminUser @relation("NotificationTemplateVersionCreator", fields: [createdBy], references: [id])
+
+  @@index([templateId, version])
+  @@index([createdBy])
+}
+
+model ProviderHealth {
+  id                String   @id @default(uuid())
+  providerId        String   @map("provider_id")
+  providerType      String   @map("provider_type") // 'email', 'sms', 'push', 'in_app'
+  status            String   // 'healthy', 'degraded', 'unhealthy'
+  responseTime      Int      @map("response_time") // milliseconds
+  lastChecked       DateTime @map("last_checked")
+  successRate       Float    @map("success_rate") // 0-100
+  errorRate         Float    @map("error_rate") // 0-100
+  lastError         String?  @map("last_error")
+  uptime            Float    // percentage
+  consecutiveFailures Int @map("consecutive_failures")
+  circuitBreakerState String @map("circuit_breaker_state") // 'closed', 'open', 'half-open'
+
+  // Metrics JSON
+  metrics           Json     // { totalRequests, successfulRequests, failedRequests, avgResponseTime, p95ResponseTime, p99ResponseTime }
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt() @map("updated_at")
+
+  @@unique([providerId])
+  @@index([providerType, status])
+  @@index([lastChecked])
+  @@map("provider_health")
+}
+
+model AdminUser {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  firstName         String   @map("first_name")
+  lastName          String   @map("last_name")
+  role              String   @default("ADMIN") // 'SUPER_ADMIN', 'ADMIN', 'MODERATOR', 'ANALYST', 'SUPPORT'
+  department        String?  // 'IT', 'COMPLIANCE', 'SUPPORT', 'MARKETING', 'FINANCE'
+  status            String   @default("ACTIVE") // 'ACTIVE', 'INACTIVE', 'SUSPENDED'
+  isSuperAdmin      Boolean  @default(false) @map("is_super_admin")
+  password          String
+  twoFactorEnabled  Boolean  @default(false) @map("two_factor_enabled")
+  twoFactorSecret   String?  @map("two_factor_secret")
+  lastLoginAt       DateTime? @map("last_login_at")
+  lastLoginIp       String?  @map("last_login_ip")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  createdNotifications     AdminNotification[] @relation("AdminNotificationCreator")
+  createdTemplates         NotificationTemplate[] @relation("NotificationTemplateCreator")
+  updatedTemplates         NotificationTemplate[] @relation("NotificationTemplateUpdater")
+  deletedTemplates         NotificationTemplate[] @relation("NotificationTemplateDeleter")
+  createdTemplateVersions  NotificationTemplateVersion[] @relation("NotificationTemplateVersionCreator")
+
+  @@index([email])
+  @@index([role, status])
+  @@index([department])
+  @@index([status])
+  @@index([lastLoginAt])
+}
+
+// ============= VTS (VIRAL TRADING SYMBOL) MANAGEMENT =============
+
+model VtsAlias {
+  id          String   @id @default(uuid())
+  symbol      String   // VTS symbol (e.g., $TSLA)
+  alias       String   // Alternative name/alias
+  topicId     String   @map("topic_id")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String   @map("created_by")
+  updatedBy   String?  @map("updated_by")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  topic       Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([symbol, alias])
+  @@index([topicId])
+  @@index([symbol])
+  @@index([isActive])
+}
+
+model VtsDispute {
+  id            String   @id @default(uuid())
+  topicId       String   @map("topic_id")
+  type          String   // 'DUPLICATE', 'INACCURATE', 'MANIPULATION', 'SPAM'
+  status        String   @default("OPEN") // 'OPEN', 'UNDER_REVIEW', 'RESOLVED', 'REJECTED'
+  description   String   @db.Text
+  evidence      Json?    // Supporting evidence files/data
+  resolution    String?  @db.Text // Resolution details
+  reportedBy    String   @map("reported_by")
+  resolvedBy    String?  @map("resolved_by")
+  resolvedAt    DateTime? @map("resolved_at")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  topic         Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([topicId, status])
+  @@index([type, status])
+  @@index([reportedBy])
+  @@index([status, createdAt])
+}
+
+model VtsVersionHistory {
+  id          String   @id @default(uuid())
+  topicId     String   @map("topic_id")
+  version     Int
+  data        Json     // Complete topic data snapshot
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now())
+
+  // Relations
+  topic       Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([topicId, version])
+  @@index([createdBy])
+  @@index([createdAt])
+}
+
+model VtsMergeHistory {
+  id          String   @id @default(uuid())
+  sourceId    String   @map("source_id") // Topic ID that was merged
+  targetId    String   @map("target_id") // Topic ID that received the merge
+  mergedBy    String   @map("merged_by")
+  metadata    Json?    // Merge details, reasons, etc.
+  createdAt   DateTime @default(now())
+
+  @@index([sourceId])
+  @@index([targetId])
+  @@index([mergedBy])
+  @@index([createdAt])
+}
+
+model VtsSyncHistory {
+  id          String   @id @default(uuid())
+  status      String   // 'SUCCESS', 'FAILED', 'PARTIAL'
+  metadata    Json?    // Sync details, error messages, etc.
+  createdAt   DateTime @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SystemError {
+  id          String   @id @default(uuid())
+  component   String   // 'VTS', 'ORACLE', 'ANALYTICS', 'API', 'DATABASE'
+  message     String   @db.Text
+  resolved    Boolean  @default(false)
+  resolvedBy  String?  @map("resolved_by")
+  resolvedAt  DateTime? @map("resolved_at")
+  metadata    Json?    // Error details, stack trace, etc.
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([component, resolved])
+  @@index([resolved, createdAt])
+  @@index([createdAt])
 }
 
 model Session {
@@ -347,6 +653,13 @@ model Topic {
   category      String
   description   String?
 
+  // VTS (Viral Trading Symbol) fields
+  symbol        String?  // VTS symbol (e.g., $TSLA)
+  title         String?  // Alternative title for display
+  alias         String?  // Short alias/abbreviation
+  region        String?  // Geographic region specificity
+  version       Int      @default(1) // Version for change tracking
+
   // Canonical representation
   canonical     Json     // { hashtags: [], keywords: [], entities: [] }
 
@@ -357,6 +670,7 @@ model Topic {
   // Metadata
   totalVolume   Decimal  @default(0) @db.Decimal(12, 2)
   totalBets     Int      @default(0)
+  metadata      Json?    // Extended metadata for VTS
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -367,9 +681,17 @@ model Topic {
   markets       Market[]
   watchlists    Watchlist[]
 
+  // VTS Relations
+  vtsAliases    VtsAlias[]
+  vtsDisputes   VtsDispute[]
+  vtsVersions   VtsVersionHistory[]
+
   @@index([slug])
   @@index([category])
   @@index([status])
+  @@index([symbol])
+  @@index([region])
+  @@index([version])
 }
 
 enum TopicStatus {
@@ -506,6 +828,7 @@ model DeceptionSnapshot {
 model ViralIndexSnapshot {
   id              String   @id @default(uuid())
   topicId         String
+  symbolId        String?
 
   // Core metrics
   viralIndex      Float    // 0-100 composite score
@@ -529,12 +852,61 @@ model ViralIndexSnapshot {
   ts              DateTime @default(now())
 
   topic           Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  symbol          Symbol?  @relation(fields: [symbolId], references: [id], onDelete: SetNull)
 
   @@index([topicId, ts])
+  @@index([symbolId, ts])
   @@index([viralIndex])
 }
 
 // ============= MARKETS & TRADING =============
+
+// Trading symbol for market aggregation
+model Symbol {
+  id          String   @id @default(uuid())
+  symbol      String   @unique
+  name        String
+  type        SymbolType @default(CRYPTO)
+  status      SymbolStatus @default(ACTIVE)
+  baseCurrency String?
+  quoteCurrency String?
+  description String?
+  icon        String?
+  isActive    Boolean  @default(true)
+
+  // Market data
+  currentPrice Decimal? @db.Decimal(18, 8)
+  priceChange24h Decimal? @db.Decimal(18, 8)
+  volume24h   Decimal? @db.Decimal(18, 8)
+  marketCap   Decimal? @db.Decimal(18, 8)
+
+  // Metadata
+  rank        Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  prices      Price[]
+  viralIndexSnapshots ViralIndexSnapshot[]
+
+  @@index([type, status])
+  @@index([isActive])
+  @@map("symbols")
+}
+
+model Price {
+  id          String   @id @default(uuid())
+  symbolId    String
+  price       Decimal  @db.Decimal(18, 8)
+  volume      Decimal? @db.Decimal(18, 8)
+  timestamp   DateTime @default(now())
+
+  symbol      Symbol   @relation(fields: [symbolId], references: [id], onDelete: Cascade)
+
+  @@index([symbolId, timestamp])
+  @@index([timestamp])
+  @@map("prices")
+}
 
 model Market {
   id            String   @id @default(uuid())
@@ -597,6 +969,22 @@ enum MarketStatus {
   CANCELLED
 }
 
+enum SymbolType {
+  CRYPTO
+  STOCK
+  FOREX
+  COMMODITY
+  INDEX
+  CUSTOM
+}
+
+enum SymbolStatus {
+  ACTIVE
+  INACTIVE
+  DELISTED
+  MAINTENANCE
+}
+
 model Bet {
   id            String   @id @default(uuid())
   userId        String
@@ -622,10 +1010,13 @@ model Bet {
   // Relations
   user          User     @relation(fields: [userId], references: [id])
   market        Market   @relation(fields: [marketId], references: [id])
+  commission    Commission?
 
   @@index([userId])
   @@index([marketId])
   @@index([status])
+  @@index([userId, status]) // For user bet history
+  @@index([marketId, status]) // For market bet queries
 }
 
 enum BetStatus {
@@ -635,6 +1026,72 @@ enum BetStatus {
   LOST
   REFUNDED
   CANCELLED
+}
+
+// ============= ORDER MATCHING =============
+
+model Order {
+  id               String      @id @default(uuid())
+  userId           String
+  trendId          String?
+  symbol            String
+  side              OrderSide
+  orderType         OrderType
+  price             Decimal     @db.Decimal(12, 2)
+  stopPrice         Decimal?    @db.Decimal(12, 2)
+  quantity          Decimal     @db.Decimal(12, 2)
+  timeInForce       String      @default("GTC") // Good Till Cancelled
+  clientOrderId    String?
+  filledQuantity    Decimal     @default(0) @db.Decimal(12, 2)
+  remainingQuantity Decimal     @db.Decimal(12, 2)
+  averagePrice      Decimal?    @db.Decimal(12, 2)
+  commission         Decimal     @default(0) @db.Decimal(12, 2)
+  fee               Decimal     @default(0) @db.Decimal(12, 2)
+  status            OrderStatus @default(PENDING)
+  orderReason       String?
+  source            String      @default("API") // API, WEB, WEB_SOCKET
+  brokerId          String?
+  metadata          Json?       // { originalOrderType, notes, etc. }
+  fills             Json?       // Array of fill objects
+
+  // Timestamps
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  filledAt          DateTime?
+  cancelledAt       DateTime?
+
+  // Relations
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([symbol])
+  @@index([status])
+  @@index([userId, status])
+  @@index([symbol, status])
+  @@index([createdAt])
+  @@index([status, createdAt])
+}
+
+enum OrderType {
+  MARKET
+  LIMIT
+  STOP
+  STOP_LIMIT
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderStatus {
+  PENDING
+  OPEN
+  FILLED
+  PARTIALLY_FILLED
+  CANCELLED
+  REJECTED
+  ARCHIVED
 }
 
 // ============= WALLET & TRANSACTIONS =============
@@ -669,10 +1126,15 @@ model Transaction {
 
   // Relations
   user          User     @relation(fields: [userId], references: [id])
+  commission    Commission?
 
   @@index([userId])
   @@index([type])
   @@index([status])
+  @@index([type, status])
+  @@index([createdAt])
+  @@index([userId, status]) // For user transaction history
+  @@index([type, status, createdAt]) // For transaction analytics
 }
 
 enum TransactionType {
@@ -990,6 +1452,58 @@ model SystemMetric {
   ts          DateTime @default(now())
 
   @@index([metricName, ts])
+}
+
+// Monitoring Alert Enums
+enum AlertType {
+  SYSTEM
+  USER_SECURITY
+  BROKER_COMPLIANCE
+  PAYMENT
+  ORACLE
+  API
+  DATABASE
+  NETWORK
+  PERFORMANCE
+  SECURITY
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  IGNORED
+}
+
+// System Monitoring Alerts
+model MonitoringAlert {
+  id        String       @id @default(uuid())
+  type      AlertType
+  severity  AlertSeverity
+  status    AlertStatus  @default(OPEN)
+  message   String
+  component String
+  metadata  Json?
+  resolvedAt DateTime?
+  resolvedBy String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Indexes for query optimization
+  @@index([status])
+  @@index([severity])
+  @@index([type])
+  @@index([status, severity])
+  @@index([createdAt])
 }
 
 // ============= ORACLE NETWORK =============
@@ -2054,6 +2568,7 @@ model Invoice {
   @@index([type, status])
   @@index([dueDate, status])
   @@index([invoiceNumber])
+  @@index([createdAt]) // For time-based queries
 }
 
 model InvoiceItem {
@@ -2195,10 +2710,26 @@ model StaffMember {
   role              StaffRole @relation(fields: [roleId], references: [id])
   reportsTo         StaffMember? @relation("StaffReporting", fields: [reportsToId], references: [id])
   directReports     StaffMember[] @relation("StaffReporting")
+  relationshipManagers RelationshipManager[]
 
   @@index([userId])
   @@index([roleId, isActive])
   @@index([department, isActive])
+}
+
+model RelationshipManager {
+  id              String   @id @default(uuid())
+  userId          String?
+  staffMemberId   String?
+  currentLeads    Int      @default(0)
+  maxLeads         Int      @default(10)
+  isActive         Boolean  @default(true)
+
+  staffMember    StaffMember? @relation(fields: [staffMemberId], references: [id])
+
+  @@index([userId])
+  @@index([staffMemberId])
+  @@index([isActive])
 }
 
 // ============= VPMX - VIRAL POPULARITY MARKET INDEX =============
@@ -2280,6 +2811,9 @@ model VpmxHistory {
   @@index([vtsSymbol, timestamp])
   @@index([timestamp])
   @@index([value])
+  @@index([timestamp, value])
+  @@index([vtsSymbol, value])
+  @@index([change24h])
 }
 
 model VpmxPrediction {
@@ -2417,6 +2951,8 @@ model VpmxBet {
   @@index([userId, status])
   @@index([marketId, status])
   @@index([createdAt])
+  @@index([status, settledAt])
+  @@index([marketId, userId])
 }
 
 model VpmxExposure {
@@ -2502,6 +3038,8 @@ model VpmxAnomaly {
   @@index([vtsSymbol, status])
   @@index([severity])
   @@index([detectedAt])
+  @@index([vtsSymbol, severity, status])
+  @@index([severity, status])
 }
 
 model VpmxBreakoutEvent {
@@ -2533,6 +3071,8 @@ model VpmxBreakoutEvent {
   @@index([vtsSymbol, status])
   @@index([breakoutType])
   @@index([detectedAt])
+  @@index([vtsSymbol, breakoutType, status])
+  @@index([breakoutType, status])
 }
 
 model VpmxInfluencerImpact {
@@ -2562,6 +3102,9 @@ model VpmxInfluencerImpact {
   @@index([vtsSymbol, platform])
   @@index([handle])
   @@index([status])
+  @@index([platform, status])
+  @@index([influenceScore])
+  @@index([vtsSymbol, influenceScore])
 }
 
 model VpmxWeightConfig {

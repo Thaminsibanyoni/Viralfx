@@ -1,13 +1,12 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
-import { RedisService } from '../../redis/redis.service';
+import { RedisService } from "../../redis/redis.service";
 import { HttpService } from '@nestjs/axios';
-import { User } from '../../users/entities/user.entity';
-import { UserNotificationPreference } from '../../users/entities/user-notification-preference.entity';
-import { NotificationsService } from '../../notifications/services/notification.service';
+import { User } from "../../../common/enums/user-role.enum";
+// UserNotificationPreference entity removed;
+import { NotificationService } from "../../notifications/services/notification.service";
 
 interface BatchNotificationData {
   userIds: string[];
@@ -19,21 +18,31 @@ interface BatchNotificationData {
 }
 
 @Processor('crm-notifications')
-export class CrmNotificationsProcessor {
+export class CrmNotificationsProcessor extends WorkerHost {
   private readonly logger = new Logger(CrmNotificationsProcessor.name);
 
   constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    @InjectRepository(UserNotificationPreference)
-    private notificationPreferenceRepository: Repository<UserNotificationPreference>,
-    private redisService: RedisService,
+        private redisService: RedisService,
     private httpService: HttpService,
-    private notificationsService: NotificationsService,
-  ) {}
+    private notificationsService: NotificationService) {
+    super();
+}
 
-  @Process('send-batch')
-  async handleBatchNotifications(job: Job<BatchNotificationData>) {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'send-batch':
+        return this.handleBatchNotifications(job);
+      case 'send-digest':
+        return this.handleDigestNotifications(job);
+      case 'process-escalation':
+        return this.handleEscalationNotifications(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleBatchNotifications(job: Job<BatchNotificationData>) {
     const { userIds, type, channels, data, template, priority = 'NORMAL' } = job.data;
 
     this.logger.log(`Processing batch notification: ${type} for ${userIds.length} users`);
@@ -41,7 +50,7 @@ export class CrmNotificationsProcessor {
     const results = {
       successful: [],
       failed: [],
-      skipped: [],
+      skipped: []
     };
 
     // Process in batches to avoid overwhelming services
@@ -72,8 +81,7 @@ export class CrmNotificationsProcessor {
     return results;
   }
 
-  @Process('send-digest')
-  async handleDigestNotifications(job: Job<{
+  private async handleDigestNotifications(job: Job<{
     type: 'DAILY' | 'WEEKLY' | 'MONTHLY';
     userId?: string;
     category?: string;
@@ -86,11 +94,11 @@ export class CrmNotificationsProcessor {
       let targetUsers: User[];
 
       if (userId) {
-        const user = await this.userRepository.findOne({ where: { id: userId } });
+        const user = await this.prisma.user.findFirst({ where: { id: userId } });
         targetUsers = user ? [user] : [];
       } else {
         // Get users who have opted into digest notifications
-        const query = this.userRepository.createQueryBuilder('user')
+        const query = this.prisma.createQueryBuilder('user')
           .leftJoinAndSelect('user.notificationPreferences', 'preferences')
           .where('user.isActive = :isActive', { isActive: true })
           .andWhere('preferences.enableDigest = :enableDigest', { enableDigest: true });
@@ -111,7 +119,7 @@ export class CrmNotificationsProcessor {
       const results = {
         sent: 0,
         failed: 0,
-        skipped: 0,
+        skipped: 0
       };
 
       for (const user of targetUsers) {
@@ -128,7 +136,7 @@ export class CrmNotificationsProcessor {
             type: `digest_${type.toLowerCase()}`,
             channels: ['email'],
             data: digestData,
-            template: `digest-${type.toLowerCase()}`,
+            template: `digest-${type.toLowerCase()}`
           });
 
           results.sent++;
@@ -147,8 +155,7 @@ export class CrmNotificationsProcessor {
     }
   }
 
-  @Process('process-escalation')
-  async handleEscalationNotifications(job: Job<{
+  private async handleEscalationNotifications(job: Job<{
     entityType: 'TICKET' | 'PAYMENT' | 'DOCUMENT' | 'CLIENT';
     entityId: string;
     escalationLevel: number;
@@ -169,12 +176,12 @@ export class CrmNotificationsProcessor {
         escalationLevel,
         reason,
         timestamp: new Date().toISOString(),
-        escalatedBy: previousAssigneeId ? 'previous_assignee' : 'system',
+        escalatedBy: previousAssigneeId ? 'previous_assignee' : 'system'
       };
 
       const results = {
         notified: [],
-        failed: [],
+        failed: []
       };
 
       for (const target of targets) {
@@ -184,7 +191,7 @@ export class CrmNotificationsProcessor {
             type: 'escalation',
             channels: target.notificationChannels || ['email', 'push'],
             data: notificationData,
-            priority: escalationLevel > 3 ? 'URGENT' : 'HIGH',
+            priority: escalationLevel > 3 ? 'URGENT' : 'HIGH'
           });
 
           results.notified.push(target.id);
@@ -204,8 +211,8 @@ export class CrmNotificationsProcessor {
             data: {
               ...notificationData,
               handoffReason: reason,
-              newLevel: escalationLevel,
-            },
+              newLevel: escalationLevel
+            }
           });
         } catch (error) {
           this.logger.error(`Failed to notify previous assignee ${previousAssigneeId}:`, error);
@@ -229,9 +236,9 @@ export class CrmNotificationsProcessor {
     const results = { successful: [], failed: [], skipped: [] };
 
     // Get user preferences in bulk
-    const users = await this.userRepository.find({
+    const users = await this.prisma.user.findMany({
       where: { id: In(userIds) },
-      relations: ['notificationPreferences'],
+      relations: ['notificationPreferences']
     });
 
     const userPreferencesMap = new Map();
@@ -264,7 +271,7 @@ export class CrmNotificationsProcessor {
           channels: allowedChannels,
           data: notificationData.data,
           template: notificationData.template,
-          priority: notificationData.priority as any,
+          priority: notificationData.priority as any
         });
 
         results.successful.push(userId);
@@ -312,7 +319,7 @@ export class CrmNotificationsProcessor {
     const timeRanges = {
       DAILY: 24,
       WEEKLY: 24 * 7,
-      MONTHLY: 24 * 30,
+      MONTHLY: 24 * 30
     };
 
     const hoursBack = timeRanges[type] || 24;
@@ -342,15 +349,15 @@ export class CrmNotificationsProcessor {
     return {
       user: {
         id: user.id,
-        name: user.firstName ? `${user.firstName} ${user.lastName}` : user.email,
+        name: user.firstName ? `${user.firstName} ${user.lastName}` : user.email
       },
       type,
       period: {
         start: since.toISOString(),
-        end: new Date().toISOString(),
+        end: new Date().toISOString()
       },
       items: items.slice(0, 50), // Limit to 50 items
-      totalCount: items.length,
+      totalCount: items.length
     };
   }
 
@@ -361,7 +368,7 @@ export class CrmNotificationsProcessor {
         type: 'CLIENT_ADDED',
         message: 'New client registered',
         timestamp: new Date().toISOString(),
-        link: '/clients/new',
+        link: '/clients/new'
       },
     ];
   }
@@ -373,7 +380,7 @@ export class CrmNotificationsProcessor {
         type: 'TICKET_UPDATED',
         message: 'Ticket status changed',
         timestamp: new Date().toISOString(),
-        link: '/tickets/123',
+        link: '/tickets/123'
       },
     ];
   }
@@ -385,7 +392,7 @@ export class CrmNotificationsProcessor {
         type: 'PAYMENT_RECEIVED',
         message: 'Payment received',
         timestamp: new Date().toISOString(),
-        link: '/payments/456',
+        link: '/payments/456'
       },
     ];
   }
@@ -397,16 +404,16 @@ export class CrmNotificationsProcessor {
       2: ['SUPPORT_MANAGER'],
       3: ['HEAD_OF_SUPPORT'],
       4: ['COMPLIANCE_MANAGER'],
-      5: ['CTO', 'CEO'],
+      5: ['CTO', 'CEO']
     };
 
     const roles = roleMapping[level] || ['TEAM_LEAD'];
 
-    return await this.userRepository.find({
+    return await this.prisma.user.findMany({
       where: {
         role: In(roles),
-        isActive: true,
-      },
+        isActive: true
+      }
     });
   }
 
@@ -414,17 +421,17 @@ export class CrmNotificationsProcessor {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onActive(job: Job) {
     this.logger.log(`Processing notification job ${job.id} of type ${job.name}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job, result: any) {
     this.logger.log(`Completed notification job ${job.id} of type ${job.name}. Result:`, result);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job, error: Error) {
     this.logger.error(`Failed notification job ${job.id} of type ${job.name}:`, error);
   }

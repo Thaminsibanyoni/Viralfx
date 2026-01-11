@@ -1,12 +1,12 @@
 import { Controller, Post, Get, Body, Headers, Ip, Req, Res, HttpStatus, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ApiExcludeController, ApiOperation } from '@nestjs/swagger';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 import { DepositService } from '../services/deposit.service';
 import { WithdrawalService } from '../services/withdrawal.service';
-import { PaymentGatewayService } from '../../payment/services/payment-gateway.service';
+import { PaymentGatewayService } from "../../payment/services/payment-gateway.service";
 import { Redis } from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 
@@ -62,8 +62,7 @@ export class PaymentWebhookController {
     private readonly depositQueue: Queue,
     @InjectQueue('wallet-withdrawal')
     private readonly withdrawalQueue: Queue,
-    @InjectRedis() private readonly redis: Redis,
-  ) {}
+    @InjectRedis() private readonly redis: Redis) {}
 
   @Post('paystack')
   @ApiOperation({ summary: 'Paystack webhook handler' })
@@ -73,8 +72,7 @@ export class PaymentWebhookController {
     @Headers('user-agent') userAgent: string,
     @Ip() ip: string,
     @Req() req: Request,
-    @Res() res: Response,
-  ): Promise<Response> {
+    @Res() res: Response): Promise<Response> {
     try {
       // Validate IP whitelist
       if (!this.isAllowedIp(ip)) {
@@ -97,7 +95,7 @@ export class PaymentWebhookController {
         ...webhookData,
         gateway: 'paystack',
         ip,
-        userAgent,
+        userAgent
       });
 
       // Return immediately to prevent retries
@@ -116,8 +114,7 @@ export class PaymentWebhookController {
     @Headers('user-agent') userAgent: string,
     @Ip() ip: string,
     @Req() req: Request,
-    @Res() res: Response,
-  ): Promise<Response> {
+    @Res() res: Response): Promise<Response> {
     try {
       // Validate IP whitelist (PayFast has multiple IPs, implement proper validation)
       if (!this.isAllowedIp(ip)) {
@@ -146,8 +143,8 @@ export class PaymentWebhookController {
           paymentId: webhookData.pf_payment_id,
           fee: webhookData.amount_fee,
           netAmount: webhookData.amount_net,
-          customData: webhookData.custom_str2,
-        },
+          customData: webhookData.custom_str2
+        }
       };
 
       // Process webhook asynchronously
@@ -156,7 +153,7 @@ export class PaymentWebhookController {
         gateway: 'payfast',
         ip,
         userAgent,
-        originalData: webhookData,
+        originalData: webhookData
       });
 
       // PayFast expects specific response format
@@ -174,8 +171,7 @@ export class PaymentWebhookController {
     @Headers('user-agent') userAgent: string,
     @Ip() ip: string,
     @Req() req: Request,
-    @Res() res: Response,
-  ): Promise<Response> {
+    @Res() res: Response): Promise<Response> {
     try {
       // Validate IP whitelist
       if (!this.isAllowedIp(ip)) {
@@ -201,8 +197,8 @@ export class PaymentWebhookController {
         currency: webhookData.Currency,
         status: webhookData.TransactionStatus === 'Complete' ? 'successful' : 'failed',
         metadata: {
-          orderId: webhookData.OrderId,
-        },
+          orderId: webhookData.OrderId
+        }
       };
 
       // Process webhook asynchronously
@@ -211,7 +207,7 @@ export class PaymentWebhookController {
         gateway: 'ozow',
         ip,
         userAgent,
-        originalData: webhookData,
+        originalData: webhookData
       });
 
       return res.status(HttpStatus.OK).json({ received: true });
@@ -226,7 +222,7 @@ export class PaymentWebhookController {
   async healthCheck(@Res() res: Response): Promise<Response> {
     return res.status(HttpStatus.OK).json({
       status: 'healthy',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
   }
 
@@ -247,7 +243,7 @@ export class PaymentWebhookController {
         gateway,
         ip,
         timestamp: new Date().toISOString(),
-        data,
+        data
       }));
     } catch (error) {
       this.logger.error('Failed to log webhook:', error.stack || error.message);

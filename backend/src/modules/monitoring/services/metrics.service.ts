@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, MoreThan, LessThan } from 'typeorm';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
-
-import { SystemMetric } from '../entities/metric.entity';
 
 interface MetricQuery {
   name?: string;
@@ -21,13 +18,21 @@ interface MetricAggregation {
   count: number;
 }
 
+interface SystemMetric {
+  id: string;
+  name: string;
+  value: number;
+  unit?: string;
+  timestamp: Date;
+  tags?: Record<string, any>;
+}
+
 @Injectable()
 export class MetricsService {
   private readonly logger = new Logger(MetricsService.name);
 
   constructor(
-    @InjectRepository(SystemMetric)
-    private readonly metricRepository: Repository<SystemMetric>,
+        private prisma: PrismaService,
     @InjectRedis() private readonly redis: Redis
   ) {}
 
@@ -36,12 +41,15 @@ export class MetricsService {
    */
   async recordMetric(metric: Partial<SystemMetric>): Promise<SystemMetric> {
     try {
-      const newMetric = this.metricRepository.create({
-        ...metric,
-        timestamp: metric.timestamp || new Date()
+      const savedMetric = await this.prisma.systemMetric.create({
+        data: {
+          name: metric.name,
+          value: metric.value,
+          unit: metric.unit,
+          timestamp: metric.timestamp || new Date(),
+          tags: metric.tags || {},
+        }
       });
-
-      const savedMetric = await this.metricRepository.save(newMetric);
 
       // Cache recent metrics in Redis for quick access
       const cacheKey = `metric:${metric.name}:latest`;
@@ -64,14 +72,15 @@ export class MetricsService {
    */
   async getRecentMetrics(hours: number = 24): Promise<SystemMetric[]> {
     const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
-    const endTime = new Date();
 
-    return await this.metricRepository.find({
+    return await this.prisma.systemMetric.findMany({
       where: {
-        timestamp: Between(startTime, endTime)
+        timestamp: {
+          gte: startTime
+        }
       },
-      order: {
-        timestamp: 'DESC'
+      orderBy: {
+        timestamp: 'desc'
       },
       take: 1000 // Limit to prevent excessive data
     });
@@ -82,64 +91,53 @@ export class MetricsService {
    */
   async queryMetrics(query: MetricQuery): Promise<SystemMetric[]> {
     try {
-      const queryBuilder = this.metricRepository.createQueryBuilder('metric');
+      const where: any = {};
 
       // Apply name filter
       if (query.name) {
-        queryBuilder.andWhere('metric.name = :name', { name: query.name });
+        where.name = query.name;
       }
 
       // Apply time range filter
       if (query.startTime && query.endTime) {
-        queryBuilder.andWhere('metric.timestamp BETWEEN :startTime AND :endTime', {
-          startTime: query.startTime,
-          endTime: query.endTime
-        });
+        where.timestamp = {
+          gte: query.startTime,
+          lte: query.endTime
+        };
       } else if (query.startTime) {
-        queryBuilder.andWhere('metric.timestamp >= :startTime', {
-          startTime: query.startTime
-        });
+        where.timestamp = {
+          gte: query.startTime
+        };
       } else if (query.endTime) {
-        queryBuilder.andWhere('metric.timestamp <= :endTime', {
-          endTime: query.endTime
-        });
+        where.timestamp = {
+          lte: query.endTime
+        };
       }
 
-      // Apply tags filter (using JSON operations)
+      // Note: Tags filtering with JSON operations is more complex in Prisma
+      // For simple tag filtering, we'll apply it at the application level
+      // or use raw queries for complex JSON filtering
+
+      const results = await this.prisma.systemMetric.findMany({
+        where,
+        orderBy: {
+          timestamp: 'desc'
+        },
+        take: 1000
+      });
+
+      // Apply tags filter at application level
+      let filteredResults = results;
       if (query.tags) {
-        Object.entries(query.tags).forEach(([key, value]) => {
-          queryBuilder.andWhere(`metric.tags ->> :${key} = :${key}Value`, {
-            [key]: key,
-            [`${key}Value`]: value
+        filteredResults = results.filter(metric => {
+          if (!metric.tags) return false;
+          return Object.entries(query.tags).every(([key, value]) => {
+            return metric.tags && metric.tags[key] === value;
           });
         });
       }
 
-      // Apply aggregation
-      if (query.aggregation) {
-        queryBuilder.select([
-          'DATE_TRUNC(\'hour\', metric.timestamp) as timestamp',
-          `${query.aggregation}(metric.value) as value`,
-          'COUNT(*) as count'
-        ]);
-        queryBuilder.groupBy('DATE_TRUNC(\'hour\', metric.timestamp)');
-      }
-
-      queryBuilder.orderBy('metric.timestamp', 'DESC');
-
-      const results = await queryBuilder.getMany();
-
-      // Transform results for aggregation queries
-      if (query.aggregation) {
-        return results.map(result => ({
-          ...result,
-          timestamp: new Date(result.timestamp),
-          value: parseFloat(result.value),
-          count: parseInt(result.count)
-        })) as SystemMetric[];
-      }
-
-      return results;
+      return filteredResults as SystemMetric[];
 
     } catch (error) {
       this.logger.error('Failed to query metrics:', error);
@@ -157,33 +155,64 @@ export class MetricsService {
     interval: string = '1h'
   ): Promise<MetricAggregation[]> {
     try {
-      const queryBuilder = this.metricRepository.createQueryBuilder('metric');
+      // Get all metrics in the time range
+      const metrics = await this.prisma.systemMetric.findMany({
+        where: {
+          name: metricName,
+          timestamp: {
+            gte: startTime,
+            lte: endTime
+          }
+        },
+        orderBy: {
+          timestamp: 'asc'
+        }
+      });
 
-      queryBuilder
-        .select([
-          `DATE_TRUNC('${interval}', metric.timestamp) as timestamp`,
-          'AVG(metric.value) as value',
-          'COUNT(*) as count'
-        ])
-        .where('metric.name = :name', { name: metricName })
-        .andWhere('metric.timestamp BETWEEN :startTime AND :endTime', {
-          startTime,
-          endTime
-        })
-        .groupBy(`DATE_TRUNC('${interval}', metric.timestamp)`)
-        .orderBy('timestamp', 'ASC');
+      // Group by time interval and calculate aggregations
+      const intervalMs = this.parseIntervalToMs(interval);
+      const grouped = new Map<string, { sum: number; count: number; timestamps: number[] }>();
 
-      const results = await queryBuilder.getRawMany();
+      for (const metric of metrics) {
+        const timestamp = metric.timestamp.getTime();
+        const bucketStart = Math.floor(timestamp / intervalMs) * intervalMs;
+        const bucketKey = bucketStart.toString();
 
-      return results.map(result => ({
-        timestamp: new Date(result.timestamp),
-        value: parseFloat(result.value),
-        count: parseInt(result.count)
+        if (!grouped.has(bucketKey)) {
+          grouped.set(bucketKey, { sum: 0, count: 0, timestamps: [] });
+        }
+
+        const bucket = grouped.get(bucketKey)!;
+        bucket.sum += metric.value;
+        bucket.count += 1;
+        bucket.timestamps.push(timestamp);
+      }
+
+      // Convert to array of aggregations
+      return Array.from(grouped.entries()).map(([bucketKey, data]) => ({
+        timestamp: new Date(parseInt(bucketKey)),
+        value: data.sum / data.count,
+        count: data.count
       }));
 
     } catch (error) {
       this.logger.error('Failed to get aggregated metrics:', error);
       throw error;
+    }
+  }
+
+  private parseIntervalToMs(interval: string): number {
+    const match = interval.match(/(\d+)([hms])/);
+    if (!match) return 3600000; // Default to 1 hour
+
+    const value = parseInt(match[1]);
+    const unit = match[2];
+
+    switch (unit) {
+      case 's': return value * 1000;
+      case 'm': return value * 60000;
+      case 'h': return value * 3600000;
+      default: return 3600000;
     }
   }
 
@@ -205,9 +234,9 @@ export class MetricsService {
       }
 
       // Get from database
-      const metric = await this.metricRepository.findOne({
+      const metric = await this.prisma.systemMetric.findFirst({
         where: { name },
-        order: { timestamp: 'DESC' }
+        orderBy: { timestamp: 'desc' }
       });
 
       if (metric) {
@@ -238,29 +267,32 @@ export class MetricsService {
     sum: number;
   }> {
     try {
-      const queryBuilder = this.metricRepository.createQueryBuilder('metric');
+      const metrics = await this.prisma.systemMetric.findMany({
+        where: {
+          name,
+          timestamp: {
+            gte: startTime,
+            lte: endTime
+          }
+        },
+        select: {
+          value: true
+        }
+      });
 
-      const result = await queryBuilder
-        .select([
-          'MIN(metric.value) as min',
-          'MAX(metric.value) as max',
-          'AVG(metric.value) as avg',
-          'COUNT(*) as count',
-          'SUM(metric.value) as sum'
-        ])
-        .where('metric.name = :name', { name })
-        .andWhere('metric.timestamp BETWEEN :startTime AND :endTime', {
-          startTime,
-          endTime
-        })
-        .getRawOne();
+      if (metrics.length === 0) {
+        return { min: 0, max: 0, avg: 0, count: 0, sum: 0 };
+      }
+
+      const values = metrics.map(m => m.value);
+      const sum = values.reduce((a, b) => a + b, 0);
 
       return {
-        min: parseFloat(result.min) || 0,
-        max: parseFloat(result.max) || 0,
-        avg: parseFloat(result.avg) || 0,
-        count: parseInt(result.count) || 0,
-        sum: parseFloat(result.sum) || 0
+        min: Math.min(...values),
+        max: Math.max(...values),
+        avg: sum / values.length,
+        count: values.length,
+        sum
       };
 
     } catch (error) {
@@ -274,19 +306,25 @@ export class MetricsService {
    */
   async getMetricsByTags(tags: Record<string, string>): Promise<SystemMetric[]> {
     try {
-      const queryBuilder = this.metricRepository.createQueryBuilder('metric');
-
-      Object.entries(tags).forEach(([key, value]) => {
-        queryBuilder.andWhere(`metric.tags ->> :${key} = :${key}Value`, {
-          [key]: key,
-          [`${key}Value`]: value
-        });
+      const metrics = await this.prisma.systemMetric.findMany({
+        where: {
+          timestamp: {
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+          }
+        },
+        orderBy: {
+          timestamp: 'desc'
+        },
+        take: 1000
       });
 
-      return await queryBuilder
-        .orderBy('metric.timestamp', 'DESC')
-        .limit(1000)
-        .getMany();
+      // Filter by tags at application level
+      return metrics.filter(metric => {
+        if (!metric.tags) return false;
+        return Object.entries(tags).every(([key, value]) => {
+          return metric.tags && metric.tags[key] === value;
+        });
+      }) as SystemMetric[];
 
     } catch (error) {
       this.logger.error('Failed to get metrics by tags:', error);
@@ -299,12 +337,14 @@ export class MetricsService {
    */
   async getMetricNames(): Promise<string[]> {
     try {
-      const result = await this.metricRepository
-        .createQueryBuilder('metric')
-        .select('DISTINCT metric.name', 'name')
-        .getRawMany();
+      const metrics = await this.prisma.systemMetric.findMany({
+        select: {
+          name: true
+        },
+        distinct: ['name']
+      });
 
-      return result.map(row => row.name);
+      return metrics.map(m => m.name);
 
     } catch (error) {
       this.logger.error('Failed to get metric names:', error);
@@ -381,11 +421,15 @@ export class MetricsService {
     try {
       const cutoffDate = new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000);
 
-      const result = await this.metricRepository.delete({
-        timestamp: LessThan(cutoffDate)
+      const result = await this.prisma.systemMetric.deleteMany({
+        where: {
+          timestamp: {
+            lt: cutoffDate
+          }
+        }
       });
 
-      return result.affected || 0;
+      return result.count;
 
     } catch (error) {
       this.logger.error('Failed to cleanup old metrics:', error);
@@ -469,15 +513,16 @@ export class MetricsService {
   ): Promise<SystemMetric[]> {
     try {
       const startTime = new Date(Date.now() - timeWindow);
-      const endTime = new Date();
 
-      return await this.metricRepository.find({
+      return await this.prisma.systemMetric.findMany({
         where: {
           name,
-          timestamp: Between(startTime, endTime)
+          timestamp: {
+            gte: startTime
+          }
         },
-        order: {
-          value: 'DESC'
+        orderBy: {
+          value: 'desc'
         },
         take: limit
       });

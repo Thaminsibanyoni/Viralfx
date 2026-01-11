@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
 
 @Injectable()
 export class CohortAnalysisService {
@@ -9,8 +9,7 @@ export class CohortAnalysisService {
 
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly redisService: RedisService,
-  ) {}
+    private readonly redisService: RedisService) {}
 
   async analyzeCohort(cohortMonth: Date): Promise<{
     cohortMonth: string;
@@ -36,19 +35,19 @@ export class CohortAnalysisService {
         where: {
           createdAt: {
             gte: startOfMonth,
-            lte: endOfMonth,
-          },
+            lte: endOfMonth
+          }
         },
         include: {
           bills: {
             where: {
-              status: 'PAID',
+              status: 'PAID'
             },
             orderBy: {
-              createdAt: 'asc',
-            },
-          },
-        },
+              createdAt: 'asc'
+            }
+          }
+        }
       });
 
       const totalBrokers = cohortBrokers.length;
@@ -60,7 +59,7 @@ export class CohortAnalysisService {
           retention: {},
           revenueRetention: {},
           ltv: 0,
-          averageRevenue: 0,
+          averageRevenue: 0
         };
       }
 
@@ -114,7 +113,7 @@ export class CohortAnalysisService {
         retention,
         revenueRetention,
         ltv,
-        averageRevenue,
+        averageRevenue
       };
 
       await this.redisService.setex(cacheKey, this.CACHE_TTL, JSON.stringify(cohortData));
@@ -148,7 +147,7 @@ export class CohortAnalysisService {
         cohorts.push({
           cohortMonth: cohortData.cohortMonth,
           totalBrokers: cohortData.totalBrokers,
-          retention: cohortData.retention,
+          retention: cohortData.retention
         });
       }
 
@@ -163,7 +162,7 @@ export class CohortAnalysisService {
 
       return {
         cohorts,
-        averageRetention,
+        averageRetention
       };
 
     } catch (error) {
@@ -189,10 +188,10 @@ export class CohortAnalysisService {
         include: {
           bills: {
             where: {
-              status: 'PAID',
-            },
-          },
-        },
+              status: 'PAID'
+            }
+          }
+        }
       });
 
       const channelMap = new Map();
@@ -205,7 +204,7 @@ export class CohortAnalysisService {
             channel,
             totalRevenue: 0,
             brokerCount: 0,
-            revenue: [],
+            revenue: []
           });
         }
 
@@ -220,14 +219,14 @@ export class CohortAnalysisService {
       const channels = Array.from(channelMap.values()).map(channelData => ({
         ...channelData,
         averageRevenue: channelData.totalRevenue / channelData.brokerCount,
-        ltv: this.calculateSimpleLTV(channelData.revenue),
+        ltv: this.calculateSimpleLTV(channelData.revenue)
       }));
 
       const totalRevenue = channels.reduce((sum, channel) => sum + channel.totalRevenue, 0);
 
       return {
         channels,
-        totalRevenue,
+        totalRevenue
       };
 
     } catch (error) {
@@ -258,7 +257,7 @@ export class CohortAnalysisService {
           cohortMonth: cohortData.cohortMonth,
           ltv: cohortData.ltv,
           averageRevenue: cohortData.averageRevenue,
-          retentionRate12Month: cohortData.retention['Month12'] || 0,
+          retentionRate12Month: cohortData.retention['Month12'] || 0
         });
       }
 
@@ -286,7 +285,7 @@ export class CohortAnalysisService {
       return {
         cohorts,
         averageLTV,
-        trend,
+        trend
       };
 
     } catch (error) {

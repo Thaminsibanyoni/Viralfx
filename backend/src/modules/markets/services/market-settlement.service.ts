@@ -1,8 +1,8 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
-import { WalletService } from '../../wallet/services/wallet.service';
-import { NotificationsService } from '../../notifications/services/notifications.service';
+import { WalletService } from "../../wallet/services/wallet.service";
+import { NotificationService } from "../../notifications/services/notification.service";
 
 interface SettlementData {
   marketId: string;
@@ -32,8 +32,7 @@ export class MarketSettlementService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly walletService: WalletService,
-    private readonly notificationsService: NotificationsService,
-  ) {}
+    private readonly notificationService: NotificationService) {}
 
   async settleMarket(settlementData: SettlementData): Promise<SettlementResult> {
     const { marketId, reason, winningOutcomeId, settlementMethod = 'AUTOMATIC' } = settlementData;
@@ -49,15 +48,15 @@ export class MarketSettlementService {
           bets: {
             include: {
               user: {
-                select: { id: true, username: true, email: true },
+                select: { id: true, username: true, email: true }
               },
-              outcome: true,
-            },
+              outcome: true
+            }
           },
           topic: {
-            select: { id: true, name: true },
-          },
-        },
+            select: { id: true, name: true }
+          }
+        }
       });
 
       if (!market) {
@@ -99,10 +98,10 @@ export class MarketSettlementService {
               totalPayouts: settlementResult.totalPayouts,
               winningBets: settlementResult.winningBets,
               losingBets: settlementResult.losingBets,
-              errors: settlementResult.errors,
-            },
-          },
-        },
+              errors: settlementResult.errors
+            }
+          }
+        }
       });
 
       // Send notifications to all bettors
@@ -125,13 +124,13 @@ export class MarketSettlementService {
       where: {
         marketId,
         outcomeId: winningOutcomeId,
-        status: 'PENDING',
+        status: 'PENDING'
       },
       include: {
         user: {
-          select: { id: true, username: true, email: true },
-        },
-      },
+          select: { id: true, username: true, email: true }
+        }
+      }
     });
 
     let processedBets = 0;
@@ -159,7 +158,7 @@ export class MarketSettlementService {
       losingBets: 0,
       settledAt: new Date(),
       status: errors.length > 0 ? 'PARTIAL' : 'SUCCESS',
-      errors,
+      errors
     };
   }
 
@@ -179,12 +178,12 @@ export class MarketSettlementService {
             status: true,
             actualPayout: true,
             metadata: true,
-            userId: true,
+            userId: true
           },
           orderBy: { settledAt: 'desc' },
-          take: 100,
-        },
-      },
+          take: 100
+        }
+      }
     });
 
     if (!market) {
@@ -203,7 +202,7 @@ export class MarketSettlementService {
       history.push({
         timestamp: new Date(market.metadata.settlement.settledAt),
         action: 'MARKET_SETTLED',
-        details: market.metadata.settlement,
+        details: market.metadata.settlement
       });
     }
 
@@ -217,9 +216,9 @@ export class MarketSettlementService {
             betId: bet.id,
             status: bet.status,
             payout: bet.actualPayout,
-            metadata: bet.metadata,
+            metadata: bet.metadata
           },
-          userId: bet.userId,
+          userId: bet.userId
         });
       }
     });
@@ -249,8 +248,8 @@ export class MarketSettlementService {
       summary: {
         totalBets: 0,
         verifiedBets: 0,
-        disputedBets: 0,
-      },
+        disputedBets: 0
+      }
     };
   }
 
@@ -356,7 +355,7 @@ export class MarketSettlementService {
       losingBets: processedLosses,
       settledAt: new Date(),
       status: errors.length > 0 ? 'PARTIAL' : 'SUCCESS',
-      errors,
+      errors
     };
   }
 
@@ -374,9 +373,9 @@ export class MarketSettlementService {
           metadata: {
             ...bet.metadata,
             settledAt: new Date().toISOString(),
-            processingTime: Date.now(),
-          },
-        },
+            processingTime: Date.now()
+          }
+        }
       });
 
       // Unfreeze funds and add winnings to user wallet
@@ -384,7 +383,7 @@ export class MarketSettlementService {
       await this.walletService.addFunds(bet.userId, actualPayout, tx, {
         source: 'BET_WINNINGS',
         reference: bet.id,
-        description: `Winnings from bet on ${bet.market?.title || 'unknown market'}`,
+        description: `Winnings from bet on ${bet.market?.title || 'unknown market'}`
       });
 
       // Update user statistics
@@ -404,9 +403,9 @@ export class MarketSettlementService {
           metadata: {
             ...bet.metadata,
             settledAt: new Date().toISOString(),
-            processingTime: Date.now(),
-          },
-        },
+            processingTime: Date.now()
+          }
+        }
       });
 
       // Unfreeze funds (bet amount is lost)
@@ -414,7 +413,7 @@ export class MarketSettlementService {
         deductAmount: bet.amount,
         reason: 'BET_LOSS',
         reference: bet.id,
-        description: `Loss from bet on ${bet.market?.title || 'unknown market'}`,
+        description: `Loss from bet on ${bet.market?.title || 'unknown market'}`
       });
 
       // Update user statistics
@@ -429,7 +428,7 @@ export class MarketSettlementService {
         const isWinner = bet.outcomeId === winningOutcome.id;
         const payout = bet.actualPayout || 0;
 
-        await this.notificationsService.sendNotification({
+        await this.notificationService.sendNotification({
           userId: bet.userId,
           type: 'MARKET_SETTLED',
           title: `Market Settled: ${market.title}`,
@@ -444,14 +443,14 @@ export class MarketSettlementService {
             payout,
             winningOutcome: winningOutcome.title,
             totalBets: result.totalBets,
-            settledAt: result.settledAt,
+            settledAt: result.settledAt
           },
-          priority: isWinner ? 'HIGH' : 'NORMAL',
+          priority: isWinner ? 'HIGH' : 'NORMAL'
         });
       }
 
       // Send market-wide notification
-      await this.notificationsService.sendNotification({
+      await this.notificationService.sendNotification({
         type: 'SYSTEM_NOTIFICATION',
         title: 'Market Settlement Complete',
         message: `Market "${market.title}" has been settled. "${winningOutcome.title}" was the winning outcome with ${result.winningBets} winning bets.`,
@@ -460,9 +459,9 @@ export class MarketSettlementService {
           winningOutcome: winningOutcome.title,
           totalPayouts: result.totalPayouts,
           winningBets: result.winningBets,
-          losingBets: result.losingBets,
+          losingBets: result.losingBets
         },
-        priority: 'NORMAL',
+        priority: 'NORMAL'
       });
     } catch (error) {
       this.logger.error('Failed to send settlement notifications:', error);
@@ -473,7 +472,7 @@ export class MarketSettlementService {
     try {
       // Update user betting statistics
       const stats = await this.prisma.userBettingStats.findUnique({
-        where: { userId },
+        where: { userId }
       });
 
       if (stats) {
@@ -488,8 +487,8 @@ export class MarketSettlementService {
             totalLosses: { increment: result === 'LOSS' ? betAmount : 0 },
             currentStreak: this.calculateStreak(stats.currentStreak, result),
             lastResult: result,
-            lastBetAt: new Date(),
-          },
+            lastBetAt: new Date()
+          }
         });
       } else {
         await this.prisma.userBettingStats.create({
@@ -503,8 +502,8 @@ export class MarketSettlementService {
             totalLosses: result === 'LOSS' ? betAmount : 0,
             currentStreak: result === 'WIN' ? 1 : -1,
             lastResult: result,
-            lastBetAt: new Date(),
-          },
+            lastBetAt: new Date()
+          }
         });
       }
     } catch (error) {
@@ -527,7 +526,7 @@ export class MarketSettlementService {
     // For now, return mock data
     return {
       score: 0.5 + Math.random() * 0.3,
-      confidence: 0.7 + Math.random() * 0.2,
+      confidence: 0.7 + Math.random() * 0.2
     };
   }
 
@@ -536,7 +535,7 @@ export class MarketSettlementService {
     // For now, return mock data
     return {
       index: 0.4 + Math.random() * 0.4,
-      momentum: Math.random() * 0.6,
+      momentum: Math.random() * 0.6
     };
   }
 }

@@ -5,7 +5,7 @@
  */
 
 import { createHash } from 'crypto';
-import { VTSSymbol } from '../../types/vts';
+import { VTSSymbol } from "../../types/vts";
 
 export interface VTSAlias {
   id: string;

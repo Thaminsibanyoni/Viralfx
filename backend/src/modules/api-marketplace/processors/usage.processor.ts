@@ -1,25 +1,38 @@
-import { Processor, Process } from '@nestjs/bullmq';
+import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
 import { KeysService } from '../services/keys.service';
 import { WebhookService } from '../services/webhook.service';
 import { ApiUsageLog } from '../interfaces/api-marketplace.interface';
 
 @Processor('api-usage')
-export class UsageProcessor {
+export class UsageProcessor extends WorkerHost {
   private readonly logger = new Logger(UsageProcessor.name);
 
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
     private keysService: KeysService,
-    private webhookService: WebhookService,
-  ) {}
+    private webhookService: WebhookService) {
+    super();
+  }
 
-  @Process('log')
-  async handleUsageLog(job: Job<ApiUsageLog>): Promise<void> {
+  async process(job: Job<ApiUsageLog>): Promise<void> {
+    switch (job.name) {
+      case 'log':
+        return this.handleUsageLog(job);
+      case 'aggregate-daily':
+        return this.handleDailyAggregation(job as Job);
+      case 'cleanup-old-usage':
+        return this.handleUsageCleanup(job as Job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+  private async handleUsageLog(job: Job<ApiUsageLog>): Promise<void> {
     const data = job.data;
 
     try {
@@ -33,8 +46,8 @@ export class UsageProcessor {
           statusCode: data.statusCode,
           bytesIn: data.bytesIn,
           bytesOut: data.bytesOut,
-          latencyMs: data.latencyMs,
-        },
+          latencyMs: data.latencyMs
+        }
       });
 
       // Update API key usage count
@@ -55,14 +68,12 @@ export class UsageProcessor {
     } catch (error) {
       this.logger.error(
         `Failed to log usage for API key ${data.apiKeyId}`,
-        error.stack,
-      );
+        error.stack);
       throw error; // Re-throw to trigger Bull retry mechanism
     }
   }
 
-  @Process('aggregate-daily')
-  async handleDailyAggregation(job: Job): Promise<void> {
+  private async handleDailyAggregation(job: Job): Promise<void> {
     const { date } = job.data;
     const targetDate = date ? new Date(date) : new Date();
 
@@ -78,15 +89,15 @@ export class UsageProcessor {
         where: {
           createdAt: {
             gte: startDate,
-            lte: endDate,
-          },
+            lte: endDate
+          }
         },
         _count: { id: true },
         _sum: {
           bytesIn: true,
           bytesOut: true,
-          latencyMs: true,
-        },
+          latencyMs: true
+        }
       });
 
       // Store aggregated data in Redis
@@ -100,9 +111,8 @@ export class UsageProcessor {
             requests: usage._count.id,
             bytesIn: usage._sum.bytesIn || 0,
             bytesOut: usage._sum.bytesOut || 0,
-            avgLatency: usage._count.id > 0 ? (usage._sum.latencyMs || 0) / usage._count.id : 0,
-          }),
-        );
+            avgLatency: usage._count.id > 0 ? (usage._sum.latencyMs || 0) / usage._count.id : 0
+          }));
       }
 
       // Set expiration for aggregated data (30 days)
@@ -112,14 +122,12 @@ export class UsageProcessor {
     } catch (error) {
       this.logger.error(
         `Failed to aggregate daily usage for ${targetDate}`,
-        error.stack,
-      );
+        error.stack);
       throw error;
     }
   }
 
-  @Process('cleanup-old-usage')
-  async handleUsageCleanup(job: Job): Promise<void> {
+  private async handleUsageCleanup(job: Job): Promise<void> {
     const { retentionDays = 90 } = job.data;
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
@@ -129,17 +137,16 @@ export class UsageProcessor {
       const result = await this.prisma.apiUsage.deleteMany({
         where: {
           createdAt: {
-            lt: cutoffDate,
-          },
-        },
+            lt: cutoffDate
+          }
+        }
       });
 
       this.logger.log(`Cleaned up ${result.count} old usage records older than ${retentionDays} days`);
     } catch (error) {
       this.logger.error(
         `Failed to cleanup old usage records`,
-        error.stack,
-      );
+        error.stack);
       throw error;
     }
   }
@@ -185,9 +192,9 @@ export class UsageProcessor {
         where: { id: apiKeyId },
         include: {
           plan: {
-            select: { quota: true },
-          },
-        },
+            select: { quota: true }
+          }
+        }
       });
 
       if (!apiKey?.plan.quota) {
@@ -205,10 +212,9 @@ export class UsageProcessor {
             usage: apiKey.usageCount,
             quota: apiKey.plan.quota,
             percentage: Math.round(percentage),
-            threshold: 90,
+            threshold: 90
           },
-          apiKey.userId || undefined,
-        );
+          apiKey.userId || undefined);
       }
 
       // Trigger webhook when quota is exceeded
@@ -219,16 +225,14 @@ export class UsageProcessor {
             apiKeyId,
             usage: apiKey.usageCount,
             quota: apiKey.plan.quota,
-            overage: apiKey.usageCount - apiKey.plan.quota,
+            overage: apiKey.usageCount - apiKey.plan.quota
           },
-          apiKey.userId || undefined,
-        );
+          apiKey.userId || undefined);
       }
     } catch (error) {
       this.logger.warn(
         `Failed to check quota threshold for API key ${apiKeyId}`,
-        error.message,
-      );
+        error.message);
     }
   }
 
@@ -242,9 +246,9 @@ export class UsageProcessor {
         where: {
           apiKeyId,
           createdAt: {
-            gte: fiveMinutesAgo,
-          },
-        },
+            gte: fiveMinutesAgo
+          }
+        }
       });
 
       if (recentUsage.length < 10) {
@@ -265,15 +269,13 @@ export class UsageProcessor {
             errorRate: Math.round(errorRate),
             errorCount,
             totalRequests: recentUsage.length,
-            timeframe: '5m',
-          },
-        );
+            timeframe: '5m'
+          });
       }
     } catch (error) {
       this.logger.warn(
         `Failed to check error rate for API key ${apiKeyId}`,
-        error.message,
-      );
+        error.message);
     }
   }
 }

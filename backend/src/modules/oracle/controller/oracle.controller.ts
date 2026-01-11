@@ -30,8 +30,7 @@ export class OracleController {
     private readonly oracleCoordinator: OracleCoordinatorService,
     private readonly realSocialDataService: RealSocialDataService,
     private readonly socialDataIntegrationService: SocialDataIntegrationService,
-    private readonly configService: ConfigService,
-  ) {}
+    private readonly configService: ConfigService) {}
 
   @Post('virality')
   @ApiOperation({
@@ -62,8 +61,7 @@ export class OracleController {
       this.logger.error(`❌ Virality request failed for trend: ${request.trendId}`, error.message);
       throw new HttpException(
         `Oracle processing failed: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+        HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -90,8 +88,7 @@ export class OracleController {
     if (!result) {
       throw new HttpException(
         `No oracle data found for trend: ${trendId}`,
-        HttpStatus.NOT_FOUND,
-      );
+        HttpStatus.NOT_FOUND);
     }
 
     this.logger.log(`✅ Retrieved latest score: ${result.viralityScore.toFixed(4)} for trend: ${trendId}`);
@@ -143,7 +140,7 @@ export class OracleController {
         realDataIntegration: this.configService.get<boolean>('ORACLE_REAL_DATA_INTEGRATION', true),
         classificationEnabled: this.configService.get<boolean>('ORACLE_CLASSIFICATION_ENABLED', true),
         deceptionDetectionEnabled: this.configService.get<boolean>('ORACLE_DECEPTION_DETECTION_ENABLED', false),
-        crossPlatformCorrelation: this.configService.get<boolean>('ORACLE_CROSS_PLATFORM_CORRELATION_ENABLED', true),
+        crossPlatformCorrelation: this.configService.get<boolean>('ORACLE_CROSS_PLATFORM_CORRELATION_ENABLED', true)
       }
     };
 
@@ -181,8 +178,7 @@ export class OracleController {
       this.logger.error('❌ Failed to fetch TikTok videos:', error.message);
       throw new HttpException(
         `Failed to fetch TikTok videos: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+        HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -214,8 +210,7 @@ export class OracleController {
       this.logger.error('❌ Failed to fetch Twitter topics:', error.message);
       throw new HttpException(
         `Failed to fetch Twitter topics: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+        HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -247,8 +242,7 @@ export class OracleController {
       this.logger.error('❌ Failed to fetch Instagram posts:', error.message);
       throw new HttpException(
         `Failed to fetch Instagram posts: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+        HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -280,8 +274,7 @@ export class OracleController {
       this.logger.error('❌ Failed to fetch YouTube videos:', error.message);
       throw new HttpException(
         `Failed to fetch YouTube videos: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+        HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -313,8 +306,7 @@ export class OracleController {
       this.logger.error('❌ Failed to fetch Facebook posts:', error.message);
       throw new HttpException(
         `Failed to fetch Facebook posts: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+        HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -339,8 +331,7 @@ export class OracleController {
       this.logger.error('❌ Failed to fetch South African trends:', error.message);
       throw new HttpException(
         `Failed to fetch South African trends: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+        HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -365,8 +356,7 @@ export class OracleController {
       this.logger.error('❌ Failed to classify trend:', error.message);
       throw new HttpException(
         `Failed to classify trend: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+        HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -393,8 +383,7 @@ export class OracleController {
       if (!classification) {
         throw new HttpException(
           `Classification not found for trend: ${trendId}`,
-          HttpStatus.NOT_FOUND,
-        );
+          HttpStatus.NOT_FOUND);
       }
 
       this.logger.log(`✅ Retrieved classification for trend: ${trendId}`);
@@ -406,8 +395,7 @@ export class OracleController {
       this.logger.error(`❌ Failed to get classification for trend: ${trendId}`, error.message);
       throw new HttpException(
         `Failed to get classification: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+        HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -431,8 +419,7 @@ export class OracleController {
       this.logger.error('❌ Failed to detect deception:', error.message);
       throw new HttpException(
         `Failed to detect deception: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+        HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -454,8 +441,7 @@ export class OracleController {
   })
   async getOracleHistory(
     @Param('trendId') trendId: string,
-    @Query('limit') limit?: number,
-  ): Promise<any[]> {
+    @Query('limit') limit?: number): Promise<any[]> {
     this.logger.log(`📈 Requesting Oracle history for trend: ${trendId}, limit: ${limit || 10}`);
 
     const history = await this.oracleCoordinator.getOracleHistory(trendId, limit);
@@ -478,7 +464,7 @@ export class OracleController {
       status: 'healthy',
       service: 'oracle-coordinator',
       timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
+      uptime: process.uptime()
     };
   }
 
@@ -500,21 +486,21 @@ export class OracleController {
       network: {
         type: status.networkType,
         uptime: status.uptime,
-        lastUpdate: status.lastUpdate,
+        lastUpdate: status.lastUpdate
       },
       performance: {
         totalProofs: status.totalProofs,
         recentProofs24h: status.recentProofs24h,
-        averageConsensusStrength: status.averageConsensusStrength,
+        averageConsensusStrength: status.averageConsensusStrength
       },
       validators: {
         total: status.validators.totalValidators,
         healthy: status.validators.healthyValidators,
         consensusRequired: status.validators.consensusRequired,
         maxVariance: status.validators.maxVariance,
-        details: status.validators.validators,
+        details: status.validators.validators
       },
-      features: status.features,
+      features: status.features
     };
   }
 }

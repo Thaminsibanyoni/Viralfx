@@ -1,5 +1,5 @@
 import { PartialType } from '@nestjs/swagger';
-import { CreateClientInteractionDto, InteractionType, InteractionDirection, ContactMethod, InteractionOutcome, InteractionPriority } from './create-client-interaction.dto';
+import { CreateClientInteractionDto, InteractionType, InteractionDirection, ContactMethod, InteractionOutcome, InteractionPriority } from "./create-client-interaction.dto";
 import { IsString, IsOptional, IsEnum, IsNumber, IsArray, IsObject, IsDateString } from 'class-validator';
 
 export class UpdateClientInteractionDto extends PartialType(CreateClientInteractionDto) {

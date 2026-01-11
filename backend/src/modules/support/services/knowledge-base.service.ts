@@ -1,17 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, Between } from 'typeorm';
-import { KnowledgeBaseArticle, ArticleStatus } from '../entities/knowledge-base-article.entity';
-import { TicketCategory } from '../entities/ticket-category.entity';
+import { PrismaService } from "../../../prisma/prisma.service";
+
+enum ArticleStatus {
+  DRAFT = 'DRAFT',
+  PUBLISHED = 'PUBLISHED',
+  ARCHIVED = 'ARCHIVED'
+}
 
 @Injectable()
 export class KnowledgeBaseService {
-  constructor(
-    @InjectRepository(KnowledgeBaseArticle)
-    private readonly knowledgeBaseArticleRepository: Repository<KnowledgeBaseArticle>,
-    @InjectRepository(TicketCategory)
-    private readonly ticketCategoryRepository: Repository<TicketCategory>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getArticles(filters: {
     page?: number;
@@ -31,49 +29,51 @@ export class KnowledgeBaseService {
       tags,
       search,
       authorId,
-      dateRange,
+      dateRange
     } = filters;
 
-    const queryBuilder = this.knowledgeBaseArticleRepository
-      .createQueryBuilder('article')
-      .leftJoinAndSelect('article.category', 'category')
-      .where('1 = 1');
+    const where: any = {};
 
     if (status) {
-      queryBuilder.andWhere('article.status = :status', { status });
+      where.status = status;
     }
 
     if (categoryId) {
-      queryBuilder.andWhere('article.categoryId = :categoryId', { categoryId });
+      where.categoryId = categoryId;
     }
 
     if (authorId) {
-      queryBuilder.andWhere('article.authorId = :authorId', { authorId });
-    }
-
-    if (tags && tags.length > 0) {
-      queryBuilder.andWhere('article.tags && :tags', { tags });
+      where.authorId = authorId;
     }
 
     if (search) {
-      queryBuilder.andWhere(
-        '(article.title ILIKE :search OR article.content ILIKE :search OR article.excerpt ILIKE :search)',
-        { search: `%${search}%` }
-      );
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { content: { contains: search, mode: 'insensitive' } },
+        { excerpt: { contains: search, mode: 'insensitive' } }
+      ];
     }
 
     if (dateRange) {
-      queryBuilder.andWhere('article.createdAt BETWEEN :start AND :end', {
-        start: dateRange.start,
-        end: dateRange.end,
-      });
+      where.createdAt = { gte: dateRange.start, lte: dateRange.end };
     }
 
-    const [articles, total] = await queryBuilder
-      .orderBy('article.createdAt', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
+    if (tags && tags.length > 0) {
+      where.tags = { hasSome: tags };
+    }
+
+    const [articles, total] = await Promise.all([
+      this.prisma.knowledgeBaseArticle.findMany({
+        where,
+        include: {
+          category: true
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit
+      }),
+      this.prisma.knowledgeBaseArticle.count({ where })
+    ]);
 
     return {
       articles,
@@ -81,23 +81,23 @@ export class KnowledgeBaseService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limit)
       },
-      filters,
+      filters
     };
   }
 
-  async getArticleById(id: string): Promise<KnowledgeBaseArticle> {
-    return await this.knowledgeBaseArticleRepository.findOne({
+  async getArticleById(id: string) {
+    return await this.prisma.knowledgeBaseArticle.findFirst({
       where: { id },
-      relations: ['category'],
+      include: { category: true }
     });
   }
 
-  async getArticleBySlug(slug: string): Promise<KnowledgeBaseArticle> {
-    return await this.knowledgeBaseArticleRepository.findOne({
+  async getArticleBySlug(slug: string) {
+    return await this.prisma.knowledgeBaseArticle.findFirst({
       where: { slug, status: ArticleStatus.PUBLISHED },
-      relations: ['category'],
+      include: { category: true }
     });
   }
 
@@ -111,58 +111,73 @@ export class KnowledgeBaseService {
     authorId: string;
     status?: ArticleStatus;
   }) {
-    const article = this.knowledgeBaseArticleRepository.create(createArticleDto);
+    const data: any = {
+      ...createArticleDto,
+      ...(createArticleDto.status === ArticleStatus.PUBLISHED && { publishedAt: new Date() })
+    };
 
-    if (article.status === ArticleStatus.PUBLISHED) {
-      article.publishedAt = new Date();
-    }
-
-    return await this.knowledgeBaseArticleRepository.save(article);
+    return await this.prisma.knowledgeBaseArticle.create({
+      data,
+      include: { category: true }
+    });
   }
 
-  async updateArticle(id: string, updateArticleDto: Partial<KnowledgeBaseArticle>) {
+  async updateArticle(id: string, updateArticleDto: any) {
     const article = await this.getArticleById(id);
     if (!article) {
       throw new Error('Article not found');
     }
 
     // Handle publishing
+    const data: any = { ...updateArticleDto };
     if (updateArticleDto.status === ArticleStatus.PUBLISHED && article.status !== ArticleStatus.PUBLISHED) {
-      updateArticleDto.publishedAt = new Date();
+      data.publishedAt = new Date();
     }
 
-    await this.knowledgeBaseArticleRepository.update(id, updateArticleDto);
-    return this.getArticleById(id);
+    return await this.prisma.knowledgeBaseArticle.update({
+      where: { id },
+      data,
+      include: { category: true }
+    });
   }
 
   async deleteArticle(id: string) {
-    await this.knowledgeBaseArticleRepository.delete(id);
+    await this.prisma.knowledgeBaseArticle.delete({ where: { id } });
     return { success: true, message: 'Article deleted successfully' };
   }
 
   async publishArticle(id: string) {
     return this.updateArticle(id, {
       status: ArticleStatus.PUBLISHED,
-      publishedAt: new Date(),
+      publishedAt: new Date()
     });
   }
 
   async archiveArticle(id: string) {
     return this.updateArticle(id, {
-      status: ArticleStatus.ARCHIVED,
+      status: ArticleStatus.ARCHIVED
     });
   }
 
   async incrementViews(id: string) {
-    await this.knowledgeBaseArticleRepository.increment({ id }, 'views', 1);
+    await this.prisma.knowledgeBaseArticle.update({
+      where: { id },
+      data: { views: { increment: 1 } }
+    });
     return this.getArticleById(id);
   }
 
   async markHelpful(id: string, helpful: boolean) {
     if (helpful) {
-      await this.knowledgeBaseArticleRepository.increment({ id }, 'helpful', 1);
+      await this.prisma.knowledgeBaseArticle.update({
+        where: { id },
+        data: { helpful: { increment: 1 } }
+      });
     } else {
-      await this.knowledgeBaseArticleRepository.increment({ id }, 'notHelpful', 1);
+      await this.prisma.knowledgeBaseArticle.update({
+        where: { id },
+        data: { notHelpful: { increment: 1 } }
+      });
     }
 
     return this.getArticleById(id);
@@ -175,30 +190,32 @@ export class KnowledgeBaseService {
   } = {}) {
     const { categoryId, tags, limit = 10 } = filters;
 
-    const queryBuilder = this.knowledgeBaseArticleRepository
-      .createQueryBuilder('article')
-      .leftJoinAndSelect('article.category', 'category')
-      .where('article.status = :status', { status: ArticleStatus.PUBLISHED })
-      .andWhere(
-        '(article.title ILIKE :search OR article.content ILIKE :search OR article.excerpt ILIKE :search)',
-        { search: `%${query}%` }
-      );
+    const where: any = {
+      status: ArticleStatus.PUBLISHED,
+      OR: [
+        { title: { contains: query, mode: 'insensitive' } },
+        { content: { contains: query, mode: 'insensitive' } },
+        { excerpt: { contains: query, mode: 'insensitive' } }
+      ]
+    };
 
     if (categoryId) {
-      queryBuilder.andWhere('article.categoryId = :categoryId', { categoryId });
+      where.categoryId = categoryId;
     }
 
     if (tags && tags.length > 0) {
-      queryBuilder.andWhere('article.tags && :tags', { tags });
+      where.tags = { hasSome: tags };
     }
 
-    const articles = await queryBuilder
-      .orderBy('article.views', 'DESC')
-      .addOrderBy('article.helpful', 'DESC')
-      .limit(limit)
-      .getMany();
-
-    return articles;
+    return await this.prisma.knowledgeBaseArticle.findMany({
+      where,
+      include: { category: true },
+      orderBy: [
+        { views: 'desc' },
+        { helpful: 'desc' }
+      ],
+      take: limit
+    });
   }
 
   async getRelatedArticles(articleId: string, limit: number = 5) {
@@ -207,28 +224,31 @@ export class KnowledgeBaseService {
       return [];
     }
 
-    // Find related articles based on category and tags
-    const queryBuilder = this.knowledgeBaseArticleRepository
-      .createQueryBuilder('article')
-      .leftJoinAndSelect('article.category', 'category')
-      .where('article.status = :status', { status: ArticleStatus.PUBLISHED })
-      .andWhere('article.id != :articleId', { articleId });
+    const where: any = {
+      status: ArticleStatus.PUBLISHED,
+      id: { not: articleId }
+    };
 
-    // Match by category first
-    if (article.categoryId) {
-      queryBuilder.andWhere('(article.categoryId = :categoryId OR article.tags && :tags)', {
-        categoryId: article.categoryId,
-        tags: article.tags || [],
-      });
-    } else if (article.tags && article.tags.length > 0) {
-      queryBuilder.andWhere('article.tags && :tags', { tags: article.tags });
+    // Match by category or tags
+    if (article.categoryId || (article.tags && article.tags.length > 0)) {
+      where.OR = [];
+      if (article.categoryId) {
+        where.OR.push({ categoryId: article.categoryId });
+      }
+      if (article.tags && article.tags.length > 0) {
+        where.OR.push({ tags: { hasSome: article.tags } });
+      }
     }
 
-    const relatedArticles = await queryBuilder
-      .orderBy('article.views', 'DESC')
-      .addOrderBy('article.helpful', 'DESC')
-      .limit(limit)
-      .getMany();
+    const relatedArticles = await this.prisma.knowledgeBaseArticle.findMany({
+      where,
+      include: { category: true },
+      orderBy: [
+        { views: 'desc' },
+        { helpful: 'desc' }
+      ],
+      take: limit
+    });
 
     return relatedArticles;
   }
@@ -249,15 +269,18 @@ export class KnowledgeBaseService {
         break;
     }
 
-    return await this.knowledgeBaseArticleRepository
-      .createQueryBuilder('article')
-      .leftJoinAndSelect('article.category', 'category')
-      .where('article.status = :status', { status: ArticleStatus.PUBLISHED })
-      .andWhere('article.publishedAt BETWEEN :start AND :end', { start: startDate, end: now })
-      .orderBy('article.views', 'DESC')
-      .addOrderBy('article.helpful', 'DESC')
-      .limit(limit)
-      .getMany();
+    return await this.prisma.knowledgeBaseArticle.findMany({
+      where: {
+        status: ArticleStatus.PUBLISHED,
+        publishedAt: { gte: startDate, lte: now }
+      },
+      include: { category: true },
+      orderBy: [
+        { views: 'desc' },
+        { helpful: 'desc' }
+      ],
+      take: limit
+    });
   }
 
   async getArticleStats(period: 'day' | 'week' | 'month' | 'year' = 'month') {
@@ -279,71 +302,60 @@ export class KnowledgeBaseService {
         break;
     }
 
+    const dateFilter = { gte: startDate, lte: now };
+
     const [
       totalArticles,
       publishedArticles,
       draftArticles,
       archivedArticles,
-      totalViews,
-      totalHelpful,
-      totalNotHelpful,
-      articlesByCategory,
+      articlesWithViews,
+      articlesWithHelpful,
+      articlesWithNotHelpful,
       topArticles,
     ] = await Promise.all([
-      this.knowledgeBaseArticleRepository.count({
-        where: { createdAt: Between(startDate, now) },
+      this.prisma.knowledgeBaseArticle.count({
+        where: { createdAt: dateFilter }
       }),
-      this.knowledgeBaseArticleRepository.count({
+      this.prisma.knowledgeBaseArticle.count({
         where: {
-          createdAt: Between(startDate, now),
-          status: ArticleStatus.PUBLISHED,
-        },
+          createdAt: dateFilter,
+          status: ArticleStatus.PUBLISHED
+        }
       }),
-      this.knowledgeBaseArticleRepository.count({
+      this.prisma.knowledgeBaseArticle.count({
         where: {
-          createdAt: Between(startDate, now),
-          status: ArticleStatus.DRAFT,
-        },
+          createdAt: dateFilter,
+          status: ArticleStatus.DRAFT
+        }
       }),
-      this.knowledgeBaseArticleRepository.count({
+      this.prisma.knowledgeBaseArticle.count({
         where: {
-          createdAt: Between(startDate, now),
-          status: ArticleStatus.ARCHIVED,
-        },
+          createdAt: dateFilter,
+          status: ArticleStatus.ARCHIVED
+        }
       }),
-      this.knowledgeBaseArticleRepository
-        .createQueryBuilder('article')
-        .select('SUM(article.views)', 'total')
-        .where('article.createdAt BETWEEN :start AND :end', { start: startDate, end: now })
-        .getRawOne(),
-      this.knowledgeBaseArticleRepository
-        .createQueryBuilder('article')
-        .select('SUM(article.helpful)', 'total')
-        .where('article.createdAt BETWEEN :start AND :end', { start: startDate, end: now })
-        .getRawOne(),
-      this.knowledgeBaseArticleRepository
-        .createQueryBuilder('article')
-        .select('SUM(article.notHelpful)', 'total')
-        .where('article.createdAt BETWEEN :start AND :end', { start: startDate, end: now })
-        .getRawOne(),
-      this.knowledgeBaseArticleRepository
-        .createQueryBuilder('article')
-        .leftJoin('article.category', 'category')
-        .select('category.name', 'category')
-        .addSelect('COUNT(*)', 'count')
-        .where('article.createdAt BETWEEN :start AND :end', { start: startDate, end: now })
-        .andWhere('article.status = :status', { status: ArticleStatus.PUBLISHED })
-        .groupBy('category.name')
-        .orderBy('count', 'DESC')
-        .getRawMany(),
-      this.knowledgeBaseArticleRepository
-        .createQueryBuilder('article')
-        .leftJoinAndSelect('article.category', 'category')
-        .where('article.createdAt BETWEEN :start AND :end', { start: startDate, end: now })
-        .andWhere('article.status = :status', { status: ArticleStatus.PUBLISHED })
-        .orderBy('article.views', 'DESC')
-        .limit(10)
-        .getMany(),
+      this.prisma.knowledgeBaseArticle.aggregate({
+        where: { createdAt: dateFilter },
+        _sum: { views: true }
+      }),
+      this.prisma.knowledgeBaseArticle.aggregate({
+        where: { createdAt: dateFilter },
+        _sum: { helpful: true }
+      }),
+      this.prisma.knowledgeBaseArticle.aggregate({
+        where: { createdAt: dateFilter },
+        _sum: { notHelpful: true }
+      }),
+      this.prisma.knowledgeBaseArticle.findMany({
+        where: {
+          createdAt: dateFilter,
+          status: ArticleStatus.PUBLISHED
+        },
+        include: { category: true },
+        orderBy: { views: 'desc' },
+        take: 10
+      }),
     ]);
 
     return {
@@ -352,14 +364,13 @@ export class KnowledgeBaseService {
       publishedArticles,
       draftArticles,
       archivedArticles,
-      totalViews: parseInt(totalViews?.total || 0),
-      totalHelpful: parseInt(totalHelpful?.total || 0),
-      totalNotHelpful: parseInt(totalNotHelpful?.total || 0),
-      helpScore: totalHelpful + totalNotHelpful > 0
-        ? (totalHelpful / (totalHelpful + totalNotHelpful)) * 100
+      totalViews: articlesWithViews._sum.views || 0,
+      totalHelpful: articlesWithHelpful._sum.helpful || 0,
+      totalNotHelpful: articlesWithNotHelpful._sum.notHelpful || 0,
+      helpScore: (articlesWithHelpful._sum.helpful || 0) + (articlesWithNotHelpful._sum.notHelpful || 0) > 0
+        ? ((articlesWithHelpful._sum.helpful || 0) / ((articlesWithHelpful._sum.helpful || 0) + (articlesWithNotHelpful._sum.notHelpful || 0))) * 100
         : 0,
-      articlesByCategory,
-      topArticles,
+      topArticles
     };
   }
 
@@ -378,7 +389,7 @@ export class KnowledgeBaseService {
         'Created At',
         'Published At',
       ],
-      ...articles.articles.map(article => [
+      ...articles.articles.map((article: any) => [
         article.title,
         article.slug,
         article.status,
@@ -406,7 +417,7 @@ export class KnowledgeBaseService {
     let slug = baseSlug;
     let counter = 1;
 
-    while (await this.knowledgeBaseArticleRepository.findOne({ where: { slug } })) {
+    while (await this.prisma.knowledgeBaseArticle.findFirst({ where: { slug } })) {
       slug = `${baseSlug}-${counter}`;
       counter++;
     }

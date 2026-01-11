@@ -1,6 +1,6 @@
 import { IsString, IsEnum, IsOptional, IsUUID, IsObject, IsDate } from 'class-validator';
 import { Type } from 'class-transformer';
-import { AttributionType, ClientStatus } from '../entities/broker-client.entity';
+import { AttributionType, BrokerClientStatus } from '../enums/broker.enum';
 
 export class AttributeClientDto {
   @IsUUID()
@@ -26,8 +26,8 @@ export class AttributeClientDto {
 }
 
 export class UpdateClientStatusDto {
-  @IsEnum(ClientStatus)
-  status: ClientStatus;
+  @IsEnum(BrokerClientStatus)
+  status: BrokerClientStatus;
 
   @IsOptional()
   @IsString()
@@ -36,8 +36,8 @@ export class UpdateClientStatusDto {
 
 export class GetBrokerClientsDto {
   @IsOptional()
-  @IsEnum(ClientStatus)
-  status?: ClientStatus;
+  @IsEnum(BrokerClientStatus)
+  status?: BrokerClientStatus;
 
   @IsOptional()
   @IsEnum(AttributionType)

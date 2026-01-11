@@ -1,0 +1,18 @@
+CROSS-MODULE ENTITY IMPORTS HANDLING REPORT
+================================================================================
+
+Total files processed: 8
+Total imports commented: 9
+
+================================================================================
+FILES WITH CROSS-MODULE IMPORTS COMMENTED
+================================================================================
+
+  [2 imports] src/modules/sponsorship/services/broker-sponsorship.service.ts
+  [1 imports] src/modules/compliance/services/content-safety.service.ts
+  [1 imports] src/modules/support/dto/create-ticket.dto.ts
+  [1 imports] src/modules/crm/processors/crm-onboarding.processor.ts
+  [1 imports] src/modules/crm/crm.module.ts
+  [1 imports] src/modules/crm/services/clients.service.ts
+  [1 imports] src/modules/crm/services/support.service.ts
+  [1 imports] src/modules/financial-reporting/financial-reporting.module.ts

@@ -11,18 +11,18 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  Req,
+  Req
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiForbiddenResponse } from '@nestjs/swagger';
 import { ClientsService } from '../services/clients.service';
 import { CreateClientRecordDto } from '../dto/create-client-record.dto';
 import { UpdateClientRecordDto } from '../dto/update-client-record.dto';
 import { CreateClientInteractionDto } from '../dto/create-client-interaction.dto';
 import { UpdateClientInteractionDto } from '../dto/update-client-interaction.dto';
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from "../../../common/enums/user-role.enum";
 import { PermissionGuard } from '../guards/permission.guard';
 import { CheckPermission } from '../decorators/check-permission.decorator';
 
@@ -48,7 +48,7 @@ export class ClientsController {
     return {
       success: true,
       message: 'Client record created successfully',
-      data: client,
+      data: client
     };
   }
 
@@ -80,7 +80,7 @@ export class ClientsController {
       minRiskScore: query.minRiskScore ? parseFloat(query.minRiskScore) : undefined,
       maxRiskScore: query.maxRiskScore ? parseFloat(query.maxRiskScore) : undefined,
       page: parseInt(query.page) || 1,
-      limit: parseInt(query.limit) || 10,
+      limit: parseInt(query.limit) || 10
     };
 
     const result = await this.clientsService.getClientRecords(filters);
@@ -92,8 +92,8 @@ export class ClientsController {
         page: result.page,
         limit: result.limit,
         total: result.total,
-        totalPages: Math.ceil(result.total / result.limit),
-      },
+        totalPages: Math.ceil(result.total / result.limit)
+      }
     };
   }
 
@@ -112,14 +112,14 @@ export class ClientsController {
       segment: query.segment,
       status: query.status,
       startDate: query.startDate ? new Date(query.startDate) : undefined,
-      endDate: query.endDate ? new Date(query.endDate) : undefined,
+      endDate: query.endDate ? new Date(query.endDate) : undefined
     };
 
     const analytics = await this.clientsService.getClientAnalytics(filters);
 
     return {
       success: true,
-      data: analytics,
+      data: analytics
     };
   }
 
@@ -132,7 +132,7 @@ export class ClientsController {
 
     return {
       success: true,
-      data: client,
+      data: client
     };
   }
 
@@ -145,7 +145,7 @@ export class ClientsController {
 
     return {
       success: true,
-      data: client,
+      data: client
     };
   }
 
@@ -159,14 +159,13 @@ export class ClientsController {
   @CheckPermission('crm.clients.update')
   async updateClientRecord(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() updateClientRecordDto: UpdateClientRecordDto,
-  ) {
+    @Body() updateClientRecordDto: UpdateClientRecordDto) {
     const client = await this.clientsService.updateClientRecord(id, updateClientRecordDto);
 
     return {
       success: true,
       message: 'Client record updated successfully',
-      data: client,
+      data: client
     };
   }
 
@@ -181,7 +180,7 @@ export class ClientsController {
 
     return {
       success: true,
-      message: 'Client record deleted successfully',
+      message: 'Client record deleted successfully'
     };
   }
 
@@ -193,20 +192,18 @@ export class ClientsController {
   async createClientInteraction(
     @Param('id', ParseUUIDPipe) clientId: string,
     @Body() createClientInteractionDto: CreateClientInteractionDto,
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const interaction = await this.clientsService.createClientInteraction(
       {
         ...createClientInteractionDto,
-        clientId,
+        clientId
       },
-      req.user.id,
-    );
+      req.user.id);
 
     return {
       success: true,
       message: 'Client interaction created successfully',
-      data: interaction,
+      data: interaction
     };
   }
 
@@ -223,8 +220,7 @@ export class ClientsController {
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
   async getClientInteractions(
     @Param('id', ParseUUIDPipe) clientId: string,
-    @Query() query: any,
-  ) {
+    @Query() query: any) {
     const filters = {
       type: query.type,
       direction: query.direction,
@@ -233,7 +229,7 @@ export class ClientsController {
       endDate: query.endDate ? new Date(query.endDate) : undefined,
       staffId: query.staffId,
       page: parseInt(query.page) || 1,
-      limit: parseInt(query.limit) || 10,
+      limit: parseInt(query.limit) || 10
     };
 
     const result = await this.clientsService.getClientInteractions(clientId, filters);
@@ -245,8 +241,8 @@ export class ClientsController {
         page: result.page,
         limit: result.limit,
         total: result.total,
-        totalPages: Math.ceil(result.total / result.limit),
-      },
+        totalPages: Math.ceil(result.total / result.limit)
+      }
     };
   }
 
@@ -258,17 +254,15 @@ export class ClientsController {
   @HttpCode(HttpStatus.OK)
   async updateClientInteraction(
     @Param('interactionId', ParseUUIDPipe) interactionId: string,
-    @Body() updateClientInteractionDto: UpdateClientInteractionDto,
-  ) {
+    @Body() updateClientInteractionDto: UpdateClientInteractionDto) {
     const interaction = await this.clientsService.updateClientInteraction(
       interactionId,
-      updateClientInteractionDto,
-    );
+      updateClientInteractionDto);
 
     return {
       success: true,
       message: 'Client interaction updated successfully',
-      data: interaction,
+      data: interaction
     };
   }
 
@@ -283,7 +277,7 @@ export class ClientsController {
 
     return {
       success: true,
-      message: 'Client interaction deleted successfully',
+      message: 'Client interaction deleted successfully'
     };
   }
 
@@ -301,13 +295,12 @@ export class ClientsController {
     const clients = await this.clientsService.bulkUpdateClientStatus(
       data.clientIds,
       data.status as any,
-      data.reason,
-    );
+      data.reason);
 
     return {
       success: true,
       message: 'Client status updated successfully',
-      data: clients,
+      data: clients
     };
   }
 
@@ -322,13 +315,12 @@ export class ClientsController {
   }) {
     const clients = await this.clientsService.bulkAssignClientsToBroker(
       data.clientIds,
-      data.brokerId,
-    );
+      data.brokerId);
 
     return {
       success: true,
       message: 'Clients assigned to broker successfully',
-      data: clients,
+      data: clients
     };
   }
 }

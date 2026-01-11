@@ -66,7 +66,7 @@ viralfx/
 ### Backend (NestJS)
 - ✅ RESTful API with comprehensive authentication
 - ✅ WebSocket support for real-time updates
-- ✅ TypeORM with PostgreSQL for enterprise database operations
+- ✅ **Prisma ORM** with PostgreSQL for enterprise database operations (migrated from TypeORM)
 - ✅ Redis for caching, job queues, and real-time data
 - ✅ JWT authentication with 2FA support
 - ✅ Multi-currency system (ZAR, USD, EUR, BTC, ETH)

@@ -1,8 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from '../redis/redis.service';
-import { VPMXResult, VPMXHistoryEntry, VPMXWeighting, RegionalVPMXData } from './interfaces/vpmx.interface';
-import { WebSocketGateway } from '../websocket/websocket.gateway';
+import { VPMXResult, VPMXHistoryEntry, VPMXWeighting, RegionalVPMXData } from "./interfaces/vpmx.interface";
+import { WebSocketGatewayHandler } from '../websocket/gateways/websocket.gateway';
 
 @Injectable()
 export class VPMXService {
@@ -13,8 +13,7 @@ export class VPMXService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-    private readonly wsGateway: WebSocketGateway,
-  ) {}
+    private readonly wsGateway: WebSocketGatewayHandler) {}
 
   /**
    * Get current VPMX value for a VTS symbol
@@ -31,7 +30,7 @@ export class VPMXService {
     // Fallback to database
     const latest = await this.prisma.vPMXHistory.findFirst({
       where: { vtsSymbol },
-      orderBy: { timestamp: 'desc' },
+      orderBy: { timestamp: 'desc' }
     });
 
     if (latest) {
@@ -67,7 +66,7 @@ export class VPMXService {
     if (uncachedSymbols.length > 0) {
       const dbResults = await this.prisma.vPMXHistory.findMany({
         where: { vtsSymbol: { in: uncachedSymbols } },
-        orderBy: { timestamp: 'desc' },
+        orderBy: { timestamp: 'desc' }
       });
 
       // Group by symbol and take latest
@@ -106,8 +105,7 @@ export class VPMXService {
     startDate?: Date,
     endDate?: Date,
     limit = 100,
-    page = 1,
-  ): Promise<{ data: VPMXHistoryEntry[]; total: number }> {
+    page = 1): Promise<{ data: VPMXHistoryEntry[]; total: number }> {
     const where: any = { vtsSymbol };
 
     if (startDate || endDate) {
@@ -121,7 +119,7 @@ export class VPMXService {
         where,
         orderBy: { timestamp: 'desc' },
         take: limit,
-        skip: (page - 1) * limit,
+        skip: (page - 1) * limit
       }),
       this.prisma.vPMXHistory.count({ where }),
     ]);
@@ -144,7 +142,7 @@ export class VPMXService {
     const regionalData = await this.prisma.vPMXRegional.findMany({
       where,
       orderBy: { timestamp: 'desc' },
-      take: 50,
+      take: 50
     });
 
     // Cache for 60 seconds
@@ -163,8 +161,8 @@ export class VPMXService {
         timestamp: result.timestamp,
         value: result.value,
         components: result.components,
-        metadata: result.metadata,
-      },
+        metadata: result.metadata
+      }
     });
 
     // Update cache
@@ -176,7 +174,7 @@ export class VPMXService {
       vtsSymbol: result.vtsSymbol,
       value: result.value,
       timestamp: result.timestamp,
-      change: await this.calculateChange(result.vtsSymbol, result.value),
+      change: await this.calculateChange(result.vtsSymbol, result.value)
     });
 
     return stored;
@@ -193,8 +191,8 @@ export class VPMXService {
         timestamp: new Date(),
         value: data.value,
         components: data.components,
-        contribution: data.contribution,
-      },
+        contribution: data.contribution
+      }
     });
 
     // Invalidate regional cache
@@ -229,7 +227,7 @@ export class VPMXService {
       engagementQualityWeight: 0.10,
       trendStabilityWeight: 0.10,
       deceptionRiskWeight: 0.05,
-      regionalWeightingWeight: 0.05,
+      regionalWeightingWeight: 0.05
     };
 
     await this.redis.set('vpmx:weighting', JSON.stringify(defaultWeighting));
@@ -250,13 +248,13 @@ export class VPMXService {
       where: {
         timestamp: {
           gte: timeRange.start,
-          lte: timeRange.end,
-        },
+          lte: timeRange.end
+        }
       },
       _avg: { value: true },
       _max: { value: true },
       _min: { value: true },
-      _count: { value: true },
+      _count: { value: true }
     });
 
     // Store aggregates
@@ -270,7 +268,7 @@ export class VPMXService {
           min: data._min.value,
           count: data._count.value,
           interval,
-          timestamp: new Date(),
+          timestamp: new Date()
         })
       );
     }
@@ -295,9 +293,9 @@ export class VPMXService {
     const result = await this.prisma.vPMXHistory.deleteMany({
       where: {
         timestamp: {
-          lt: cutoffDate,
-        },
-      },
+          lt: cutoffDate
+        }
+      }
     });
 
     return result.count;
@@ -309,11 +307,11 @@ export class VPMXService {
   async computeRegionalIndex(region: string, vtsSymbols: string[]): Promise<RegionalVPMXData> {
     const regionalData = await this.prisma.vPMXHistory.findMany({
       where: {
-        vtsSymbol: { in: vtsSymbols },
+        vtsSymbol: { in: vtsSymbols }
         // Add region-specific filtering logic here
       },
       orderBy: { timestamp: 'desc' },
-      take: vtsSymbols.length * 10, // Get recent data for each symbol
+      take: vtsSymbols.length * 10 // Get recent data for each symbol
     });
 
     // Calculate weighted regional average
@@ -332,9 +330,9 @@ export class VPMXService {
         engagementQualityScore: 0.64,
         trendStability: 0.77,
         deceptionRiskInverse: 0.85,
-        regionalWeighting: 1.0,
+        regionalWeighting: 1.0
       },
-      contribution: avgValue / 1000, // Normalize to 0-1
+      contribution: avgValue / 1000 // Normalize to 0-1
     };
   }
 
@@ -347,7 +345,7 @@ export class VPMXService {
 
     return {
       synced: 0,
-      errors: 0,
+      errors: 0
     };
   }
 
@@ -361,9 +359,9 @@ export class VPMXService {
     return await this.prisma.vPMXHistory.count({
       where: {
         timestamp: {
-          gte: cutoffDate,
-        },
-      },
+          gte: cutoffDate
+        }
+      }
     });
   }
 
@@ -398,9 +396,9 @@ export class VPMXService {
       distinct: ['vtsSymbol'],
       where: {
         timestamp: {
-          gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
-        },
-      },
+          gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+        }
+      }
     });
   }
 
@@ -426,7 +424,7 @@ export class VPMXService {
     return {
       oneHour: oneHour ? ((currentValue - oneHour) / oneHour) * 100 : 0,
       twentyFourHours: twentyFourHours ? ((currentValue - twentyFourHours) / twentyFourHours) * 100 : 0,
-      sevenDays: sevenDays ? ((currentValue - sevenDays) / sevenDays) * 100 : 0,
+      sevenDays: sevenDays ? ((currentValue - sevenDays) / sevenDays) * 100 : 0
     };
   }
 
@@ -438,10 +436,10 @@ export class VPMXService {
       where: {
         vtsSymbol,
         timestamp: {
-          lte: timestamp,
-        },
+          lte: timestamp
+        }
       },
-      orderBy: { timestamp: 'desc' },
+      orderBy: { timestamp: 'desc' }
     });
 
     return entry?.value || null;

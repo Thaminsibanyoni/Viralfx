@@ -7,14 +7,14 @@ export enum ClientSegment {
   ACTIVE = 'ACTIVE',
   DORMANT = 'DORMANT',
   HIGH_RISK = 'HIGH_RISK',
-  STANDARD = 'STANDARD',
+  STANDARD = 'STANDARD'
 }
 
 export enum ClientStatus {
   ACTIVE = 'ACTIVE',
   INACTIVE = 'INACTIVE',
   SUSPENDED = 'SUSPENDED',
-  CHURNED = 'CHURNED',
+  CHURNED = 'CHURNED'
 }
 
 export enum ClientSource {
@@ -22,14 +22,14 @@ export enum ClientSource {
   REFERRAL = 'REFERRAL',
   ADVERTISING = 'ADVERTISING',
   PARTNER = 'PARTNER',
-  BROKER = 'BROKER',
+  BROKER = 'BROKER'
 }
 
 export enum PreferredContact {
   EMAIL = 'EMAIL',
   SMS = 'SMS',
   PHONE = 'PHONE',
-  WHATSAPP = 'WHATSAPP',
+  WHATSAPP = 'WHATSAPP'
 }
 
 export class CreateClientRecordDto {

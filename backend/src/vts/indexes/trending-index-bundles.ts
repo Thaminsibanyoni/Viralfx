@@ -4,7 +4,7 @@
  * © 2025 ViralFX - Index Products and Financial Instruments
  */
 
-import { VTSSymbol, CategoryCode, RegionCode } from '../../../types/vts';
+import { VTSSymbol, CategoryCode, RegionCode } from "../../../types/vts";
 
 export interface TrendIndexBundle {
   id: string;

@@ -1,9 +1,9 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { WebSocketGateway as WSGateway } from '../../websocket/gateways/websocket.gateway';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { SendTimeOptimizerService } from '../services/send-time-optimizer.service';
 import { ProviderHealthService } from '../services/provider-health.service';
 import { ProviderRoutingService, RoutingContext } from '../services/provider-routing.service';
@@ -21,7 +21,7 @@ export interface SMSNotificationJob {
 
 @Injectable()
 @Processor('notifications:sms')
-export class SMSProcessor {
+export class SMSProcessor extends WorkerHost {
   private readonly logger = new Logger(SMSProcessor.name);
   private readonly twilioClient: Twilio | null = null;
   private providerClients = new Map<string, any>();
@@ -29,13 +29,12 @@ export class SMSProcessor {
   constructor(
     private readonly configService: ConfigService,
     private readonly prismaService: PrismaService,
-    private readonly webSocketGateway: WSGateway,
     private readonly sendTimeOptimizer: SendTimeOptimizerService,
     private readonly providerHealthService: ProviderHealthService,
     private readonly providerRoutingService: ProviderRoutingService,
-    private readonly chaosTestingService: ChaosTestingService,
-  ) {
-    this.initializeProviders();
+    private readonly chaosTestingService: ChaosTestingService) {
+    super();
+this.initializeProviders();
   }
 
   private initializeProviders() {
@@ -77,11 +76,11 @@ export class SMSProcessor {
             SMSMessageData: {
               Message: {
                 messageId: `at_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                status: 'Success',
-              },
-            },
+                status: 'Success'
+              }
+            }
           };
-        },
+        }
       };
       this.providerClients.set('africastalking', africasTalking);
       this.logger.log('Africa\'s Talking client initialized');
@@ -101,9 +100,9 @@ export class SMSProcessor {
           // Mock implementation - replace with actual Termii SDK
           return {
             message_id: `termii_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            status: 'sent',
+            status: 'sent'
           };
-        },
+        }
       };
       this.providerClients.set('termii', termii);
       this.logger.log('Termii client initialized');
@@ -124,10 +123,10 @@ export class SMSProcessor {
           return {
             messages: [{
               apiMessageId: `click_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              accepted: true,
-            }],
+              accepted: true
+            }]
           };
-        },
+        }
       };
       this.providerClients.set('clickatell', clickatell);
       this.logger.log('Clickatell client initialized');
@@ -136,23 +135,22 @@ export class SMSProcessor {
     }
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onActive(job: Job<SMSNotificationJob>) {
     this.logger.log(`Processing SMS notification job ${job.id} for user ${job.data.userId}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job<SMSNotificationJob>) {
     this.logger.log(`Completed SMS notification job ${job.id} for user ${job.data.userId}`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job<SMSNotificationJob>, error: Error) {
     this.logger.error(`Failed SMS notification job ${job.id} for user ${job.data.userId}:`, error);
   }
 
-  @Process('send-sms')
-  async handleSendSMS(job: Job<SMSNotificationJob>) {
+  private async handleSendSMS(job: Job<SMSNotificationJob>) {
     const { userId, notificationId, phoneNumber, message, countryCode = 'ZA', priority } = job.data;
 
     this.logger.log(`Processing SMS notification ${notificationId} for user ${userId}`);
@@ -161,7 +159,7 @@ export class SMSProcessor {
       // Get notification details
       const notification = await this.prismaService.notification.findUnique({
         where: { id: notificationId },
-        include: { user: { include: { notificationPreferences: true } } },
+        include: { user: { include: { notificationPreferences: true } } }
       });
 
       if (!notification || !notification.user) {
@@ -190,7 +188,7 @@ export class SMSProcessor {
         priority: priority as 'low' | 'medium' | 'high' | 'critical',
         channel: 'sms',
         timezone: user.notificationPreferences?.timezone,
-        metadata: { phoneNumber, countryCode },
+        metadata: { phoneNumber, countryCode }
       });
 
       if (!timeOptimization.shouldSendNow) {
@@ -200,7 +198,7 @@ export class SMSProcessor {
         if (timeOptimization.optimalSendTime) {
           await this.prismaService.notification.update({
             where: { id: notificationId },
-            data: { scheduledFor: timeOptimization.optimalSendTime },
+            data: { scheduledFor: timeOptimization.optimalSendTime }
           });
         }
 
@@ -214,7 +212,7 @@ export class SMSProcessor {
           skipped: true,
           reason: timeOptimization.reason,
           optimalSendTime: timeOptimization.optimalSendTime,
-          delayMs: timeOptimization.delayMs,
+          delayMs: timeOptimization.delayMs
         };
       }
 
@@ -250,7 +248,7 @@ export class SMSProcessor {
         priority,
         notificationId,
         recipientCountry: countryCode,
-        notificationPriority: notification.priority as 'low' | 'medium' | 'high' | 'critical',
+        notificationPriority: notification.priority as 'low' | 'medium' | 'high' | 'critical'
       });
 
       // Log the SMS delivery
@@ -267,7 +265,7 @@ export class SMSProcessor {
         notificationId,
         phoneNumber: this.maskPhoneNumber(formattedPhone),
         sentAt: new Date(),
-        messageId: smsResult.messageId,
+        messageId: smsResult.messageId
       });
 
       this.logger.log(`SMS notification ${notificationId} sent successfully to ${formattedPhone}`);
@@ -280,7 +278,7 @@ export class SMSProcessor {
         priority: priority as 'low' | 'medium' | 'high' | 'critical',
         channel: 'sms',
         timezone: user.notificationPreferences?.timezone,
-        metadata: { phoneNumber, countryCode },
+        metadata: { phoneNumber, countryCode }
       });
 
       return {
@@ -294,8 +292,8 @@ export class SMSProcessor {
         optimizationStats: {
           qualityScore: timeOptimization.qualityScore,
           frequencyCapRespected: timeOptimization.frequencyCapRespected,
-          quietHoursRespected: timeOptimization.quietHoursRespected,
-        },
+          quietHoursRespected: timeOptimization.quietHoursRespected
+        }
       };
     } catch (error) {
       // Handle special case for optimal time delay
@@ -321,14 +319,13 @@ export class SMSProcessor {
           notificationId,
           phoneNumber: this.maskPhoneNumber(phoneNumber),
           error: error.message,
-          retryable: false,
+          retryable: false
         };
       }
     }
   }
 
-  @Process('send-verification-sms')
-  async handleSendVerificationSMS(job: Job<{
+  private async handleSendVerificationSMS(job: Job<{
     userId: string;
     phoneNumber: string;
     verificationCode: string;
@@ -356,7 +353,7 @@ export class SMSProcessor {
         verificationType: type,
         notificationId: '',
         recipientCountry: 'US', // Default to US for verification
-        notificationPriority: 'critical',
+        notificationPriority: 'critical'
       });
 
       // Store verification code with expiration
@@ -369,8 +366,8 @@ export class SMSProcessor {
           expiresAt: type === 'phone_verification'
             ? new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
             : new Date(Date.now() + 5 * 60 * 1000),  // 5 minutes
-          messageId: result.messageId,
-        },
+          messageId: result.messageId
+        }
       });
 
       return {
@@ -379,7 +376,7 @@ export class SMSProcessor {
         messageId: result.messageId,
         expiresAt: type === 'phone_verification'
           ? new Date(Date.now() + 10 * 60 * 1000)
-          : new Date(Date.now() + 5 * 60 * 1000),
+          : new Date(Date.now() + 5 * 60 * 1000)
       };
     } catch (error) {
       this.logger.error(`Failed to send verification SMS:`, error);
@@ -387,8 +384,7 @@ export class SMSProcessor {
     }
   }
 
-  @Process('cleanup-old-sms-logs')
-  async handleCleanupSMSLogs(job: Job<{
+  private async handleCleanupSMSLogs(job: Job<{
     olderThanDays?: number;
   }>) {
     const { olderThanDays = 90 } = job.data;
@@ -403,9 +399,9 @@ export class SMSProcessor {
         where: {
           channel: 'sms',
           createdAt: {
-            lt: cutoffDate,
-          },
-        },
+            lt: cutoffDate
+          }
+        }
       });
 
       this.logger.log(`Cleaned up ${result.count} old SMS logs`);
@@ -413,7 +409,7 @@ export class SMSProcessor {
       return {
         success: true,
         deleted: result.count,
-        cutoffDate,
+        cutoffDate
       };
     } catch (error) {
       this.logger.error('Failed to cleanup SMS logs:', error);
@@ -444,7 +440,7 @@ export class SMSProcessor {
       requiresHighThroughput: false, // Single SMS
       requiresLowLatency: smsData.notificationPriority === 'critical' || smsData.notificationPriority === 'high',
       costOptimization: smsData.notificationPriority === 'low',
-      geographicRouting: true, // Enable regional routing for SMS
+      geographicRouting: true // Enable regional routing for SMS
     };
 
     let lastError: Error | null = null;
@@ -483,7 +479,7 @@ export class SMSProcessor {
             message: smsData.message,
             from: smsData.from,
             priority: smsData.priority,
-            recipientCountry: smsData.recipientCountry,
+            recipientCountry: smsData.recipientCountry
           });
 
           // Record successful delivery attempt
@@ -505,7 +501,7 @@ export class SMSProcessor {
             messageId: result.messageId,
             provider: providerId,
             attempts,
-            cost: result.cost || 0,
+            cost: result.cost || 0
           };
 
         } catch (error) {
@@ -517,8 +513,7 @@ export class SMSProcessor {
             providerId,
             false,
             Date.now() - Date.now(),
-            error.message,
-          );
+            error.message);
 
           // Continue to next provider if available
           if (attempts < maxAttempts) {
@@ -587,7 +582,7 @@ export class SMSProcessor {
         // Set rate limit for compliance (1 message per second for marketing)
         rateLimit: smsData.verificationType ? undefined : 1,
         // Schedule for non-urgent messages during quiet hours
-        scheduleTime: smsData.priority === 'normal' ? this.calculateOptimalSendTime() : undefined,
+        scheduleTime: smsData.priority === 'normal' ? this.calculateOptimalSendTime() : undefined
       });
 
       // Store SMS usage analytics
@@ -596,7 +591,7 @@ export class SMSProcessor {
       return {
         messageId: message.sid,
         provider: 'twilio',
-        cost: message.price ? parseFloat(message.price) : undefined,
+        cost: message.price ? parseFloat(message.price) : undefined
       };
     } catch (error) {
       this.logger.error('Twilio SMS sending failed:', error);
@@ -620,12 +615,12 @@ export class SMSProcessor {
       const response = await client.send({
         to: smsData.to,
         message: smsData.message,
-        from: smsData.from,
+        from: smsData.from
       });
 
       return {
         messageId: response.SMSMessageData.Message.messageId,
-        cost: 0.004, // Africa's Talking cost
+        cost: 0.004 // Africa's Talking cost
       };
     } catch (error) {
       this.logger.error('Africa\'s Talking SMS sending failed:', error);
@@ -651,12 +646,12 @@ export class SMSProcessor {
         message: smsData.message,
         from: smsData.from,
         type: 'plain',
-        channel: 'generic',
+        channel: 'generic'
       });
 
       return {
         messageId: response.message_id,
-        cost: 0.0035, // Termii cost
+        cost: 0.0035 // Termii cost
       };
     } catch (error) {
       this.logger.error('Termii SMS sending failed:', error);
@@ -682,13 +677,13 @@ export class SMSProcessor {
           channel: 'sms',
           to: [smsData.to],
           from: smsData.from,
-          content: smsData.message,
-        }],
+          content: smsData.message
+        }]
       });
 
       return {
         messageId: response.messages[0].apiMessageId,
-        cost: 0.006, // Clickatell cost
+        cost: 0.006 // Clickatell cost
       };
     } catch (error) {
       this.logger.error('Clickatell SMS sending failed:', error);
@@ -720,7 +715,7 @@ export class SMSProcessor {
     return {
       messageId: mockMessageId,
       provider: 'mock-sms-service',
-      cost: mockCost,
+      cost: mockCost
     };
   }
 
@@ -792,11 +787,11 @@ export class SMSProcessor {
         channel: 'sms',
         createdAt: {
           gte: today,
-          lt: tomorrow,
+          lt: tomorrow
         },
         // Note: In a real implementation, you'd need to link this to user notifications
         // This might require joining with notifications table or storing userId in the log
-      },
+      }
     });
   }
 
@@ -809,13 +804,13 @@ export class SMSProcessor {
         channel: 'sms',
         status: 'SUCCESS',
         createdAt: {
-          gte: fiveMinutesAgo,
+          gte: fiveMinutesAgo
         },
         metadata: {
           path: [],
-          string_contains: message.substring(0, 50), // Check first 50 chars
-        },
-      },
+          string_contains: message.substring(0, 50) // Check first 50 chars
+        }
+      }
     });
 
     return count > 0;
@@ -831,12 +826,12 @@ export class SMSProcessor {
       where: {
         userId_date: {
           userId,
-          date: today.toISOString().split('T')[0],
-        },
+          date: today.toISOString().split('T')[0]
+        }
       },
       update: {
         sent: { increment: 1 },
-        lastSentAt: new Date(),
+        lastSentAt: new Date()
       },
       create: {
         userId,
@@ -845,8 +840,8 @@ export class SMSProcessor {
         delivered: 0,
         failed: 0,
         cost: 0,
-        lastSentAt: new Date(),
-      },
+        lastSentAt: new Date()
+      }
     });
   }
 
@@ -858,13 +853,13 @@ export class SMSProcessor {
         provider_date_type: {
           provider,
           date: today,
-          type: verificationType || 'notification',
-        },
+          type: verificationType || 'notification'
+        }
       },
       update: {
         sent: { increment: 1 },
         cost: { increment: this.getSMSCost(provider, priority) },
-        lastUsedAt: new Date(),
+        lastUsedAt: new Date()
       },
       create: {
         provider,
@@ -874,8 +869,8 @@ export class SMSProcessor {
         delivered: 0,
         failed: 0,
         cost: this.getSMSCost(provider, priority),
-        lastUsedAt: new Date(),
-      },
+        lastUsedAt: new Date()
+      }
     });
   }
 
@@ -885,7 +880,7 @@ export class SMSProcessor {
       africastalking: 0.004,
       termii: 0.0035,
       clickatell: 0.006,
-      'mock-sms-service': 0.25,
+      'mock-sms-service': 0.25
     };
 
     const baseCost = baseCosts[provider] || 0.25;
@@ -939,8 +934,8 @@ export class SMSProcessor {
         status,
         sentAt: status === 'SUCCESS' ? new Date() : undefined,
         errorDetails: status === 'FAILED' ? JSON.stringify(details) : null,
-        metadata: details ? JSON.stringify(details) : null,
-      },
+        metadata: details ? JSON.stringify(details) : null
+      }
     });
   }
 
@@ -952,8 +947,8 @@ export class SMSProcessor {
       where: { id: notificationId },
       data: {
         deliveryStatus: status,
-        deliveredAt: status === 'SMS_SENT' ? new Date() : undefined,
-      },
+        deliveredAt: status === 'SMS_SENT' ? new Date() : undefined
+      }
     });
   }
 }

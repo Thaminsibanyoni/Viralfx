@@ -18,7 +18,7 @@ export class CanonicalDataDto implements CanonicalData {
   @ApiProperty({
     description: 'Array of hashtags related to the topic',
     example: ['#viralfx', '#trading', '#market'],
-    type: [String],
+    type: [String]
   })
   @IsArray()
   @IsString({ each: true })
@@ -27,7 +27,7 @@ export class CanonicalDataDto implements CanonicalData {
   @ApiProperty({
     description: 'Array of keywords related to the topic',
     example: ['trading', 'finance', 'cryptocurrency'],
-    type: [String],
+    type: [String]
   })
   @IsArray()
   @IsString({ each: true })
@@ -45,9 +45,9 @@ export class CanonicalDataDto implements CanonicalData {
       properties: {
         type: { type: 'string', example: 'PERSON' },
         value: { type: 'string', example: 'Elon Musk' },
-        confidence: { type: 'number', example: 0.95, minimum: 0, maximum: 1 },
-      },
-    },
+        confidence: { type: 'number', example: 0.95, minimum: 0, maximum: 1 }
+      }
+    }
   })
   @IsArray()
   @ValidateNested({ each: true })
@@ -58,7 +58,7 @@ export class CanonicalDataDto implements CanonicalData {
 class CanonicalEntityDto implements CanonicalEntity {
   @ApiProperty({
     description: 'Type of entity',
-    example: 'PERSON',
+    example: 'PERSON'
   })
   @IsString()
   @IsNotEmpty()
@@ -66,7 +66,7 @@ class CanonicalEntityDto implements CanonicalEntity {
 
   @ApiProperty({
     description: 'Value of the entity',
-    example: 'Elon Musk',
+    example: 'Elon Musk'
   })
   @IsString()
   @IsNotEmpty()
@@ -76,7 +76,7 @@ class CanonicalEntityDto implements CanonicalEntity {
     description: 'Confidence score (0-1)',
     example: 0.95,
     minimum: 0,
-    maximum: 1,
+    maximum: 1
   })
   confidence: number;
 }
@@ -85,7 +85,7 @@ export class CreateTopicDto {
   @ApiProperty({
     description: 'Name of the topic',
     example: 'Cryptocurrency Trading',
-    maxLength: 100,
+    maxLength: 100
   })
   @IsString()
   @IsNotEmpty()
@@ -95,7 +95,7 @@ export class CreateTopicDto {
   @ApiPropertyOptional({
     description: 'URL-friendly slug for the topic (auto-generated if not provided)',
     example: 'cryptocurrency-trading',
-    maxLength: 100,
+    maxLength: 100
   })
   @IsOptional()
   @IsString()
@@ -121,7 +121,7 @@ export class CreateTopicDto {
       'INTERNATIONAL',
       'LOCAL',
       'OTHER',
-    ],
+    ]
   })
   @IsEnum([
     'POLITICS',
@@ -145,7 +145,7 @@ export class CreateTopicDto {
   @ApiPropertyOptional({
     description: 'Description of the topic',
     example: 'Topics related to cryptocurrency trading and market analysis',
-    maxLength: 500,
+    maxLength: 500
   })
   @IsOptional()
   @IsString()
@@ -154,7 +154,7 @@ export class CreateTopicDto {
 
   @ApiPropertyOptional({
     description: 'Canonical representation data including hashtags, keywords, and entities',
-    type: CanonicalDataDto,
+    type: CanonicalDataDto
   })
   @IsOptional()
   @IsObject()

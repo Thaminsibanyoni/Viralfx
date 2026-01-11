@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from '../redis/redis.service';
 
 @Injectable()
@@ -8,8 +8,7 @@ export class VPMXAnalyticsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly redis: RedisService,
-  ) {}
+    private readonly redis: RedisService) {}
 
   /**
    * Advanced Pattern Recognition using ML
@@ -32,7 +31,7 @@ export class VPMXAnalyticsService {
       return {
         anomalies: patterns.anomalies,
         riskScore: patterns.riskScore,
-        recommendations: patterns.recommendations,
+        recommendations: patterns.recommendations
       };
     } catch (error) {
       this.logger.error('Failed to detect anomalous patterns', error);
@@ -66,7 +65,7 @@ export class VPMXAnalyticsService {
         confidence: modelOutput.confidence,
         upperBound: modelOutput.upperBound,
         lowerBound: modelOutput.lowerBound,
-        factors: modelOutput.factorAnalysis,
+        factors: modelOutput.factorAnalysis
       };
     } catch (error) {
       this.logger.error('Failed to predict VPMX movement', error);
@@ -98,7 +97,7 @@ export class VPMXAnalyticsService {
             correlation: data.correlation,
             influence: data.influence,
             sentiment: data.sentiment,
-            velocity: data.velocity,
+            velocity: data.velocity
           };
         })
       );
@@ -112,7 +111,7 @@ export class VPMXAnalyticsService {
       return {
         platforms: correlations,
         dominantPlatform,
-        synergyScore,
+        synergyScore
       };
     } catch (error) {
       this.logger.error('Failed to analyze cross-platform correlation', error);
@@ -143,7 +142,7 @@ export class VPMXAnalyticsService {
         sharpeRatio: this.calculateSharpeRatio(returns),
         beta: await this.calculateBeta(vtsSymbol),
         volatility: this.calculateVolatility(returns),
-        riskRating: 'AAA' as any, // Will be calculated
+        riskRating: 'AAA' as any // Will be calculated
       };
 
       riskMetrics.riskRating = this.calculateRiskRating(riskMetrics);
@@ -213,7 +212,7 @@ export class VPMXAnalyticsService {
         fear: sentimentData.emotions.fear || 0,
         sadness: sentimentData.emotions.sadness || 0,
         surprise: sentimentData.emotions.surprise || 0,
-        disgust: sentimentData.emotions.disgust || 0,
+        disgust: sentimentData.emotions.disgust || 0
       };
 
       const dominantEmotion = Object.entries(emotions)
@@ -227,7 +226,7 @@ export class VPMXAnalyticsService {
         emotions,
         dominantEmotion,
         emotionalVolatility,
-        sentimentTrajectory,
+        sentimentTrajectory
       };
     } catch (error) {
       this.logger.error('Failed to analyze emotional sentiment', error);
@@ -261,7 +260,7 @@ export class VPMXAnalyticsService {
         depth,
         spread,
         volume,
-        marketImpact,
+        marketImpact
       });
 
       return {
@@ -270,7 +269,7 @@ export class VPMXAnalyticsService {
         spread,
         volume,
         marketImpact,
-        recommendations,
+        recommendations
       };
     } catch (error) {
       this.logger.error('Failed to analyze liquidity', error);
@@ -308,7 +307,7 @@ export class VPMXAnalyticsService {
         complianceScore,
         violations,
         recommendations,
-        auditTrail,
+        auditTrail
       };
     } catch (error) {
       this.logger.error('Failed to monitor compliance', error);
@@ -347,18 +346,18 @@ export class VPMXAnalyticsService {
           vtsSymbol,
           timestamp: {
             gte: startDate,
-            lte: now,
-          },
+            lte: now
+          }
         },
         orderBy: { timestamp: 'asc' },
-        take: 200, // Limit to prevent excessive data
+        take: 200 // Limit to prevent excessive data
       });
 
       return historicalData.map(entry => ({
         timestamp: entry.timestamp,
         value: entry.value,
         components: entry.components,
-        metadata: entry.metadata,
+        metadata: entry.metadata
       }));
     } catch (error) {
       this.logger.error(`Failed to fetch historical data for ${vtsSymbol}:`, error);
@@ -371,7 +370,7 @@ export class VPMXAnalyticsService {
     return {
       anomalies: [],
       riskScore: 0,
-      recommendations: [],
+      recommendations: []
     };
   }
 
@@ -431,7 +430,7 @@ export class VPMXAnalyticsService {
         confidence: 0.3,
         upperBound: latestValue * 1.1,
         lowerBound: latestValue * 0.9,
-        factorAnalysis: factors,
+        factorAnalysis: factors
       };
     }
 
@@ -484,8 +483,8 @@ export class VPMXAnalyticsService {
         trend: recentTrend,
         volatility,
         momentum,
-        dataPoints: historicalData.length,
-      },
+        dataPoints: historicalData.length
+      }
     };
   } catch (error) {
     this.logger.error(`Failed to run prediction model for ${vtsSymbol}:`, error);
@@ -495,7 +494,7 @@ export class VPMXAnalyticsService {
       confidence: 0.2,
       upperBound: 750,
       lowerBound: 650,
-      factorAnalysis: factors,
+      factorAnalysis: factors
     };
   }
 }
@@ -506,7 +505,7 @@ export class VPMXAnalyticsService {
       correlation: 0,
       influence: 0,
       sentiment: 0,
-      velocity: 0,
+      velocity: 0
     };
   }
 
@@ -615,8 +614,8 @@ export class VPMXAnalyticsService {
         fear: 0.2,
         sadness: 0.1,
         surprise: 0.2,
-        disgust: 0.1,
-      },
+        disgust: 0.1
+      }
     };
   }
 
@@ -633,7 +632,7 @@ export class VPMXAnalyticsService {
     return {
       current: 0.7,
       trend: 'IMPROVING' as const,
-      momentum: 0.15,
+      momentum: 0.15
     };
   }
 
@@ -641,7 +640,7 @@ export class VPMXAnalyticsService {
     // Get market depth data
     return {
       bids: [],
-      asks: [],
+      asks: []
     };
   }
 
@@ -720,7 +719,7 @@ export class VPMXAnalyticsService {
       max: Math.max(...values),
       range: Math.max(...values) - Math.min(...values),
       trend: this.calculateLinearTrend(timestamps, values),
-      seasonality: this.detectSeasonality(values),
+      seasonality: this.detectSeasonality(values)
     };
   }
 
@@ -831,7 +830,7 @@ export class VPMXAnalyticsService {
       const avgSentiment = sentimentScores.reduce((a, b) => a + b, 0) / sentimentScores.length;
       const sentimentTrend = this.calculateTrend(sentimentScores.map((score, index) => ({
         timestamp: recentData[index].timestamp,
-        value: score,
+        value: score
       })));
 
       const weight = Math.min(Math.abs(avgSentiment), 1);
@@ -841,7 +840,7 @@ export class VPMXAnalyticsService {
         factor: 'Sentiment Analysis',
         weight,
         impact,
-        description: `${impact} sentiment trend with ${(avgSentiment * 100).toFixed(1)}% average score`,
+        description: `${impact} sentiment trend with ${(avgSentiment * 100).toFixed(1)}% average score`
       };
     } catch (error) {
       return null;
@@ -858,7 +857,7 @@ export class VPMXAnalyticsService {
         factor: 'Viral Momentum',
         weight,
         impact,
-        description: `${impact} momentum at ${momentum.toFixed(1)}% rate`,
+        description: `${impact} momentum at ${momentum.toFixed(1)}% rate`
       };
     } catch (error) {
       return null;
@@ -872,11 +871,11 @@ export class VPMXAnalyticsService {
         where: {
           vtsSymbol,
           timestamp: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
-          },
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
+          }
         },
         orderBy: { timestamp: 'desc' },
-        take: 10,
+        take: 10
       });
 
       if (volumeData.length < 3) return null;
@@ -890,7 +889,7 @@ export class VPMXAnalyticsService {
         factor: 'Volume Analysis',
         weight,
         impact,
-        description: `Volume indicators suggest ${impact.toLowerCase()} activity`,
+        description: `Volume indicators suggest ${impact.toLowerCase()} activity`
       };
     } catch (error) {
       return null;
@@ -908,7 +907,7 @@ export class VPMXAnalyticsService {
         factor: 'Trend Stability',
         weight,
         impact,
-        description: `${(stability * 100).toFixed(1)}% stability with ${volatility.toFixed(1)}% volatility`,
+        description: `${(stability * 100).toFixed(1)}% stability with ${volatility.toFixed(1)}% volatility`
       };
     } catch (error) {
       return null;
@@ -926,7 +925,7 @@ export class VPMXAnalyticsService {
         factor: 'Cross-Platform Influence',
         weight,
         impact,
-        description: `${(platformInfluence * 100).toFixed(1)}% platform influence detected`,
+        description: `${(platformInfluence * 100).toFixed(1)}% platform influence detected`
       };
     } catch (error) {
       return null;

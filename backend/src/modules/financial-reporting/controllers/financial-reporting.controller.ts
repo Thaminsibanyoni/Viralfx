@@ -1,14 +1,14 @@
 import { Controller, Get, Post, Query, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { FinancialReportingService } from '../services/financial-reporting.service';
 import { MrrService } from '../services/mrr.service';
 import { NrrService } from '../services/nrr.service';
 import { CohortAnalysisService } from '../services/cohort-analysis.service';
 import { RevenueAnalyticsService } from '../services/revenue-analytics.service';
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from "../../../common/enums/user-role.enum";
 
 @ApiTags('financial-reporting')
 @ApiBearerAuth()
@@ -20,8 +20,7 @@ export class FinancialReportingController {
     private readonly mrrService: MrrService,
     private readonly nrrService: NrrService,
     private readonly cohortAnalysisService: CohortAnalysisService,
-    private readonly revenueAnalyticsService: RevenueAnalyticsService,
-  ) {}
+    private readonly revenueAnalyticsService: RevenueAnalyticsService) {}
 
   @Get('dashboard')
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.FINANCE)
@@ -32,14 +31,14 @@ export class FinancialReportingController {
   async getDashboard(@Query() query: any) {
     const period = query.startDate && query.endDate ? {
       start: new Date(query.startDate),
-      end: new Date(query.endDate),
+      end: new Date(query.endDate)
     } : undefined;
 
     const dashboard = await this.financialReportingService.getDashboard(period);
 
     return {
       success: true,
-      data: dashboard,
+      data: dashboard
     };
   }
 
@@ -55,7 +54,7 @@ export class FinancialReportingController {
 
     return {
       success: true,
-      data: mrrData,
+      data: mrrData
     };
   }
 
@@ -73,7 +72,7 @@ export class FinancialReportingController {
 
     return {
       success: true,
-      data: growthData,
+      data: growthData
     };
   }
 
@@ -86,7 +85,7 @@ export class FinancialReportingController {
 
     return {
       success: true,
-      data: tierData,
+      data: tierData
     };
   }
 
@@ -102,7 +101,7 @@ export class FinancialReportingController {
 
     return {
       success: true,
-      data: churnData,
+      data: churnData
     };
   }
 
@@ -120,7 +119,7 @@ export class FinancialReportingController {
 
     return {
       success: true,
-      data: nrrData,
+      data: nrrData
     };
   }
 
@@ -144,7 +143,7 @@ export class FinancialReportingController {
 
     return {
       success: true,
-      data: segmentData,
+      data: segmentData
     };
   }
 
@@ -158,7 +157,7 @@ export class FinancialReportingController {
 
     return {
       success: true,
-      data: trendData,
+      data: trendData
     };
   }
 
@@ -174,7 +173,7 @@ export class FinancialReportingController {
 
     return {
       success: true,
-      data: cohortData,
+      data: cohortData
     };
   }
 
@@ -188,7 +187,7 @@ export class FinancialReportingController {
 
     return {
       success: true,
-      data: retentionData,
+      data: retentionData
     };
   }
 
@@ -201,7 +200,7 @@ export class FinancialReportingController {
 
     return {
       success: true,
-      data: channelData,
+      data: channelData
     };
   }
 
@@ -214,7 +213,7 @@ export class FinancialReportingController {
   async getRevenueAnalytics(@Query() query: { startDate: string; endDate: string }) {
     const period = {
       start: new Date(query.startDate),
-      end: new Date(query.endDate),
+      end: new Date(query.endDate)
     };
 
     const [
@@ -238,8 +237,8 @@ export class FinancialReportingController {
         byTier: revenueByTier,
         byProduct: revenueByProduct,
         growth: revenueGrowth,
-        arpu,
-      },
+        arpu
+      }
     };
   }
 
@@ -252,14 +251,14 @@ export class FinancialReportingController {
   async getRevenueByRegion(@Query() query: { startDate: string; endDate: string }) {
     const period = {
       start: new Date(query.startDate),
-      end: new Date(query.endDate),
+      end: new Date(query.endDate)
     };
 
     const regionData = await this.revenueAnalyticsService.getRevenueByRegion(period);
 
     return {
       success: true,
-      data: regionData,
+      data: regionData
     };
   }
 
@@ -272,14 +271,14 @@ export class FinancialReportingController {
   async getRevenueByTier(@Query() query: { startDate: string; endDate: string }) {
     const period = {
       start: new Date(query.startDate),
-      end: new Date(query.endDate),
+      end: new Date(query.endDate)
     };
 
     const tierData = await this.revenueAnalyticsService.getRevenueByTier(period);
 
     return {
       success: true,
-      data: tierData,
+      data: tierData
     };
   }
 
@@ -301,7 +300,7 @@ export class FinancialReportingController {
   }) {
     const period = {
       start: new Date(query.startDate),
-      end: new Date(query.endDate),
+      end: new Date(query.endDate)
     };
 
     let reportData;
@@ -313,7 +312,7 @@ export class FinancialReportingController {
         if (!query.brokerId) {
           return {
             success: false,
-            message: 'Broker ID is required for broker reports',
+            message: 'Broker ID is required for broker reports'
           };
         }
         reportData = await this.financialReportingService.generateBrokerReport(query.brokerId, period);
@@ -328,14 +327,14 @@ export class FinancialReportingController {
       default:
         return {
           success: false,
-          message: 'Invalid report type',
+          message: 'Invalid report type'
         };
     }
 
     return {
       success: true,
       data: reportData,
-      format: query.format || 'json',
+      format: query.format || 'json'
     };
   }
 
@@ -355,7 +354,7 @@ export class FinancialReportingController {
     return {
       success: true,
       message: 'Report scheduled successfully',
-      data: scheduleData,
+      data: scheduleData
     };
   }
 
@@ -367,15 +366,14 @@ export class FinancialReportingController {
   @ApiQuery({ name: 'format', required: true, enum: ['json', 'csv', 'pdf'], description: 'Export format' })
   async exportReport(
     @Param('reportId') reportId: string,
-    @Query('format') format: 'json' | 'csv' | 'pdf',
-  ) {
+    @Query('format') format: 'json' | 'csv' | 'pdf') {
     const exportData = await this.financialReportingService.exportReport(reportId, format);
 
     return {
       success: true,
       data: exportData,
       format,
-      filename: `report_${reportId}.${format}`,
+      filename: `report_${reportId}.${format}`
     };
   }
 }

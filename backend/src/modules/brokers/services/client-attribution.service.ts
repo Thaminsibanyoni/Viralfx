@@ -1,12 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
-import { BrokerClient, ClientStatus, AttributionType } from '../entities/broker-client.entity';
-import { Broker } from '../entities/broker.entity';
-import { User } from '../../users/entities/user.entity';
-import { Order } from '../../trading/entities/order.entity';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { AttributionType, BrokerClientStatus } from '../enums/broker.enum';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerClient, ClientStatus, AttributionType } from '../entities/broker-client.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Broker } from '../entities/broker.entity';
+import { User } from "../../../common/enums/user-role.enum";
+import { Order } from "../../trading/entities/order.entity";
 import { ConfigService } from '@nestjs/config';
+
+// Type alias for compatibility
+type BrokerClient = any;
+type ClientStatus = BrokerClientStatus;
 
 @Injectable()
 export class ClientAttributionService {
@@ -14,19 +17,12 @@ export class ClientAttributionService {
   private readonly commissionSplit: { platform: number; broker: number };
 
   constructor(
-    @InjectRepository(BrokerClient)
-    private brokerClientRepository: Repository<BrokerClient>,
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    private prismaService: PrismaService,
-    private configService: ConfigService,
-  ) {
+        private prismaService: PrismaService,
+    private configService: ConfigService) {
     // Default commission split: 70% platform, 30% broker
     this.commissionSplit = {
       platform: this.configService.get<number>('PLATFORM_COMMISSION_RATE', 0.7),
-      broker: this.configService.get<number>('BROKER_COMMISSION_RATE', 0.3),
+      broker: this.configService.get<number>('BROKER_COMMISSION_RATE', 0.3)
     };
   }
 
@@ -39,20 +35,20 @@ export class ClientAttributionService {
     this.logger.log(`Attributing client ${clientId} to broker ${brokerId} via ${attributionType}`);
 
     // Verify broker exists and is active
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId, isActive: true } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId, isActive: true } });
     if (!broker) {
       throw new Error(`Active broker not found: ${brokerId}`);
     }
 
     // Verify client exists
-    const client = await this.userRepository.findOne({ where: { id: clientId } });
+    const client = await this.prisma.user.findFirst({ where: { id: clientId } });
     if (!client) {
       throw new Error(`Client not found: ${clientId}`);
     }
 
     // Check if client is already attributed to this broker
-    const existingAttribution = await this.brokerClientRepository.findOne({
-      where: { brokerId, clientId },
+    const existingAttribution = await this.prisma.brokerClient.findFirst({
+      where: { brokerId, clientId }
     });
 
     if (existingAttribution) {
@@ -61,9 +57,9 @@ export class ClientAttributionService {
     }
 
     // Check if client is attributed to another broker
-    const otherAttribution = await this.brokerClientRepository.findOne({
+    const otherAttribution = await this.prisma.brokerClient.findFirst({
       where: { clientId, status: ClientStatus.ACTIVE },
-      relations: ['broker'],
+      relations: ['broker']
     });
 
     if (otherAttribution) {
@@ -71,19 +67,19 @@ export class ClientAttributionService {
     }
 
     // Create attribution record
-    const brokerClient = this.brokerClientRepository.create({
+    const brokerClient = this.prisma.brokerClient.create({
       brokerId,
       clientId,
       status: ClientStatus.ACTIVE,
       attributionType,
       attributionDate: new Date(),
-      metadata: metadata || {},
+      metadata: metadata || {}
     });
 
-    const savedAttribution = await this.brokerClientRepository.save(brokerClient);
+    const savedAttribution = await this.prisma.brokerClient.upsert(brokerClient);
 
     // Update client's brokerId in User model
-    await this.userRepository.update(clientId, { brokerId });
+    await this.prisma.user.update(clientId, { brokerId });
 
     this.logger.log(`Successfully attributed client ${clientId} to broker ${brokerId}`);
     return savedAttribution;
@@ -108,8 +104,8 @@ export class ClientAttributionService {
         where: { id: order.id },
         data: {
           brokerCommission,
-          platformCommission,
-        },
+          platformCommission
+        }
       });
 
       // Update broker client statistics
@@ -128,8 +124,8 @@ export class ClientAttributionService {
     totalCommission: number,
     brokerCommission: number
   ): Promise<void> {
-    const brokerClient = await this.brokerClientRepository.findOne({
-      where: { brokerId, clientId },
+    const brokerClient = await this.prisma.brokerClient.findFirst({
+      where: { brokerId, clientId }
     });
 
     if (!brokerClient) {
@@ -149,7 +145,7 @@ export class ClientAttributionService {
       brokerClient.firstTradeDate = new Date();
     }
 
-    await this.brokerClientRepository.save(brokerClient);
+    await this.prisma.brokerClient.upsert(brokerClient);
   }
 
   async getBrokerClients(
@@ -161,7 +157,7 @@ export class ClientAttributionService {
       endDate?: Date;
     }
   ): Promise<BrokerClient[]> {
-    const query = this.brokerClientRepository.createQueryBuilder('brokerClient')
+    const query = this.prisma.createQueryBuilder('brokerClient')
       .leftJoinAndSelect('brokerClient.client', 'client')
       .leftJoinAndSelect('brokerClient.broker', 'broker')
       .where('brokerClient.brokerId = :brokerId', { brokerId });
@@ -177,7 +173,7 @@ export class ClientAttributionService {
     if (filters?.startDate || filters?.endDate) {
       query.andWhere('brokerClient.createdAt BETWEEN :startDate AND :endDate', {
         startDate: filters?.startDate || new Date(0),
-        endDate: filters?.endDate || new Date(),
+        endDate: filters?.endDate || new Date()
       });
     }
 
@@ -224,15 +220,15 @@ export class ClientAttributionService {
       totalCommission: parseFloat(stats.totalCommission) || 0,
       totalBrokerCommission: parseFloat(stats.totalBrokerCommission) || 0,
       averageCommissionPerClient: parseFloat(stats.averageCommissionPerClient) || 0,
-      churnRate: totalClients > 0 ? churnedClients / totalClients : 0,
+      churnRate: totalClients > 0 ? churnedClients / totalClients : 0
     };
   }
 
   async getClientAttributionHistory(clientId: string): Promise<BrokerClient[]> {
-    return this.brokerClientRepository.find({
+    return this.prisma.brokerClient.findMany({
       where: { clientId },
       relations: ['broker'],
-      order: { createdAt: 'DESC' },
+      order: { createdAt: 'DESC' }
     });
   }
 
@@ -242,8 +238,8 @@ export class ClientAttributionService {
     status: ClientStatus,
     notes?: string
   ): Promise<BrokerClient> {
-    const brokerClient = await this.brokerClientRepository.findOne({
-      where: { brokerId, clientId },
+    const brokerClient = await this.prisma.brokerClient.findFirst({
+      where: { brokerId, clientId }
     });
 
     if (!brokerClient) {
@@ -255,11 +251,11 @@ export class ClientAttributionService {
       brokerClient.notes = notes;
     }
 
-    return this.brokerClientRepository.save(brokerClient);
+    return this.prisma.brokerClient.upsert(brokerClient);
   }
 
   async generateReferralCode(brokerId: string): Promise<string> {
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     if (!broker) {
       throw new Error(`Broker not found: ${brokerId}`);
     }
@@ -270,8 +266,8 @@ export class ClientAttributionService {
     const referralCode = `${prefix}${suffix}`;
 
     // Check if code already exists
-    const existing = await this.brokerClientRepository.findOne({
-      where: { referralCode },
+    const existing = await this.prisma.brokerClient.findFirst({
+      where: { referralCode }
     });
 
     if (existing) {
@@ -283,9 +279,9 @@ export class ClientAttributionService {
   }
 
   async validateReferralCode(referralCode: string): Promise<Broker | null> {
-    const brokerClient = await this.brokerClientRepository.findOne({
+    const brokerClient = await this.prisma.brokerClient.findFirst({
       where: { referralCode },
-      relations: ['broker'],
+      relations: ['broker']
     });
 
     return brokerClient?.broker || null;
@@ -321,7 +317,7 @@ export class ClientAttributionService {
       clientName: `${client.client.firstName} ${client.client.lastName}`,
       totalCommission: client.totalCommission,
       brokerCommission: client.totalBrokerCommission,
-      tradeCount: client.totalTrades,
+      tradeCount: client.totalTrades
     }));
 
     const totalRevenue = clientBreakdown.reduce((sum, client) => sum + client.totalCommission, 0);
@@ -333,7 +329,7 @@ export class ClientAttributionService {
       totalRevenue,
       brokerRevenue,
       platformRevenue,
-      clientBreakdown,
+      clientBreakdown
     };
   }
 }

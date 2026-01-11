@@ -1,4 +1,4 @@
-import { Processor, Process, Logger } from '@nestjs/bullmq';
+import {Processor, WorkerHost, Logger } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { VPMXService } from '../vpmx.service';
 import { VPMXComputationService } from '../vpmx-computation.service';
@@ -36,17 +36,41 @@ export interface HealthCheckJob {
 }
 
 @Processor('vpmx-computation')
-export class VPMXProcessor {
+export class VPMXProcessor extends WorkerHost {
   private readonly logger = new Logger(VPMXProcessor.name);
 
   constructor(
     private readonly vpmxService: VPMXService,
     private readonly vpmxComputationService: VPMXComputationService,
-    private readonly vpmxIndexService: VPMXIndexService,
-  ) {}
+    private readonly vpmxIndexService: VPMXIndexService) {
+    super();
+}
 
-  @Process('compute-index')
-  async handleComputeIndex(job: Job<ComputeIndexJob>) {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'compute-index':
+        return this.handleComputeIndex(job);
+      case 'batch-compute':
+        return this.handleBatchCompute(job);
+      case 'update-weighting':
+        return this.handleUpdateWeighting(job);
+      case 'refresh-aggregates':
+        return this.handleRefreshAggregates(job);
+      case 'cleanup-old-data':
+        return this.handleCleanupOldData(job);
+      case 'regional-index-update':
+        return this.handleRegionalIndexUpdate(job);
+      case 'regional-synchronization':
+        return this.handleRegionalSynchronization(job);
+      case 'health-check':
+        return this.handleHealthCheck(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleComputeIndex(job: Job<ComputeIndexJob>) {
     this.logger.log(`Processing VPMX computation for ${job.data.vtsSymbol}`);
 
     try {
@@ -68,8 +92,7 @@ export class VPMXProcessor {
       const timestampDate = timestamp ? new Date(timestamp) : new Date();
       const result = await this.vpmxComputationService.computeVPMX(
         vtsSymbol,
-        timestampDate,
-      );
+        timestampDate);
 
       // Store result
       await this.vpmxService.storeVPMXResult(result);
@@ -83,7 +106,7 @@ export class VPMXProcessor {
         success: true,
         vtsSymbol,
         value: result.value,
-        timestamp: result.timestamp,
+        timestamp: result.timestamp
       };
     } catch (error) {
       this.logger.error(`VPMX computation failed for ${job.data.vtsSymbol}`, error);
@@ -91,8 +114,7 @@ export class VPMXProcessor {
     }
   }
 
-  @Process('batch-compute')
-  async handleBatchCompute(job: Job<{ vtsSymbols: string[]; timestamp?: string }>) {
+  private async handleBatchCompute(job: Job<{ vtsSymbols: string[]; timestamp?: string }>) {
     this.logger.log(`Processing batch VPMX computation for ${job.data.vtsSymbols.length} symbols`);
 
     const { vtsSymbols, timestamp } = job.data;
@@ -103,8 +125,7 @@ export class VPMXProcessor {
         // Queue individual computations
         const jobId = await this.vpmxComputationService.queueVPMXComputation(
           symbol,
-          timestamp ? new Date(timestamp) : undefined,
-        );
+          timestamp ? new Date(timestamp) : undefined);
         results.push({ symbol, jobId, status: 'queued' });
       } catch (error) {
         this.logger.error(`Failed to queue computation for ${symbol}`, error);
@@ -120,10 +141,11 @@ export class VPMXProcessor {
 export class VPMXWeightingProcessor {
   private readonly logger = new Logger(VPMXWeightingProcessor.name);
 
-  constructor(private readonly vpmxService: VPMXService) {}
+  constructor(private readonly vpmxService: VPMXService) {
+    super();
+}
 
-  @Process('update-weighting')
-  async handleUpdateWeighting(job: Job<UpdateWeightingJob>) {
+  private async handleUpdateWeighting(job: Job<UpdateWeightingJob>) {
     this.logger.log('Updating VPMX weighting configuration');
 
     try {
@@ -142,10 +164,11 @@ export class VPMXWeightingProcessor {
 export class VPMXAggregatesProcessor {
   private readonly logger = new Logger(VPMXAggregatesProcessor.name);
 
-  constructor(private readonly vpmxService: VPMXService) {}
+  constructor(private readonly vpmxService: VPMXService) {
+    super();
+}
 
-  @Process('refresh-aggregates')
-  async handleRefreshAggregates(job: Job<RefreshAggregatesJob>) {
+  private async handleRefreshAggregates(job: Job<RefreshAggregatesJob>) {
     this.logger.log(`Refreshing VPMX aggregates for interval: ${job.data.interval}`);
 
     try {
@@ -165,8 +188,7 @@ export class VPMXAggregatesProcessor {
     }
   }
 
-  @Process('cleanup-old-data')
-  async handleCleanupOldData(job: Job<{ daysToKeep: number }>) {
+  private async handleCleanupOldData(job: Job<{ daysToKeep: number }>) {
     this.logger.log(`Cleaning up VPMX data older than ${job.data.daysToKeep} days`);
 
     try {
@@ -185,10 +207,11 @@ export class VPMXAggregatesProcessor {
 export class VPMXRegionalProcessor {
   private readonly logger = new Logger(VPMXRegionalProcessor.name);
 
-  constructor(private readonly vpmxService: VPMXService) {}
+  constructor(private readonly vpmxService: VPMXService) {
+    super();
+}
 
-  @Process('regional-index-update')
-  async handleRegionalIndexUpdate(job: Job<RegionalIndexJob>) {
+  private async handleRegionalIndexUpdate(job: Job<RegionalIndexJob>) {
     this.logger.log(`Updating regional VPMX index for ${job.data.region}`);
 
     try {
@@ -197,8 +220,7 @@ export class VPMXRegionalProcessor {
       // Compute regional index
       const regionalIndex = await this.vpmxService.computeRegionalIndex(
         region,
-        vtsSymbols,
-      );
+        vtsSymbols);
 
       // Store regional data
       await this.vpmxService.storeRegionalVPMX(region, regionalIndex);
@@ -211,8 +233,7 @@ export class VPMXRegionalProcessor {
     }
   }
 
-  @Process('regional-synchronization')
-  async handleRegionalSynchronization(job: Job<{ regions: string[] }>) {
+  private async handleRegionalSynchronization(job: Job<{ regions: string[] }>) {
     this.logger.log('Synchronizing regional VPMX data');
 
     try {
@@ -241,10 +262,11 @@ export class VPMXRegionalProcessor {
 export class VPMXHealthProcessor {
   private readonly logger = new Logger(VPMXHealthProcessor.name);
 
-  constructor(private readonly vpmxService: VPMXService) {}
+  constructor(private readonly vpmxService: VPMXService) {
+    super();
+}
 
-  @Process('health-check')
-  async handleHealthCheck(job: Job<HealthCheckJob>) {
+  private async handleHealthCheck(job: Job<HealthCheckJob>) {
     this.logger.log(`Performing VPMX health check: ${job.data.checkType}`);
 
     try {
@@ -280,8 +302,8 @@ export class VPMXHealthProcessor {
       metrics: {
         heapUsed: usedMemory,
         heapTotal: totalMemory,
-        usagePercent: memoryUsagePercent,
-      },
+        usagePercent: memoryUsagePercent
+      }
     };
   }
 
@@ -298,8 +320,8 @@ export class VPMXHealthProcessor {
       status: responseTime > 5000 ? 'critical' : responseTime > 2000 ? 'warning' : 'healthy',
       metrics: {
         responseTime,
-        timestamp: new Date(),
-      },
+        timestamp: new Date()
+      }
     };
   }
 
@@ -311,8 +333,8 @@ export class VPMXHealthProcessor {
       status: recentDataCount < 100 ? 'warning' : 'healthy',
       metrics: {
         recentDataCount,
-        last24Hours: recentDataCount,
-      },
+        last24Hours: recentDataCount
+      }
     };
   }
 
@@ -329,7 +351,7 @@ export class VPMXHealthProcessor {
     return {
       type: 'connectivity',
       status: allHealthy ? 'healthy' : 'critical',
-      metrics: { services: checks },
+      metrics: { services: checks }
     };
   }
 

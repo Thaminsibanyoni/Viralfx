@@ -1,18 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 
-import { WalletService } from './wallet.service';
-import { LedgerService } from './ledger.service';
-import { PaymentGatewayService } from '../../payment/services/payment-gateway.service';
-import { WebSocketGateway } from '../../websocket/gateways/websocket.gateway';
-import { PrismaService } from '../../prisma/prisma.service';
-import { WithdrawalInitiation, WithdrawalDestination } from '../../order-matching/interfaces/order-matching.interface';
-import { Transaction } from '../entities/transaction.entity';
+import { WalletService } from "./wallet.service";
+import { LedgerService } from "./ledger.service";
+import { PaymentGatewayService } from "../../payment/services/payment-gateway.service";
+import { WithdrawalInitiation, WithdrawalDestination } from "../../order-matching/interfaces/order-matching.interface";
+// COMMENTED OUT (TypeORM entity deleted): import { Transaction } from '../entities/transaction.entity';
 
 @Injectable()
 export class WithdrawalService {
@@ -22,16 +19,10 @@ export class WithdrawalService {
     private readonly walletService: WalletService,
     private readonly ledgerService: LedgerService,
     private readonly paymentGatewayService: PaymentGatewayService,
-    private readonly webSocketGateway: WebSocketGateway,
     private readonly prisma: PrismaService,
     @InjectQueue('wallet-withdrawal')
     private readonly withdrawalQueue: Queue,
-    @InjectRepository('User')
-    private readonly userRepository: Repository<any>,
-    @InjectRepository(Transaction)
-    private readonly transactionRepository: Repository<Transaction>,
-    @InjectRedis() private readonly redis: Redis,
-  ) {}
+    @InjectRedis() private readonly redis: Redis) {}
 
   async initiateWithdrawal(
     userId: string,
@@ -84,10 +75,10 @@ export class WithdrawalService {
         status: 'PROCESSING', // Will be set to PENDING initially
         metadata: {
           destination,
-          initiatedAt: new Date(),
+          initiatedAt: new Date()
         },
         referenceId: walletId,
-        referenceType: 'WITHDRAWAL',
+        referenceType: 'WITHDRAWAL'
       });
 
       // Lock funds
@@ -109,15 +100,15 @@ export class WithdrawalService {
           walletId,
           amount,
           destination,
-          requiresManualReview,
+          requiresManualReview
         },
         {
           attempts: 5,
           backoff: {
             type: 'exponential',
-            delay: 10000,
+            delay: 10000
           },
-          delay: requiresManualReview ? 0 : 1000, // Process immediately if no review needed
+          delay: requiresManualReview ? 0 : 1000 // Process immediately if no review needed
         }
       );
 
@@ -129,8 +120,8 @@ export class WithdrawalService {
         requirements: {
           verification: requiresManualReview ? 'MANUAL_REVIEW' : 'AUTOMATIC',
           twoFactor: amount >= twoFactorThreshold,
-          manualReview: requiresManualReview,
-        },
+          manualReview: requiresManualReview
+        }
       };
     } catch (error) {
       this.logger.error('Failed to initiate withdrawal:', error);
@@ -217,7 +208,7 @@ export class WithdrawalService {
       // Broadcast cancellation
       await this.webSocketGateway.server?.to(`user:${userId}`).emit('withdrawal:cancelled', {
         transactionId,
-        timestamp: new Date(),
+        timestamp: new Date()
       });
 
       this.logger.log(`Withdrawal cancelled successfully for transaction ${transactionId}`);
@@ -270,14 +261,14 @@ export class WithdrawalService {
         userId: transaction.userId,
         type: 'WITHDRAWAL',
         destination,
-        reference: transaction.id,
+        reference: transaction.id
       });
 
       // Update transaction with provider details
       await this.updateTransactionMetadata(transaction.id, {
         providerReference: paymentResult.reference,
         providerResponse: paymentResult,
-        processedAt: new Date(),
+        processedAt: new Date()
       });
 
       // Update status to completed
@@ -287,7 +278,7 @@ export class WithdrawalService {
       await this.webSocketGateway.server?.to(`user:${transaction.userId}`).emit('withdrawal:completed', {
         transactionId: transaction.id,
         reference: paymentResult.reference,
-        timestamp: new Date(),
+        timestamp: new Date()
       });
     } catch (error) {
       this.logger.error(`Failed to process fiat withdrawal:`, error);
@@ -306,7 +297,7 @@ export class WithdrawalService {
         address: destination.details.cryptoAddress,
         network: destination.details.network,
         userId: transaction.userId,
-        reference: transaction.id,
+        reference: transaction.id
       });
 
       // Update transaction with blockchain details
@@ -314,7 +305,7 @@ export class WithdrawalService {
         blockchainTxId: cryptoResult.transactionHash,
         networkFee: cryptoResult.networkFee,
         confirmations: 0,
-        processedAt: new Date(),
+        processedAt: new Date()
       });
 
       // Update status to completed
@@ -324,7 +315,7 @@ export class WithdrawalService {
       await this.webSocketGateway.server?.to(`user:${transaction.userId}`).emit('withdrawal:completed', {
         transactionId: transaction.id,
         blockchainTxId: cryptoResult.transactionHash,
-        timestamp: new Date(),
+        timestamp: new Date()
       });
     } catch (error) {
       this.logger.error(`Failed to process crypto withdrawal:`, error);
@@ -356,7 +347,7 @@ export class WithdrawalService {
   }
 
   private async checkKycStatus(userId: string, amount: number): Promise<void> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.prisma.user.findFirst({ where: { id: userId } });
     if (!user || user.kycStatus !== 'APPROVED') {
       throw new Error('KYC verification required for withdrawals');
     }
@@ -402,7 +393,7 @@ export class WithdrawalService {
 
   private async getTransaction(transactionId: string): Promise<Transaction | null> {
     try {
-      return await this.transactionRepository.findOne({
+      return await this.prisma.transactionrepository.findFirst({
         where: { id: transactionId }
       });
     } catch (error) {
@@ -442,7 +433,7 @@ export class WithdrawalService {
     try {
       const cutoffTime = new Date(Date.now() - minutes * 60 * 1000);
 
-      return await this.transactionRepository.find({
+      return await this.prisma.transactionrepository.findMany({
         where: {
           type: 'WITHDRAWAL',
           status: 'PROCESSING',

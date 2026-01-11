@@ -10,16 +10,16 @@ import {
   UseGuards,
   Request,
   ValidationPipe,
-  ParseUUIDPipe,
+  ParseUUIDPipe
 } from '@nestjs/common';
 import { NotificationService } from '../services/notification.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { CurrentUser } from "../../auth/decorators/current-user.decorator";
 import {
   GetNotificationsDto,
   UpdatePreferencesDto,
   NotificationResponseDto,
-  PaginatedNotificationResponseDto,
+  PaginatedNotificationResponseDto
 } from '../dto/notification.dto';
 
 @Controller('notifications')
@@ -33,8 +33,7 @@ export class NotificationController {
   @Get()
   async getNotifications(
     @Query() query: GetNotificationsDto,
-    @CurrentUser() user: any,
-  ): Promise<PaginatedNotificationResponseDto> {
+    @CurrentUser() user: any): Promise<PaginatedNotificationResponseDto> {
     return this.notificationService.getNotifications(user.id, query);
   }
 
@@ -43,8 +42,7 @@ export class NotificationController {
    */
   @Get('unread-count')
   async getUnreadCount(
-    @CurrentUser() user: any,
-  ): Promise<{ count: number }> {
+    @CurrentUser() user: any): Promise<{ count: number }> {
     const count = await this.notificationService.getUnreadCount(user.id);
     return { count };
   }
@@ -54,8 +52,7 @@ export class NotificationController {
    */
   @Get('stats')
   async getStats(
-    @CurrentUser() user: any,
-  ): Promise<any> {
+    @CurrentUser() user: any): Promise<any> {
     return this.notificationService.getStats(user.id);
   }
 
@@ -64,8 +61,7 @@ export class NotificationController {
    */
   @Get('preferences')
   async getPreferences(
-    @CurrentUser() user: any,
-  ): Promise<any> {
+    @CurrentUser() user: any): Promise<any> {
     return this.notificationService.getPreferences(user.id);
   }
 
@@ -75,8 +71,7 @@ export class NotificationController {
   @Patch('preferences')
   async updatePreferences(
     @Body(ValidationPipe) updatePreferencesDto: UpdatePreferencesDto,
-    @CurrentUser() user: any,
-  ): Promise<any> {
+    @CurrentUser() user: any): Promise<any> {
     return this.notificationService.updatePreferences(user.id, updatePreferencesDto);
   }
 
@@ -86,8 +81,7 @@ export class NotificationController {
   @Patch(':id/read')
   async markAsRead(
     @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: any,
-  ): Promise<NotificationResponseDto> {
+    @CurrentUser() user: any): Promise<NotificationResponseDto> {
     return this.notificationService.markAsRead(user.id, id);
   }
 
@@ -96,8 +90,7 @@ export class NotificationController {
    */
   @Patch('read-all')
   async markAllAsRead(
-    @CurrentUser() user: any,
-  ): Promise<{ updated: number }> {
+    @CurrentUser() user: any): Promise<{ updated: number }> {
     const updated = await this.notificationService.markAllAsRead(user.id);
     return { updated };
   }
@@ -108,8 +101,7 @@ export class NotificationController {
   @Delete(':id')
   async deleteNotification(
     @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: any,
-  ): Promise<{ success: boolean }> {
+    @CurrentUser() user: any): Promise<{ success: boolean }> {
     await this.notificationService.deleteNotification(user.id, id);
     return { success: true };
   }
@@ -119,8 +111,7 @@ export class NotificationController {
    */
   @Delete()
   async clearAllNotifications(
-    @CurrentUser() user: any,
-  ): Promise<{ deleted: number }> {
+    @CurrentUser() user: any): Promise<{ deleted: number }> {
     const deleted = await this.notificationService.clearAllNotifications(user.id);
     return { deleted };
   }
@@ -131,8 +122,7 @@ export class NotificationController {
   @Post('test')
   async sendTestNotification(
     @Body() testNotification: any,
-    @CurrentUser() user: any,
-  ): Promise<{ success: boolean; id: string }> {
+    @CurrentUser() user: any): Promise<{ success: boolean; id: string }> {
     const notification = await this.notificationService.createNotification({
       userId: user.id,
       type: testNotification.type || 'info',
@@ -142,7 +132,7 @@ export class NotificationController {
       message: testNotification.message || 'This is a test notification',
       actionUrl: testNotification.actionUrl,
       actionText: testNotification.actionText,
-      metadata: testNotification.metadata || {},
+      metadata: testNotification.metadata || {}
     });
 
     return { success: true, id: notification.id };
@@ -157,13 +147,11 @@ export class NotificationController {
       userIds: string[];
       notification: any;
     },
-    @CurrentUser() user: any,
-  ): Promise<{ success: boolean; sent: number }> {
+    @CurrentUser() user: any): Promise<{ success: boolean; sent: number }> {
     // In a real implementation, you would check if user has admin privileges
     const sent = await this.notificationService.broadcastNotification(
       broadcastData.userIds,
-      broadcastData.notification,
-    );
+      broadcastData.notification);
     return { success: true, sent };
   }
 }

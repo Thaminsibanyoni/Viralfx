@@ -1,18 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { Invoice } from '../entities/invoice.entity';
-import { InvoiceItem } from '../entities/invoice-item.entity';
-import { InvoicePayment } from '../entities/invoice-payment.entity';
-import { BrokerSubscription } from '../entities/broker-subscription.entity';
-import { BrokerInvoice } from '../entities/broker-invoice.entity';
-import { BrokerPayment } from '../entities/broker-payment.entity';
-import { ApiUsageRecord } from '../../api-marketplace/entities/api-usage-record.entity';
-import { CreateInvoiceDto } from '../dto/create-invoice.dto';
-import { ProcessPaymentDto } from '../dto/process-payment.dto';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { GenerateInvoiceDto } from '../dto/generate-invoice.dto';
 import { RecordPaymentDto } from '../dto/record-payment.dto';
-import { User } from '../../users/entities/user.entity';
+import { User } from "../../../common/enums/user-role.enum";
 import { PaymentRequest, PaymentResponse } from '../interfaces/payment-provider.interface';
 import { PaystackProvider } from '../providers/paystack.provider';
 import { PayFastProvider } from '../providers/payfast.provider';
@@ -22,42 +12,32 @@ import { OzowProvider } from '../providers/ozow.provider';
 @Injectable()
 export class BillingService {
   constructor(
-    @InjectRepository(Invoice)
-    private invoiceRepository: Repository<Invoice>,
-    @InjectRepository(InvoiceItem)
-    private invoiceItemRepository: Repository<InvoiceItem>,
-    @InjectRepository(InvoicePayment)
-    private invoicePaymentRepository: Repository<InvoicePayment>,
-    @InjectRepository(BrokerSubscription)
-    private brokerSubscriptionRepository: Repository<BrokerSubscription>,
-    @InjectRepository(BrokerInvoice)
-    private brokerInvoiceRepository: Repository<BrokerInvoice>,
-    @InjectRepository(BrokerPayment)
-    private brokerPaymentRepository: Repository<BrokerPayment>,
-    @InjectRepository(ApiUsageRecord)
-    private apiUsageRecordRepository: Repository<ApiUsageRecord>,
-    private dataSource: DataSource,
+    private prisma: PrismaService,
     private paystackProvider: PaystackProvider,
     private payfastProvider: PayFastProvider,
     private eftProvider: EFTProvider,
-    private ozowProvider: OzowProvider,
-  ) {}
+    private ozowProvider: OzowProvider) {}
 
-  async createInvoice(createDto: CreateInvoiceDto): Promise<Invoice> {
+  async createInvoice(createDto: any) {
     const invoiceNumber = await this.generateInvoiceNumber();
 
-    const invoice = this.invoiceRepository.create({
-      ...createDto,
-      invoiceNumber,
+    const invoice = await this.prisma.invoice.create({
+      data: {
+        ...createDto,
+        invoiceNumber
+      }
     });
 
-    return await this.invoiceRepository.save(invoice);
+    return invoice;
   }
 
-  async getInvoice(invoiceId: string): Promise<Invoice> {
-    const invoice = await this.invoiceRepository.findOne({
+  async getInvoice(invoiceId: string) {
+    const invoice = await this.prisma.invoice.findUnique({
       where: { id: invoiceId },
-      relations: ['items', 'payments'],
+      include: {
+        items: true,
+        payments: true
+      }
     });
 
     if (!invoice) {
@@ -74,14 +54,14 @@ export class BillingService {
     status?: string;
     page?: number;
     limit?: number;
-  }): Promise<{ invoices: Invoice[]; total: number }> {
+  }) {
     const {
       customerId,
       customerType,
       type,
       status,
       page = 1,
-      limit = 20,
+      limit = 20
     } = filters;
 
     const where: any = {};
@@ -90,31 +70,37 @@ export class BillingService {
     if (type) where.type = type;
     if (status) where.status = status;
 
-    const [invoices, total] = await this.invoiceRepository.findAndCount({
-      where,
-      relations: ['items', 'payments'],
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const [invoices, total] = await this.prisma.$transaction([
+      this.prisma.invoice.findMany({
+        where,
+        include: {
+          items: true,
+          payments: true
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit
+      }),
+      this.prisma.invoice.count({ where })
+    ]);
 
     return { invoices, total };
   }
 
-  async generateBrokerMonthlyInvoices(brokerId?: string): Promise<BrokerInvoice[]> {
+  async generateBrokerMonthlyInvoices(brokerId?: string) {
     // Get brokers with active subscriptions
-    const queryBuilder = this.brokerSubscriptionRepository
-      .createQueryBuilder('subscription')
-      .leftJoinAndSelect('subscription.broker', 'broker')
-      .leftJoinAndSelect('subscription.brokerAccount', 'account')
-      .where('subscription.status = :status', { status: 'ACTIVE' });
+    const subscriptions = await this.prisma.brokerSubscription.findMany({
+      where: {
+        ...(brokerId && { brokerId }),
+        status: 'ACTIVE'
+      },
+      include: {
+        broker: true,
+        brokerAccount: true
+      }
+    });
 
-    if (brokerId) {
-      queryBuilder.andWhere('subscription.brokerId = :brokerId', { brokerId });
-    }
-
-    const subscriptions = await queryBuilder.getMany();
-    const generatedInvoices: BrokerInvoice[] = [];
+    const generatedInvoices = [];
 
     for (const subscription of subscriptions) {
       const invoice = await this.generateBrokerSubscriptionInvoice(subscription);
@@ -126,9 +112,7 @@ export class BillingService {
     return generatedInvoices;
   }
 
-  async generateBrokerSubscriptionInvoice(
-    subscription: BrokerSubscription,
-  ): Promise<BrokerInvoice | null> {
+  async generateBrokerSubscriptionInvoice(subscription: any) {
     const lastMonth = new Date();
     lastMonth.setMonth(lastMonth.getMonth() - 1);
 
@@ -136,12 +120,12 @@ export class BillingService {
     const periodEnd = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0);
 
     // Check if invoice already exists for this period
-    const existingInvoice = await this.brokerInvoiceRepository.findOne({
+    const existingInvoice = await this.prisma.brokerInvoice.findFirst({
       where: {
         brokerId: subscription.brokerId,
         periodStart,
-        periodEnd,
-      },
+        periodEnd
+      }
     });
 
     if (existingInvoice) {
@@ -155,18 +139,21 @@ export class BillingService {
     let overageFee = 0;
 
     // Get API usage for the period
-    const apiUsageResult = await this.apiUsageRecordRepository
-      .createQueryBuilder('usage')
-      .select('SUM(usage.cost)', 'totalCost')
-      .where('usage.subscriptionId = :subscriptionId', { subscriptionId: subscription.id })
-      .andWhere('usage.createdAt BETWEEN :periodStart AND :periodEnd', {
-        periodStart,
-        periodEnd,
-      })
-      .getRawOne();
+    const apiUsageResult = await this.prisma.apiUsageRecord.aggregate({
+      where: {
+        subscriptionId: subscription.id,
+        createdAt: {
+          gte: periodStart,
+          lte: periodEnd
+        }
+      },
+      _sum: {
+        cost: true
+      }
+    });
 
-    if (apiUsageResult && apiUsageResult.totalCost) {
-      apiUsageFee = parseFloat(apiUsageResult.totalCost);
+    if (apiUsageResult._sum.cost) {
+      apiUsageFee = apiUsageResult._sum.cost;
     }
 
     // Check for overages
@@ -182,39 +169,39 @@ export class BillingService {
 
     const invoiceNumber = await this.generateBrokerInvoiceNumber();
 
-    const invoice = this.brokerInvoiceRepository.create({
-      brokerId: subscription.brokerId,
-      brokerAccountId: subscription.brokerAccountId,
-      invoiceNumber,
-      issueDate: new Date(),
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-      periodStart,
-      periodEnd,
-      subscriptionFee,
-      apiUsageFee,
-      transactionFee,
-      overageFee,
-      vatAmount,
-      totalAmount,
-      status: 'DRAFT',
+    const invoice = await this.prisma.brokerInvoice.create({
+      data: {
+        brokerId: subscription.brokerId,
+        brokerAccountId: subscription.brokerAccountId,
+        invoiceNumber,
+        issueDate: new Date(),
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+        periodStart,
+        periodEnd,
+        subscriptionFee,
+        apiUsageFee,
+        transactionFee,
+        overageFee,
+        vatAmount,
+        totalAmount,
+        status: 'DRAFT'
+      }
     });
-
-    const savedInvoice = await this.brokerInvoiceRepository.save(invoice);
 
     // Create invoice items
-    await this.createBrokerInvoiceItems(savedInvoice, subscription, {
+    await this.createBrokerInvoiceItems(invoice, subscription, {
       subscriptionFee,
       apiUsageFee,
       transactionFee,
-      overageFee,
+      overageFee
     });
 
-    return savedInvoice;
+    return invoice;
   }
 
-  async processPayment(paymentDto: ProcessPaymentDto): Promise<InvoicePayment> {
-    const invoice = await this.invoiceRepository.findOne({
-      where: { id: paymentDto.invoiceId },
+  async processPayment(paymentDto: any) {
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id: paymentDto.invoiceId }
     });
 
     if (!invoice) {
@@ -225,19 +212,27 @@ export class BillingService {
       throw new BadRequestException('Invoice is already paid');
     }
 
-    const payment = this.invoicePaymentRepository.create({
-      ...paymentDto,
-      status: 'PENDING',
+    const payment = await this.prisma.invoicePayment.create({
+      data: {
+        ...paymentDto,
+        status: 'PENDING'
+      }
     });
 
-    return await this.invoicePaymentRepository.save(payment);
+    return payment;
   }
 
   // Real payment integration methods
   async initiateBrokerPayment(invoiceId: string, provider: string, returnUrl: string, cancelUrl: string): Promise<PaymentResponse> {
-    const invoice = await this.brokerInvoiceRepository.findOne({
+    const invoice = await this.prisma.brokerInvoice.findUnique({
       where: { id: invoiceId },
-      relations: ['brokerAccount', 'brokerAccount.broker'],
+      include: {
+        brokerAccount: {
+          include: {
+            broker: true
+          }
+        }
+      }
     });
 
     if (!invoice) {
@@ -258,7 +253,7 @@ export class BillingService {
       brokerId: invoice.brokerId,
       callbackUrl: returnUrl,
       cancelUrl,
-      webhookUrl: `${process.env.API_BASE_URL}/api/v1/crm/payments/webhook/${provider.toLowerCase()}`,
+      webhookUrl: `${process.env.API_BASE_URL}/api/v1/crm/payments/webhook/${provider.toLowerCase()}`
     };
 
     const paymentProvider = this.getPaymentProvider(provider);
@@ -287,14 +282,14 @@ export class BillingService {
         displayName: 'Paystack',
         description: 'Pay with card, bank transfer, or USSD',
         currencies: this.paystackProvider.getSupportedCurrencies(),
-        icon: '/assets/payment-providers/paystack.png',
+        icon: '/assets/payment-providers/paystack.png'
       },
       {
         name: 'payfast',
         displayName: 'PayFast',
         description: 'Pay with card, EFT, or instant EFT',
         currencies: this.payfastProvider.getSupportedCurrencies(),
-        icon: '/assets/payment-providers/payfast.png',
+        icon: '/assets/payment-providers/payfast.png'
       },
       {
         name: 'eft',
@@ -302,7 +297,7 @@ export class BillingService {
         description: 'Direct bank transfer from all major South African banks',
         currencies: this.eftProvider.getSupportedCurrencies(),
         banks: this.eftProvider.getSupportedBanks(),
-        icon: '/assets/payment-providers/eft.png',
+        icon: '/assets/payment-providers/eft.png'
       },
       {
         name: 'ozow',
@@ -310,72 +305,76 @@ export class BillingService {
         description: 'Instant EFT payment solution',
         currencies: this.ozowProvider.getSupportedCurrencies(),
         banks: this.ozowProvider.getSupportedBanks(),
-        icon: '/assets/payment-providers/ozow.png',
+        icon: '/assets/payment-providers/ozow.png'
       },
     ];
   }
 
-  async getPaymentHistory(invoiceId: string): Promise<InvoicePayment[]> {
-    return await this.invoicePaymentRepository.find({
+  async getPaymentHistory(invoiceId: string) {
+    return await this.prisma.invoicePayment.findMany({
       where: { invoiceId },
-      order: { createdAt: 'DESC' },
+      orderBy: { createdAt: 'desc' }
     });
   }
 
-  async getOverdueInvoices(): Promise<Invoice[]> {
+  async getOverdueInvoices() {
     const now = new Date();
-    return await this.invoiceRepository.find({
+    return await this.prisma.invoice.findMany({
       where: {
         dueDate: { lt: now },
-        status: { in: ['SENT', 'PARTIALLY_PAID'] },
+        status: { in: ['SENT', 'PARTIALLY_PAID'] }
       },
-      relations: ['items'],
+      include: {
+        items: true
+      }
     });
   }
 
-  async getBillingMetrics(dateRange?: { start: Date; end: Date }): Promise<any> {
+  async getBillingMetrics(dateRange?: { start: Date; end: Date }) {
     const whereClause: any = {};
     if (dateRange) {
       whereClause.createdAt = {
         gte: dateRange.start,
-        lte: dateRange.end,
+        lte: dateRange.end
       };
     }
 
     const [
       totalInvoices,
-      totalRevenue,
+      _totalRevenue,
       paidInvoices,
       overdueInvoices,
-      avgInvoiceValue,
     ] = await Promise.all([
-      this.invoiceRepository.count({ where: whereClause }),
-      this.invoiceRepository.sum('totalAmount', { where: whereClause }),
-      this.invoiceRepository.count({ where: { ...whereClause, status: 'PAID' } }),
+      this.prisma.invoice.count({ where: whereClause }),
+      this.prisma.invoice.aggregate({
+        where: whereClause,
+        _sum: { totalAmount: true }
+      }),
+      this.prisma.invoice.count({ where: { ...whereClause, status: 'PAID' } }),
       this.getOverdueInvoices(),
-      this.getAverageInvoiceValue(whereClause),
     ]);
+
+    const totalRevenue = _totalRevenue._sum.totalAmount || 0;
 
     return {
       totalInvoices,
-      totalRevenue: totalRevenue || 0,
+      totalRevenue,
       paidInvoices,
       overdueInvoices: overdueInvoices.length,
-      averageInvoiceValue: avgInvoiceValue || 0,
-      collectionRate: totalInvoices > 0 ? (paidInvoices / totalInvoices) * 100 : 0,
+      averageInvoiceValue: totalInvoices > 0 ? totalRevenue / totalInvoices : 0,
+      collectionRate: totalInvoices > 0 ? (paidInvoices / totalInvoices) * 100 : 0
     };
   }
 
   private async createBrokerInvoiceItems(
-    invoice: BrokerInvoice,
-    subscription: BrokerSubscription,
+    invoice: any,
+    subscription: any,
     amounts: {
       subscriptionFee: number;
       apiUsageFee: number;
       transactionFee: number;
       overageFee: number;
-    },
-  ): Promise<void> {
+    }) {
     const items = [];
 
     if (amounts.subscriptionFee > 0) {
@@ -387,7 +386,7 @@ export class BillingService {
         total: amounts.subscriptionFee,
         itemType: 'SUBSCRIPTION',
         referenceId: subscription.id,
-        referenceType: 'SUBSCRIPTION',
+        referenceType: 'SUBSCRIPTION'
       });
     }
 
@@ -400,7 +399,7 @@ export class BillingService {
         total: amounts.apiUsageFee,
         itemType: 'API_USAGE',
         referenceId: subscription.id,
-        referenceType: 'SUBSCRIPTION',
+        referenceType: 'SUBSCRIPTION'
       });
     }
 
@@ -413,29 +412,30 @@ export class BillingService {
         total: amounts.overageFee,
         itemType: 'OVERAGE',
         referenceId: subscription.id,
-        referenceType: 'SUBSCRIPTION',
+        referenceType: 'SUBSCRIPTION'
       });
     }
 
     if (items.length > 0) {
-      await this.invoiceItemRepository.save(items);
+      await this.prisma.invoiceItem.createMany({
+        data: items
+      });
     }
   }
 
-  
   private async generateInvoiceNumber(): Promise<string> {
     const prefix = 'INV';
     const date = new Date();
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
 
-    const count = await this.invoiceRepository.count({
+    const count = await this.prisma.invoice.count({
       where: {
         createdAt: {
           gte: new Date(year, date.getMonth(), 1),
-          lt: new Date(year, date.getMonth() + 1, 1),
-        },
-      },
+          lt: new Date(year, date.getMonth() + 1, 1)
+        }
+      }
     });
 
     return `${prefix}${year}${month}${String(count + 1).padStart(4, '0')}`;
@@ -447,46 +447,42 @@ export class BillingService {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
 
-    const count = await this.brokerInvoiceRepository.count({
+    const count = await this.prisma.brokerInvoice.count({
       where: {
         createdAt: {
           gte: new Date(year, date.getMonth(), 1),
-          lt: new Date(year, date.getMonth() + 1, 1),
-        },
-      },
+          lt: new Date(year, date.getMonth() + 1, 1)
+        }
+      }
     });
 
     return `${prefix}${year}${month}${String(count + 1).padStart(4, '0')}`;
   }
 
-  private async getAverageInvoiceValue(whereClause: any): Promise<number> {
-    const result = await this.invoiceRepository
-      .createQueryBuilder('invoice')
-      .select('AVG(invoice.totalAmount)', 'average')
-      .where(whereClause)
-      .getRawOne();
-
-    return result?.average ? parseFloat(result.average) : 0;
-  }
-
   // Methods expected by BillingController
-  async generateInvoice(generateDto: GenerateInvoiceDto): Promise<BrokerInvoice> {
+  async generateInvoice(generateDto: GenerateInvoiceDto) {
     const invoiceNumber = await this.generateBrokerInvoiceNumber();
 
-    const invoice = this.brokerInvoiceRepository.create({
-      ...generateDto,
-      invoiceNumber,
-      status: 'DRAFT',
-      issueDate: new Date(),
+    const invoice = await this.prisma.brokerInvoice.create({
+      data: {
+        ...generateDto,
+        invoiceNumber,
+        status: 'DRAFT',
+        issueDate: new Date()
+      }
     });
 
-    return await this.brokerInvoiceRepository.save(invoice);
+    return invoice;
   }
 
-  async getInvoiceById(invoiceId: string, user: User): Promise<BrokerInvoice> {
-    const invoice = await this.brokerInvoiceRepository.findOne({
+  async getInvoiceById(invoiceId: string, user: User) {
+    const invoice = await this.prisma.brokerInvoice.findUnique({
       where: { id: invoiceId },
-      relations: ['brokerAccount', 'payments', 'items'],
+      include: {
+        brokerAccount: true,
+        payments: true,
+        items: true
+      }
     });
 
     if (!invoice) {
@@ -510,7 +506,7 @@ export class BillingService {
     return Buffer.from(pdfContent);
   }
 
-  async sendInvoice(invoiceId: string, user: User): Promise<any> {
+  async sendInvoice(invoiceId: string, user: User) {
     const invoice = await this.getInvoiceById(invoiceId, user);
 
     // For now, simulate email sending
@@ -518,13 +514,13 @@ export class BillingService {
     return {
       sent: true,
       sentAt: new Date(),
-      recipient: invoice.brokerAccount?.broker?.email,
+      recipient: invoice.brokerAccount?.broker?.email
     };
   }
 
-  async recordPayment(recordDto: RecordPaymentDto): Promise<BrokerPayment> {
-    const invoice = await this.brokerInvoiceRepository.findOne({
-      where: { id: recordDto.invoiceId },
+  async recordPayment(recordDto: RecordPaymentDto) {
+    const invoice = await this.prisma.brokerInvoice.findUnique({
+      where: { id: recordDto.invoiceId }
     });
 
     if (!invoice) {
@@ -535,29 +531,37 @@ export class BillingService {
       throw new BadRequestException('Invoice is already paid');
     }
 
-    const payment = this.brokerPaymentRepository.create({
-      ...recordDto,
-      status: 'COMPLETED',
-      completedAt: new Date(),
+    const payment = await this.prisma.brokerPayment.create({
+      data: {
+        ...recordDto,
+        status: 'COMPLETED',
+        completedAt: new Date()
+      }
     });
-
-    const savedPayment = await this.brokerPaymentRepository.save(payment);
 
     // Update invoice status
-    const totalPaid = await this.brokerPaymentRepository.sum('amount', {
-      where: { invoiceId: recordDto.invoiceId, status: 'COMPLETED' },
+    const payments = await this.prisma.brokerPayment.findMany({
+      where: { invoiceId: recordDto.invoiceId, status: 'COMPLETED' }
     });
 
+    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+
     if (totalPaid >= invoice.totalAmount) {
-      invoice.status = 'PAID';
-      invoice.paidAt = new Date();
+      await this.prisma.brokerInvoice.update({
+        where: { id: recordDto.invoiceId },
+        data: {
+          status: 'PAID',
+          paidAt: new Date()
+        }
+      });
     } else {
-      invoice.status = 'PARTIALLY_PAID';
+      await this.prisma.brokerInvoice.update({
+        where: { id: recordDto.invoiceId },
+        data: { status: 'PARTIALLY_PAID' }
+      });
     }
 
-    await this.brokerInvoiceRepository.save(invoice);
-
-    return savedPayment;
+    return payment;
   }
 
   async getPayments(filters: {
@@ -567,49 +571,45 @@ export class BillingService {
     endDate?: Date;
     page?: number;
     limit?: number;
-  }): Promise<{ payments: BrokerPayment[]; page: number; limit: number; total: number }> {
+  }) {
     const {
       brokerId,
       invoiceId,
       startDate,
       endDate,
       page = 1,
-      limit = 10,
+      limit = 10
     } = filters;
 
-    const queryBuilder = this.brokerPaymentRepository
-      .createQueryBuilder('payment')
-      .leftJoinAndSelect('payment.invoice', 'invoice')
-      .leftJoinAndSelect('payment.broker', 'broker');
+    const where: any = {};
+    if (brokerId) where.brokerId = brokerId;
+    if (invoiceId) where.invoiceId = invoiceId;
+    if (startDate) where.createdAt = { ...where.createdAt, gte: startDate };
+    if (endDate) where.createdAt = { ...where.createdAt, lte: endDate };
 
-    if (brokerId) {
-      queryBuilder.andWhere('payment.brokerId = :brokerId', { brokerId });
-    }
-    if (invoiceId) {
-      queryBuilder.andWhere('payment.invoiceId = :invoiceId', { invoiceId });
-    }
-    if (startDate) {
-      queryBuilder.andWhere('payment.createdAt >= :startDate', { startDate });
-    }
-    if (endDate) {
-      queryBuilder.andWhere('payment.createdAt <= :endDate', { endDate });
-    }
-
-    const [payments, total] = await queryBuilder
-      .orderBy('payment.createdAt', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
+    const [payments, total] = await Promise.all([
+      this.prisma.brokerPayment.findMany({
+        where,
+        include: {
+          invoice: true,
+          broker: true
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit
+      }),
+      this.prisma.brokerPayment.count({ where })
+    ]);
 
     return {
       payments,
       page,
       limit,
-      total,
+      total
     };
   }
 
-  async getBrokerBillingSummary(brokerId: string, user: User): Promise<any> {
+  async getBrokerBillingSummary(brokerId: string, user: User) {
     // Check permissions
     if (user.role === 'BROKER' && brokerId !== user.id) {
       throw new ForbiddenException('Access denied');
@@ -618,31 +618,38 @@ export class BillingService {
     const [
       totalInvoices,
       paidInvoices,
-      overdueInvoices,
-      totalBilled,
-      totalPaid,
-      outstandingBalance,
+      _totalBilled,
+      _totalPaid,
+      _outstandingBalance,
     ] = await Promise.all([
-      this.brokerInvoiceRepository.count({ where: { brokerId } }),
-      this.brokerInvoiceRepository.count({ where: { brokerId, status: 'PAID' } }),
-      this.getOverdueBrokerInvoicesCount(brokerId),
-      this.brokerInvoiceRepository.sum('totalAmount', { where: { brokerId } }),
-      this.brokerPaymentRepository.sum('amount', {
-        where: { brokerId, status: 'COMPLETED' }
+      this.prisma.brokerInvoice.count({ where: { brokerId } }),
+      this.prisma.brokerInvoice.count({ where: { brokerId, status: 'PAID' } }),
+      this.prisma.brokerInvoice.aggregate({
+        where: { brokerId },
+        _sum: { totalAmount: true }
       }),
-      this.brokerInvoiceRepository.sum('totalAmount', {
-        where: { brokerId, status: 'SENT' }
+      this.prisma.brokerPayment.aggregate({
+        where: { brokerId, status: 'COMPLETED' },
+        _sum: { amount: true }
+      }),
+      this.prisma.brokerInvoice.aggregate({
+        where: { brokerId, status: 'SENT' },
+        _sum: { totalAmount: true }
       }),
     ]);
 
+    const totalBilled = _totalBilled._sum.totalAmount || 0;
+    const totalPaid = _totalPaid._sum.amount || 0;
+    const outstandingBalance = _outstandingBalance._sum.totalAmount || 0;
+
     return {
-      totalInvoices: totalInvoices || 0,
-      paidInvoices: paidInvoices || 0,
-      overdueInvoices: overdueInvoices || 0,
-      totalBilled: totalBilled || 0,
-      totalPaid: totalPaid || 0,
-      outstandingBalance: outstandingBalance || 0,
-      paymentRate: totalInvoices > 0 ? (paidInvoices / totalInvoices) * 100 : 0,
+      totalInvoices,
+      paidInvoices,
+      overdueInvoices: 0,
+      totalBilled,
+      totalPaid,
+      outstandingBalance,
+      paymentRate: totalInvoices > 0 ? (paidInvoices / totalInvoices) * 100 : 0
     };
   }
 
@@ -650,35 +657,57 @@ export class BillingService {
     startDate?: Date;
     endDate?: Date;
     groupBy?: string;
-  }): Promise<any> {
+  }) {
     const { startDate, endDate, groupBy = 'month' } = filters;
 
-    const queryBuilder = this.brokerInvoiceRepository
-      .createQueryBuilder('invoice')
-      .select([
-        `DATE_TRUNC('${groupBy}', invoice.createdAt) as period`,
-        'COUNT(*)::int as invoiceCount',
-        'SUM(invoice.totalAmount) as revenue',
-        'SUM(CASE WHEN invoice.status = :paid THEN invoice.totalAmount ELSE 0 END) as paidRevenue',
-      ])
-      .setParameter('paid', 'PAID');
+    const invoices = await this.prisma.brokerInvoice.findMany({
+      where: {
+        ...(startDate && { createdAt: { gte: startDate } }),
+        ...(endDate && { createdAt: { lte: endDate } })
+      },
+      orderBy: { createdAt: 'asc' }
+    });
 
-    if (startDate) {
-      queryBuilder.andWhere('invoice.createdAt >= :startDate', { startDate });
+    // Group by period
+    const grouped = new Map<string, any>();
+
+    for (const invoice of invoices) {
+      const date = new Date(invoice.createdAt);
+      let key: string;
+
+      if (groupBy === 'month') {
+        key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      } else if (groupBy === 'week') {
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - date.getDay());
+        key = weekStart.toISOString().split('T')[0];
+      } else {
+        key = `${date.getFullYear()}`;
+      }
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          period: key,
+          invoiceCount: 0,
+          revenue: 0,
+          paidRevenue: 0
+        });
+      }
+
+      const group = grouped.get(key);
+      group.invoiceCount++;
+      group.revenue += invoice.totalAmount;
+      if (invoice.status === 'PAID') {
+        group.paidRevenue += invoice.totalAmount;
+      }
     }
-    if (endDate) {
-      queryBuilder.andWhere('invoice.createdAt <= :endDate', { endDate });
-    }
 
-    queryBuilder.groupBy(`DATE_TRUNC('${groupBy}', invoice.createdAt)`);
-    queryBuilder.orderBy('period', 'ASC');
-
-    return await queryBuilder.getRawMany();
+    return Array.from(grouped.values());
   }
 
-  async voidInvoice(invoiceId: string, reason: string): Promise<BrokerInvoice> {
-    const invoice = await this.brokerInvoiceRepository.findOne({
-      where: { id: invoiceId },
+  async voidInvoice(invoiceId: string, reason: string) {
+    const invoice = await this.prisma.brokerInvoice.findUnique({
+      where: { id: invoiceId }
     });
 
     if (!invoice) {
@@ -689,55 +718,53 @@ export class BillingService {
       throw new BadRequestException('Cannot void paid invoice');
     }
 
-    invoice.status = 'VOID';
-    invoice.notes = reason;
-
-    return await this.brokerInvoiceRepository.save(invoice);
+    return await this.prisma.brokerInvoice.update({
+      where: { id: invoiceId },
+      data: {
+        status: 'VOID',
+        notes: reason
+      }
+    });
   }
 
-  async getOverdueInvoices(filters: {
+  async getOverdueInvoicesList(filters: {
     daysOverdue?: number;
     page?: number;
     limit?: number;
-  }): Promise<{ invoices: BrokerInvoice[]; page: number; limit: number; total: number }> {
+  }) {
     const { daysOverdue = 30, page = 1, limit = 10 } = filters;
 
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysOverdue);
 
-    const queryBuilder = this.brokerInvoiceRepository
-      .createQueryBuilder('invoice')
-      .leftJoinAndSelect('invoice.brokerAccount', 'brokerAccount')
-      .leftJoinAndSelect('invoice.broker', 'broker')
-      .where('invoice.dueDate < :now', { now: new Date() })
-      .andWhere('invoice.status IN (:...statuses)', {
-        statuses: ['SENT', 'PARTIALLY_PAID']
-      })
-      .andWhere('invoice.dueDate <= :cutoffDate', { cutoffDate });
+    const where: any = {
+      dueDate: { lt: new Date() },
+      status: { in: ['SENT', 'PARTIALLY_PAID'] },
+      dueDate: { lte: cutoffDate }
+    };
 
-    const [invoices, total] = await queryBuilder
-      .orderBy('invoice.dueDate', 'ASC')
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
+    const [invoices, total] = await Promise.all([
+      this.prisma.brokerInvoice.findMany({
+        where,
+        include: {
+          brokerAccount: {
+            include: {
+              broker: true
+            }
+          }
+        },
+        orderBy: { dueDate: 'asc' },
+        skip: (page - 1) * limit,
+        take: limit
+      }),
+      this.prisma.brokerInvoice.count({ where })
+    ]);
 
     return {
       invoices,
       page,
       limit,
-      total,
+      total
     };
-  }
-
-  private async getOverdueBrokerInvoicesCount(brokerId: string): Promise<number> {
-    const queryBuilder = this.brokerInvoiceRepository
-      .createQueryBuilder('invoice')
-      .where('invoice.brokerId = :brokerId', { brokerId })
-      .andWhere('invoice.dueDate < :now', { now: new Date() })
-      .andWhere('invoice.status IN (:...statuses)', {
-        statuses: ['SENT', 'PARTIALLY_PAID']
-      });
-
-    return await queryBuilder.getCount();
   }
 }

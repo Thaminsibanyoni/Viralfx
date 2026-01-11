@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsEnum, IsArray, IsUUID, MinLength, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ArticleStatus } from '../entities/knowledge-base-article.entity';
+import { ArticleStatus } from '../enums/support.enum';
 
 export class CreateArticleDto {
   @ApiProperty({

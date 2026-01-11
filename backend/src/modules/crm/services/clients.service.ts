@@ -1,36 +1,25 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, MoreThan, LessThan, In } from 'typeorm';
-import { ClientRecord } from '../entities/client-record.entity';
-import { ClientInteraction } from '../entities/client-interaction.entity';
-import { User } from '../../users/entities/user.entity';
-import { Broker } from '../../brokers/entities/broker.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { ClientRecord } from '../entities/client-record.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { ClientInteraction } from '../entities/client-interaction.entity';
+import { User } from "../../../common/enums/user-role.enum";
+// COMMENTED OUT (cross-module entity import): import { Broker } from "../../brokers/entities/broker.entity";
 import { CreateClientRecordDto, ClientSegment, ClientStatus, ClientSource } from '../dto/create-client-record.dto';
 import { UpdateClientRecordDto } from '../dto/update-client-record.dto';
 import { CreateClientInteractionDto, InteractionType, InteractionDirection, InteractionPriority } from '../dto/create-client-interaction.dto';
 import { UpdateClientInteractionDto } from '../dto/update-client-interaction.dto';
-import { NotificationsService } from '../../notifications/services/notification.service';
+import { NotificationService } from "../../notifications/services/notification.service";
 
 @Injectable()
 export class ClientsService {
   constructor(
-    @InjectRepository(ClientRecord)
-    private clientRecordRepository: Repository<ClientRecord>,
-    @InjectRepository(ClientInteraction)
-    private clientInteractionRepository: Repository<ClientInteraction>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-    private notificationsService: NotificationsService,
-  ) {}
+        private notificationsService: NotificationService) {}
 
   // Client Record CRUD Operations
   async createClientRecord(createDto: CreateClientRecordDto): Promise<ClientRecord> {
     // Validate user exists if provided
     if (createDto.userId) {
-      const user = await this.userRepository.findOne({
-        where: { id: createDto.userId },
+      const user = await this.prisma.user.findFirst({
+        where: { id: createDto.userId }
       });
 
       if (!user) {
@@ -40,8 +29,8 @@ export class ClientsService {
 
     // Validate broker if provided
     if (createDto.brokerId) {
-      const broker = await this.brokerRepository.findOne({
-        where: { id: createDto.brokerId },
+      const broker = await this.prisma.broker.findFirst({
+        where: { id: createDto.brokerId }
       });
 
       if (!broker) {
@@ -49,26 +38,26 @@ export class ClientsService {
       }
     }
 
-    const clientRecord = this.clientRecordRepository.create({
+    const clientRecord = this.prisma.clientRecord.create({
       ...createDto,
       segment: createDto.segment || ClientSegment.RETAIL,
       status: createDto.status || ClientStatus.ACTIVE,
       lastActivityAt: new Date(),
-      createdAt: new Date(),
+      createdAt: new Date()
     });
 
-    return await this.clientRecordRepository.save(clientRecord);
+    return await this.prisma.clientRecord.upsert(clientRecord);
   }
 
   async getClientRecord(id: string): Promise<ClientRecord> {
-    const clientRecord = await this.clientRecordRepository.findOne({
+    const clientRecord = await this.prisma.clientRecord.findFirst({
       where: { id },
       relations: [
         'user',
         'broker',
         'interactions',
         'interactions.staff',
-      ],
+      ]
     });
 
     if (!clientRecord) {
@@ -79,14 +68,14 @@ export class ClientsService {
   }
 
   async getClientRecordByUserId(userId: string): Promise<ClientRecord> {
-    const clientRecord = await this.clientRecordRepository.findOne({
+    const clientRecord = await this.prisma.clientRecord.findFirst({
       where: { userId },
       relations: [
         'user',
         'broker',
         'interactions',
         'interactions.staff',
-      ],
+      ]
     });
 
     if (!clientRecord) {
@@ -122,7 +111,7 @@ export class ClientsService {
       endDate,
       tags,
       minRiskScore,
-      maxRiskScore,
+      maxRiskScore
     } = filters;
 
     const where: any = {};
@@ -154,12 +143,12 @@ export class ClientsService {
       where.createdAt = LessThan(endDate);
     }
 
-    const [clientRecords, total] = await this.clientRecordRepository.findAndCount({
+    const [clientRecords, total] = await this.prisma.findAndCount({
       where,
       relations: ['user', 'broker'],
       order: { lastActivityAt: 'DESC' },
       skip: (page - 1) * limit,
-      take: limit,
+      take: limit
     });
 
     // Apply search filter if provided (search by name, email, phone)
@@ -181,7 +170,7 @@ export class ClientsService {
       clientRecords: filteredClientRecords,
       total: search ? filteredClientRecords.length : total,
       page,
-      limit,
+      limit
     };
   }
 
@@ -202,14 +191,14 @@ export class ClientsService {
         data: {
           clientId: clientRecord.id,
           riskScore: updateDto.riskScore,
-          previousRiskScore: clientRecord.riskScore,
-        },
+          previousRiskScore: clientRecord.riskScore
+        }
       });
     }
 
     Object.assign(clientRecord, updateDto);
 
-    return await this.clientRecordRepository.save(clientRecord);
+    return await this.prisma.clientRecord.upsert(clientRecord);
   }
 
   async deleteClientRecord(id: string): Promise<void> {
@@ -217,30 +206,30 @@ export class ClientsService {
 
     // Soft delete by marking as CHURNED
     clientRecord.status = ClientStatus.CHURNED;
-    await this.clientRecordRepository.save(clientRecord);
+    await this.prisma.clientRecord.upsert(clientRecord);
   }
 
   // Client Interaction CRUD Operations
   async createClientInteraction(createDto: CreateClientInteractionDto, staffId: string): Promise<ClientInteraction> {
     // Validate client record exists
-    const clientRecord = await this.clientRecordRepository.findOne({
-      where: { id: createDto.clientId },
+    const clientRecord = await this.prisma.clientRecord.findFirst({
+      where: { id: createDto.clientId }
     });
 
     if (!clientRecord) {
       throw new NotFoundException('Client record not found');
     }
 
-    const interaction = this.clientInteractionRepository.create({
+    const interaction = this.prisma.clientInteraction.create({
       ...createDto,
-      staffId,
+      staffId
     });
 
-    const savedInteraction = await this.clientInteractionRepository.save(interaction);
+    const savedInteraction = await this.prisma.clientInteraction.upsert(interaction);
 
     // Update client's last activity timestamp
     clientRecord.lastActivityAt = new Date();
-    await this.clientRecordRepository.save(clientRecord);
+    await this.prisma.clientRecord.upsert(clientRecord);
 
     // Send notification for call interactions
     if (createDto.type === InteractionType.CALL) {
@@ -252,8 +241,8 @@ export class ClientsService {
           type: createDto.type,
           clientId: clientRecord.id,
           interactionId: savedInteraction.id,
-          subject: createDto.subject,
-        },
+          subject: createDto.subject
+        }
       });
     }
 
@@ -261,9 +250,9 @@ export class ClientsService {
   }
 
   async getClientInteraction(id: string): Promise<ClientInteraction> {
-    const interaction = await this.clientInteractionRepository.findOne({
+    const interaction = await this.prisma.clientInteraction.findFirst({
       where: { id },
-      relations: ['clientRecord', 'clientRecord.user', 'staff'],
+      relations: ['clientRecord', 'clientRecord.user', 'staff']
     });
 
     if (!interaction) {
@@ -291,7 +280,7 @@ export class ClientsService {
       priority,
       startDate,
       endDate,
-      staffId,
+      staffId
     } = filters;
 
     const where: any = { clientId };
@@ -309,19 +298,19 @@ export class ClientsService {
       where.createdAt = LessThan(endDate);
     }
 
-    const [interactions, total] = await this.clientInteractionRepository.findAndCount({
+    const [interactions, total] = await this.prisma.findAndCount({
       where,
       relations: ['clientRecord', 'staff'],
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
-      take: limit,
+      take: limit
     });
 
     return {
       interactions,
       total,
       page,
-      limit,
+      limit
     };
   }
 
@@ -330,13 +319,13 @@ export class ClientsService {
 
     Object.assign(interaction, updateDto);
 
-    return await this.clientInteractionRepository.save(interaction);
+    return await this.prisma.clientInteraction.upsert(interaction);
   }
 
   async deleteClientInteraction(id: string): Promise<void> {
     const interaction = await this.getClientInteraction(id);
 
-    await this.clientInteractionRepository.remove(interaction);
+    await this.prisma.remove(interaction);
   }
 
   // Analytics and Reporting Methods
@@ -365,25 +354,25 @@ export class ClientsService {
       highRiskClients,
       totalInteractions,
     ] = await Promise.all([
-      this.clientRecordRepository.count({ where }),
-      this.clientRecordRepository.count({
+      this.prisma.count({ where }),
+      this.prisma.count({
         where: { ...where, status: ClientStatus.ACTIVE }
       }),
-      this.clientRecordRepository.count({
+      this.prisma.count({
         where: {
           ...where,
           createdAt: MoreThan(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
         }
       }),
-      this.clientRecordRepository.count({
+      this.prisma.count({
         where: {
           ...where,
           riskScore: MoreThan(0.7)
         }
       }),
-      this.clientInteractionRepository.count({
+      this.prisma.count({
         where: {
-          clientId: undefined, // Will be filtered by client relationships
+          clientId: undefined // Will be filtered by client relationships
         }
       }),
     ]);
@@ -395,7 +384,7 @@ export class ClientsService {
       highRiskClients,
       totalInteractions,
       clientSegments: await this.getClientSegmentDistribution(where),
-      interactionTrends: await this.getInteractionTrends(startDate, endDate),
+      interactionTrends: await this.getInteractionTrends(startDate, endDate)
     };
   }
 
@@ -410,7 +399,7 @@ export class ClientsService {
 
     return distribution.map(item => ({
       segment: item.segment,
-      count: parseInt(item.count),
+      count: parseInt(item.count)
     }));
   }
 
@@ -431,42 +420,42 @@ export class ClientsService {
 
     return trends.map(item => ({
       date: item.date,
-      count: parseInt(item.count),
+      count: parseInt(item.count)
     }));
   }
 
   // Bulk Operations
   async bulkUpdateClientStatus(clientIds: string[], status: ClientStatus, reason?: string): Promise<ClientRecord[]> {
-    const clientRecords = await this.clientRecordRepository.findByIds(clientIds);
+    const clientRecords = await this.prisma.findByIds(clientIds);
 
     const updatedRecords = clientRecords.map(client => ({
       ...client,
       status,
       notes: reason ? `${client.notes}\n\n${reason}`.trim() : client.notes,
-      lastActivityAt: new Date(),
+      lastActivityAt: new Date()
     }));
 
-    return await this.clientRecordRepository.save(updatedRecords);
+    return await this.prisma.clientRecord.upsert(updatedRecords);
   }
 
   async bulkAssignClientsToBroker(clientIds: string[], brokerId: string): Promise<ClientRecord[]> {
     // Validate broker exists
-    const broker = await this.brokerRepository.findOne({
-      where: { id: brokerId },
+    const broker = await this.prisma.broker.findFirst({
+      where: { id: brokerId }
     });
 
     if (!broker) {
       throw new NotFoundException('Broker not found');
     }
 
-    const clientRecords = await this.clientRecordRepository.findByIds(clientIds);
+    const clientRecords = await this.prisma.findByIds(clientIds);
 
     const updatedRecords = clientRecords.map(client => ({
       ...client,
       brokerId,
-      lastActivityAt: new Date(),
+      lastActivityAt: new Date()
     }));
 
-    return await this.clientRecordRepository.save(updatedRecords);
+    return await this.prisma.clientRecord.upsert(updatedRecords);
   }
 }

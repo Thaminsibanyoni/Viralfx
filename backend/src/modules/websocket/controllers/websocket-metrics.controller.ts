@@ -1,9 +1,10 @@
-import { Controller, Get, UseGuards, UseInterceptors, CacheInterceptor, CacheTTL, Logger, InternalServerErrorException } from '@nestjs/common';
+import { Controller, Get, UseGuards, UseInterceptors, Logger, InternalServerErrorException } from '@nestjs/common';
+import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { ConnectionQualityMonitorService } from '../services/connection-quality-monitor.service';
 import { WebSocketMetricsResponseDto } from '../dto/metrics.dto';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 
 @ApiTags('WebSocket')
 @Controller('websocket')
@@ -13,8 +14,7 @@ export class WebSocketMetricsController {
   private readonly logger = new Logger(WebSocketMetricsController.name);
 
   constructor(
-    private readonly connectionQualityMonitor: ConnectionQualityMonitorService,
-  ) {}
+    private readonly connectionQualityMonitor: ConnectionQualityMonitorService) {}
 
   @Get('metrics')
   @ApiOperation({ summary: 'Get comprehensive WebSocket metrics for monitoring' })
@@ -33,7 +33,7 @@ export class WebSocketMetricsController {
 
       return {
         ...metrics,
-        timestamp: Date.now(),
+        timestamp: Date.now()
       };
     } catch (error) {
       this.logger.error('Failed to retrieve WebSocket metrics:', error);

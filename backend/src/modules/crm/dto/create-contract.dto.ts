@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, IsBoolean, IsUUID, IsObject, IsDateString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ContractType } from '../entities/contract.entity';
+import { ContractType } from '../enums/crm.enum';
 
 export class CreateContractDto {
   @ApiProperty({ description: 'Opportunity ID' })

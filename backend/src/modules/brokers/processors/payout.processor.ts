@@ -1,9 +1,10 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { RevenueSharingService } from '../services/revenue-sharing.service';
-import { NotificationService } from '../../notifications/services/notification.service';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { NotificationService } from "../../notifications/services/notification.service";
+import { PrismaService } from "../../../prisma/prisma.service";
 
 export interface PayoutJobData {
   brokerId: string;
@@ -23,32 +24,46 @@ export interface PayoutJobData {
 }
 
 @Processor('payout-processing')
-export class PayoutProcessor {
+export class PayoutProcessor extends WorkerHost {
   private readonly logger = new Logger(PayoutProcessor.name);
 
   constructor(
     private readonly revenueSharingService: RevenueSharingService,
     private readonly notificationService: NotificationService,
-    private readonly prismaService: PrismaService,
-  ) {}
+    private readonly prismaService: PrismaService) {
+    super();
+}
 
-  @OnQueueActive()
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'process-broker-payout':
+        return this.handleBrokerPayout(job);
+      case 'retry-failed-payout':
+        return this.handleFailedPayoutRetry(job);
+      case 'monthly-payout-reconciliation':
+        return this.handleMonthlyPayoutReconciliation(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  @OnWorkerEvent('active')
   onActive(job: Job<PayoutJobData>) {
     this.logger.log(`Processing payout job ${job.id} for broker ${job.data.brokerId}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job<PayoutJobData>) {
     this.logger.log(`Completed payout job ${job.id} for broker ${job.data.brokerId}`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job<PayoutJobData>, error: Error) {
     this.logger.error(`Failed payout job ${job.id} for broker ${job.data.brokerId}:`, error);
   }
 
-  @Process('process-broker-payout')
-  async handleBrokerPayout(job: Job<PayoutJobData>) {
+  private async handleBrokerPayout(job: Job<PayoutJobData>) {
     const { brokerId, payout, billId } = job.data;
 
     this.logger.log(`Processing broker payout for ${brokerId}, amount: R${payout.netPayout.toFixed(2)}`);
@@ -76,7 +91,7 @@ export class PayoutProcessor {
           amount: payout.netPayout,
           period: payout.period,
           transactionCount: payout.transactionCount,
-          clientCount: payout.clientCount,
+          clientCount: payout.clientCount
         });
 
         this.logger.log(`Payout successfully processed for broker ${brokerId}`);
@@ -91,22 +106,21 @@ export class PayoutProcessor {
       await this.logPayoutActivity(brokerId, 'PAYOUT_ERROR', {
         billId,
         error: error.message,
-        payout,
+        payout
       });
 
       // Send failure notification
       await this.notificationService.sendPayoutFailureAlert(brokerId, {
         amount: payout.netPayout,
         period: payout.period,
-        error: error.message,
+        error: error.message
       });
 
       throw error;
     }
   }
 
-  @Process('retry-failed-payout')
-  async handleFailedPayoutRetry(job: Job<PayoutJobData>) {
+  private async handleFailedPayoutRetry(job: Job<PayoutJobData>) {
     const { brokerId, payout, billId } = job.data;
 
     this.logger.log(`Retrying failed payout for broker ${brokerId}`);
@@ -114,7 +128,7 @@ export class PayoutProcessor {
     try {
       // Check if payout is still needed (might have been manually processed)
       const bill = await this.prismaService.brokerBill.findFirst({
-        where: { id: billId },
+        where: { id: billId }
       });
 
       if (bill && bill.status === 'PAID') {
@@ -125,7 +139,7 @@ export class PayoutProcessor {
       // Retry the payout with lower amount (security measure)
       const retryPayout = {
         ...payout,
-        netPayout: payout.netPayout * 0.95, // Retry with 95% of original amount
+        netPayout: payout.netPayout * 0.95 // Retry with 95% of original amount
       };
 
       const success = await this.revenueSharingService.initiatePayout(brokerId, retryPayout);
@@ -135,7 +149,7 @@ export class PayoutProcessor {
           billId,
           originalAmount: payout.netPayout,
           retryAmount: retryPayout.netPayout,
-          period: payout.period,
+          period: payout.period
         });
 
         return { success: true, message: 'Payout retry successful' };
@@ -147,7 +161,7 @@ export class PayoutProcessor {
 
       await this.logPayoutActivity(brokerId, 'PAYOUT_RETRY_FAILED', {
         billId,
-        error: error.message,
+        error: error.message
       });
 
       // Escalate to manual processing
@@ -157,8 +171,7 @@ export class PayoutProcessor {
     }
   }
 
-  @Process('monthly-payout-reconciliation')
-  async handleMonthlyPayoutReconciliation(job: Job<{ year: number; month: number }>) {
+  private async handleMonthlyPayoutReconciliation(job: Job<{ year: number; month: number }>) {
     const { year, month } = job.data;
 
     this.logger.log(`Performing monthly payout reconciliation for ${year}-${month}`);
@@ -180,8 +193,8 @@ export class PayoutProcessor {
         reconciliation: {
           matched: reconciliationData.matched,
           unmatched: reconciliationData.unmatched,
-          discrepancies: reconciliationData.discrepancies,
-        },
+          discrepancies: reconciliationData.discrepancies
+        }
       };
 
       // Send reconciliation report to finance team
@@ -199,7 +212,7 @@ export class PayoutProcessor {
     // Log the failure
     await this.logPayoutActivity(brokerId, 'PAYOUT_FAILED', {
       errors,
-      payout,
+      payout
     });
 
     // Schedule retry for next business day
@@ -209,16 +222,16 @@ export class PayoutProcessor {
     // Add to retry queue
     // Note: This would need the queue to be injected
     // await this.payoutQueue.add('retry-failed-payout', {
-    //   brokerId,
-    //   payout,
-    //   billId: payout.billId,
+    //   brokerId
+    //   payout
+    //   billId: payout.billId
     // }, { delay: retryDelay });
 
     // Send immediate alert
     await this.notificationService.sendPayoutFailureAlert(brokerId, {
       amount: payout.netPayout,
       period: payout.period,
-      errors,
+      errors
     });
   }
 
@@ -230,8 +243,8 @@ export class PayoutProcessor {
       where: { id: billId },
       data: {
         status: 'MANUAL_REVIEW',
-        notes: `Automatic payout failed after retry. Requires manual processing. Errors: Payment gateway timeout.`,
-      },
+        notes: `Automatic payout failed after retry. Requires manual processing. Errors: Payment gateway timeout.`
+      }
     });
 
     // Escalate to finance team
@@ -240,14 +253,14 @@ export class PayoutProcessor {
       billId,
       amount: payout.netPayout,
       period: payout.period,
-      urgency: 'HIGH',
+      urgency: 'HIGH'
     });
 
     await this.logPayoutActivity(brokerId, 'PAYOUT_ESCALATED', {
       billId,
       amount: payout.netPayout,
       period: payout.period,
-      escalatedTo: 'FINANCE_TEAM',
+      escalatedTo: 'FINANCE_TEAM'
     });
   }
 
@@ -257,10 +270,10 @@ export class PayoutProcessor {
       where: {
         period: {
           gte: startDate,
-          lte: endDate,
+          lte: endDate
         },
-        status: 'PAID',
-      },
+        status: 'PAID'
+      }
     });
 
     // Get actual payout records from payment gateway
@@ -277,7 +290,7 @@ export class PayoutProcessor {
       failedPayouts: [], // Would contain details of failed payouts
       matched: expectedPayouts.length,
       unmatched: 0,
-      discrepancies: [],
+      discrepancies: []
     };
   }
 
@@ -291,12 +304,12 @@ export class PayoutProcessor {
         newValues: JSON.stringify({
           activity,
           details,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString()
         }),
         userId: null,
         ipAddress: null,
-        userAgent: 'Payout Processor',
-      },
+        userAgent: 'Payout Processor'
+      }
     });
   }
 }

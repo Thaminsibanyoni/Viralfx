@@ -1,58 +1,28 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { FilesService } from '../../files/services/files.service';
-import { Queue } from 'bull';
-import { InjectQueue } from '@nestjs/bull';
-import { NotificationsService } from '../../notifications/services/notification.service';
-import { RedisService } from '../../redis/redis.service';
-import { BrokerAccount } from '../entities/broker-account.entity';
-import { BrokerInvoice } from '../entities/broker-invoice.entity';
-import { BrokerPayment } from '../entities/broker-payment.entity';
-import { BrokerSubscription } from '../entities/broker-subscription.entity';
-import { BrokerNote } from '../entities/broker-note.entity';
-import { BrokerDocument } from '../entities/broker-document.entity';
-import { Broker } from '../../brokers/entities/broker.entity';
-import { User } from '../../users/entities/user.entity';
-import { CreateBrokerAccountDto } from '../dto/create-broker-account.dto';
-import { UpdateBrokerAccountDto } from '../dto/update-broker-account.dto';
-import { CreateBrokerNoteDto } from '../dto/create-broker-note.dto';
-import { CreateBrokerInvoiceDto } from '../dto/create-broker-invoice.dto';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { FilesService } from "../../files/services/files.service";
+import { Queue } from 'bullmq';
+import { InjectQueue } from '@nestjs/bullmq';
+import { NotificationService } from "../../notifications/services/notification.service";
+import { RedisService } from "../../redis/redis.service";
 
 @Injectable()
 export class BrokerCrmService {
   private readonly logger = new Logger(BrokerCrmService.name);
 
   constructor(
-    @InjectRepository(BrokerAccount)
-    private brokerAccountRepository: Repository<BrokerAccount>,
-    @InjectRepository(BrokerInvoice)
-    private brokerInvoiceRepository: Repository<BrokerInvoice>,
-    @InjectRepository(BrokerPayment)
-    private brokerPaymentRepository: Repository<BrokerPayment>,
-    @InjectRepository(BrokerSubscription)
-    private brokerSubscriptionRepository: Repository<BrokerSubscription>,
-    @InjectRepository(BrokerNote)
-    private brokerNoteRepository: Repository<BrokerNote>,
-    @InjectRepository(BrokerDocument)
-    private brokerDocumentRepository: Repository<BrokerDocument>,
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    private dataSource: DataSource,
+    private prisma: PrismaService,
     private filesService: FilesService,
-    private notificationsService: NotificationsService,
+    private notificationsService: NotificationService,
     private redisService: RedisService,
     @InjectQueue('crm-docs')
     private crmDocsQueue: Queue,
     @InjectQueue('crm-onboarding')
-    private crmOnboardingQueue: Queue,
-  ) {}
+    private crmOnboardingQueue: Queue) {}
 
-  async createBrokerAccount(createDto: CreateBrokerAccountDto): Promise<BrokerAccount> {
-    const broker = await this.brokerRepository.findOne({
-      where: { id: createDto.brokerId },
+  async createBrokerAccount(createDto: any) {
+    const broker = await this.prisma.broker.findFirst({
+      where: { id: createDto.brokerId }
     });
 
     if (!broker) {
@@ -60,22 +30,39 @@ export class BrokerCrmService {
     }
 
     // Check if account already exists
-    const existingAccount = await this.brokerAccountRepository.findOne({
-      where: { brokerId: createDto.brokerId },
+    const existingAccount = await this.prisma.brokerAccount.findFirst({
+      where: { brokerId: createDto.brokerId }
     });
 
     if (existingAccount) {
       throw new BadRequestException('Broker account already exists');
     }
 
-    const account = this.brokerAccountRepository.create(createDto);
-    return await this.brokerAccountRepository.save(account);
+    const account = await this.prisma.brokerAccount.create({
+      data: createDto
+    });
+    return account;
   }
 
-  async getBrokerAccount(brokerId: string): Promise<BrokerAccount> {
-    const account = await this.brokerAccountRepository.findOne({
+  async getBrokerAccount(brokerId: string) {
+    const account = await this.prisma.brokerAccount.findFirst({
       where: { brokerId },
-      relations: ['broker', 'invoices', 'subscriptions', 'notes', 'documents'],
+      include: {
+        broker: true,
+        invoices: {
+          include: {
+            payments: true,
+            items: true
+          }
+        },
+        subscriptions: {
+          include: {
+            usageRecords: true
+          }
+        },
+        notes: true,
+        documents: true
+      }
     });
 
     if (!account) {
@@ -85,62 +72,79 @@ export class BrokerCrmService {
     return account;
   }
 
-  async updateBrokerAccount(
-    brokerId: string,
-    updateDto: UpdateBrokerAccountDto,
-  ): Promise<BrokerAccount> {
+  async updateBrokerAccount(brokerId: string, updateDto: any) {
     const account = await this.getBrokerAccount(brokerId);
-    Object.assign(account, updateDto);
-    return await this.brokerAccountRepository.save(account);
+
+    return await this.prisma.brokerAccount.update({
+      where: { id: account.id },
+      data: updateDto
+    });
   }
 
-  async getBrokerInvoices(brokerId: string, page = 1, limit = 20): Promise<{ invoices: BrokerInvoice[]; total: number }> {
-    const [invoices, total] = await this.brokerInvoiceRepository.findAndCount({
-      where: { brokerId },
-      relations: ['brokerAccount', 'payments', 'items'],
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+  async getBrokerInvoices(brokerId: string, page = 1, limit = 20) {
+    const [invoices, total] = await this.prisma.$transaction([
+      this.prisma.brokerInvoice.findMany({
+        where: { brokerId },
+        include: {
+          brokerAccount: true,
+          payments: true,
+          items: true
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit
+      }),
+      this.prisma.brokerInvoice.count({ where: { brokerId } })
+    ]);
 
     return { invoices, total };
   }
 
-  async createBrokerInvoice(createDto: CreateBrokerInvoiceDto): Promise<BrokerInvoice> {
+  async createBrokerInvoice(createDto: any) {
     // Generate unique invoice number
     const invoiceNumber = await this.generateInvoiceNumber();
 
-    const invoice = this.brokerInvoiceRepository.create({
-      ...createDto,
-      invoiceNumber,
+    const invoice = await this.prisma.brokerInvoice.create({
+      data: {
+        ...createDto,
+        invoiceNumber
+      }
     });
 
-    return await this.brokerInvoiceRepository.save(invoice);
+    return invoice;
   }
 
-  async getBrokerPayments(brokerId: string): Promise<BrokerPayment[]> {
-    return await this.brokerPaymentRepository.find({
+  async getBrokerPayments(brokerId: string) {
+    return await this.prisma.brokerPayment.findMany({
       where: { brokerId },
-      relations: ['invoice', 'broker'],
-      order: { createdAt: 'DESC' },
+      include: {
+        invoice: true,
+        broker: true
+      },
+      orderBy: { createdAt: 'desc' }
     });
   }
 
-  async getBrokerSubscriptions(brokerId: string): Promise<BrokerSubscription[]> {
-    return await this.brokerSubscriptionRepository.find({
+  async getBrokerSubscriptions(brokerId: string) {
+    return await this.prisma.brokerSubscription.findMany({
       where: { brokerId },
-      relations: ['brokerAccount', 'usageRecords'],
-      order: { createdAt: 'DESC' },
+      include: {
+        brokerAccount: true,
+        usageRecords: true
+      },
+      orderBy: { createdAt: 'desc' }
     });
   }
 
-  async createBrokerNote(createDto: CreateBrokerNoteDto, authorId: string): Promise<BrokerNote> {
-    const note = this.brokerNoteRepository.create({
-      ...createDto,
-      authorId,
+  async createBrokerNote(createDto: any, authorId: string) {
+    const note = await this.prisma.brokerNote.create({
+      data: {
+        ...createDto,
+        authorId
+      }
     });
 
-    return await this.brokerNoteRepository.save(note);
+    return note;
   }
 
   async getAllBrokerAccounts(filters: {
@@ -149,46 +153,53 @@ export class BrokerCrmService {
     status?: string;
     tier?: string;
     search?: string;
-  }): Promise<{ brokers: BrokerAccount[]; page: number; limit: number; total: number }> {
+  }) {
     const {
       page = 1,
       limit = 10,
       status,
       tier,
-      search,
+      search
     } = filters;
 
-    const queryBuilder = this.brokerAccountRepository
-      .createQueryBuilder('account')
-      .leftJoinAndSelect('account.broker', 'broker')
-      .leftJoinAndSelect('account.subscriptions', 'subscriptions')
-      .leftJoinAndSelect('account.invoices', 'invoices');
+    const where: any = {};
+    if (status) where.status = status;
+    if (tier) where.tier = tier;
 
-    // Apply filters
-    if (status) {
-      queryBuilder.andWhere('account.status = :status', { status });
-    }
-    if (tier) {
-      queryBuilder.andWhere('account.tier = :tier', { tier });
-    }
+    const include: any = {
+      broker: true,
+      subscriptions: true,
+      invoices: true
+    };
+
     if (search) {
-      queryBuilder.andWhere(
-        '(broker.companyName ILIKE :search OR broker.email ILIKE :search)',
-        { search: `%${search}%` }
-      );
+      include.broker = {
+        ...include.broker,
+        where: {
+          OR: [
+            { companyName: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } }
+          ]
+        }
+      };
     }
 
-    const [brokers, total] = await queryBuilder
-      .orderBy('account.createdAt', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
+    const [brokers, total] = await this.prisma.$transaction([
+      this.prisma.brokerAccount.findMany({
+        where,
+        include,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit
+      }),
+      this.prisma.brokerAccount.count({ where })
+    ]);
 
     return {
       brokers,
       page,
       limit,
-      total,
+      total
     };
   }
 
@@ -201,8 +212,7 @@ export class BrokerCrmService {
       tags?: string[];
       expiryDate?: Date;
     },
-    uploadedBy?: string,
-  ): Promise<BrokerDocument> {
+    uploadedBy?: string) {
     this.logger.log(`Uploading document for broker ${brokerId}: ${documentData.file.originalname}`);
 
     const brokerAccount = await this.getBrokerAccount(brokerId);
@@ -217,15 +227,15 @@ export class BrokerCrmService {
           buffer: documentData.file.buffer,
           originalname: documentData.file.originalname,
           mimetype: documentData.file.mimetype,
-          size: documentData.file.size,
+          size: documentData.file.size
         }],
         {
           category: `broker-documents/${documentData.documentType.toLowerCase()}`,
-          visibility: 'PRIVATE' as any,
+          visibility: 'PRIVATE',
           tags: documentData.tags || [],
           fileName: `${brokerId}_${documentData.documentType}_${Date.now()}${documentData.file.originalname.substring(documentData.file.originalname.lastIndexOf('.'))}`,
           allowDuplicate: false,
-          expiresAt: documentData.expiryDate,
+          expiresAt: documentData.expiryDate
         },
         uploadedBy || 'system'
       );
@@ -237,38 +247,38 @@ export class BrokerCrmService {
       const uploadedFile = uploadResult.successful[0];
 
       // Create broker document record
-      const document = this.brokerDocumentRepository.create({
-        brokerId,
-        brokerAccountId: brokerAccount.id,
-        uploadedBy: uploadedBy || 'system',
-        documentType: documentData.documentType,
-        title: `${documentData.documentType} - ${documentData.file.originalname}`,
-        description: documentData.description,
-        fileName: documentData.file.originalname,
-        fileUrl: uploadedFile.downloadUrl,
-        fileId: uploadedFile.id, // Reference to FilesModule record
-        fileSize: uploadedFile.size,
-        mimeType: uploadedFile.mimeType,
-        fileHash: uploadedFile.hash,
-        status: 'PENDING_VERIFICATION',
-        uploadedAt: new Date(),
-        tags: documentData.tags || [],
-        metadata: {
-          uploadSource: 'crm-portal',
-          originalUploadDate: new Date().toISOString(),
-          fileCategory: uploadedFile.fileType,
-          virusScanStatus: 'PENDING',
-          fscaCompliance: await this.checkFSCARequirements(documentData.documentType, uploadedFile),
-        },
+      const document = await this.prisma.brokerDocument.create({
+        data: {
+          brokerId,
+          brokerAccountId: brokerAccount.id,
+          uploadedBy: uploadedBy || 'system',
+          documentType: documentData.documentType,
+          title: `${documentData.documentType} - ${documentData.file.originalname}`,
+          description: documentData.description,
+          fileName: documentData.file.originalname,
+          fileUrl: uploadedFile.downloadUrl,
+          fileId: uploadedFile.id,
+          fileSize: uploadedFile.size,
+          mimeType: uploadedFile.mimeType,
+          fileHash: uploadedFile.hash,
+          status: 'PENDING_VERIFICATION',
+          uploadedAt: new Date(),
+          tags: documentData.tags || [],
+          metadata: {
+            uploadSource: 'crm-portal',
+            originalUploadDate: new Date().toISOString(),
+            fileCategory: uploadedFile.fileType,
+            virusScanStatus: 'PENDING',
+            fscaCompliance: await this.checkFSCARequirements(documentData.documentType, uploadedFile)
+          }
+        }
       });
 
-      const savedDocument = await this.brokerDocumentRepository.save(document);
-
       // Queue virus scan and document processing
-      await this.queueDocumentProcessing(savedDocument.id, uploadedFile.id);
+      await this.queueDocumentProcessing(document.id, uploadedFile.id);
 
-      this.logger.log(`Document uploaded successfully: ${savedDocument.id} for broker ${brokerId}`);
-      return savedDocument;
+      this.logger.log(`Document uploaded successfully: ${document.id} for broker ${brokerId}`);
+      return document;
 
     } catch (error) {
       this.logger.error(`Document upload failed for broker ${brokerId}:`, error);
@@ -280,84 +290,53 @@ export class BrokerCrmService {
     brokerId: string,
     documentId: string,
     status: string,
-    notes?: string,
-  ): Promise<BrokerDocument> {
-    const document = await this.brokerDocumentRepository.findOne({
-      where: { id: documentId, brokerId },
+    notes?: string) {
+    const document = await this.prisma.brokerDocument.findFirst({
+      where: { id: documentId, brokerId }
     });
 
     if (!document) {
       throw new NotFoundException('Document not found');
     }
 
-    document.status = status as 'APPROVED' | 'REJECTED' | 'PENDING';
-    document.verifiedBy = 'current_user'; // Would come from req.user in real implementation
-    document.verifiedAt = new Date();
-
-    if (status === 'REJECTED' && notes) {
-      document.rejectionReason = notes;
-    }
-
-    return await this.brokerDocumentRepository.save(document);
+    return await this.prisma.brokerDocument.update({
+      where: { id: documentId },
+      data: {
+        status: status as 'APPROVED' | 'REJECTED' | 'PENDING',
+        verifiedBy: 'current_user',
+        verifiedAt: new Date(),
+        ...(status === 'REJECTED' && notes && { rejectionReason: notes })
+      }
+    });
   }
 
   async addNote(
     brokerId: string,
     noteData: { content: string; category: string },
-    authorId?: string,
-  ): Promise<BrokerNote> {
+    authorId?: string) {
     const brokerAccount = await this.getBrokerAccount(brokerId);
 
-    const note = this.brokerNoteRepository.create({
-      brokerId,
-      brokerAccountId: brokerAccount.id,
-      content: noteData.content,
-      category: noteData.category,
-      authorId: authorId || 'system',
+    const note = await this.prisma.brokerNote.create({
+      data: {
+        brokerId,
+        brokerAccountId: brokerAccount.id,
+        content: noteData.content,
+        category: noteData.category,
+        authorId: authorId || 'system'
+      }
     });
 
-    return await this.brokerNoteRepository.save(note);
+    return note;
   }
 
-  async getBrokerInvoices(
-    brokerId: string,
-    filters: {
-      status?: string;
-      startDate?: Date;
-      endDate?: Date;
-      page?: number;
-      limit?: number;
-    } = {}
-  ): Promise<BrokerInvoice[]> {
-    const { status, startDate, endDate } = filters;
-
-    const queryBuilder = this.brokerInvoiceRepository
-      .createQueryBuilder('invoice')
-      .leftJoinAndSelect('invoice.brokerAccount', 'brokerAccount')
-      .leftJoinAndSelect('invoice.payments', 'payments')
-      .leftJoinAndSelect('invoice.items', 'items')
-      .where('invoice.brokerId = :brokerId', { brokerId });
-
-    if (status) {
-      queryBuilder.andWhere('invoice.status = :status', { status });
-    }
-    if (startDate) {
-      queryBuilder.andWhere('invoice.createdAt >= :startDate', { startDate });
-    }
-    if (endDate) {
-      queryBuilder.andWhere('invoice.createdAt <= :endDate', { endDate });
-    }
-
-    return await queryBuilder
-      .orderBy('invoice.createdAt', 'DESC')
-      .getMany();
-  }
-
-  async getBrokerNotes(brokerId: string): Promise<BrokerNote[]> {
-    return await this.brokerNoteRepository.find({
+  async getBrokerNotes(brokerId: string) {
+    return await this.prisma.brokerNote.findMany({
       where: { brokerId },
-      relations: ['author', 'brokerAccount'],
-      order: { createdAt: 'DESC' },
+      include: {
+        author: true,
+        brokerAccount: true
+      },
+      orderBy: { createdAt: 'desc' }
     });
   }
 
@@ -373,81 +352,96 @@ export class BrokerCrmService {
       mimeType: string;
       expiryDate?: Date;
     },
-    uploadedBy: string,
-  ): Promise<BrokerDocument> {
+    uploadedBy: string) {
     const brokerAccount = await this.getBrokerAccount(brokerId);
 
-    const document = this.brokerDocumentRepository.create({
-      brokerId,
-      brokerAccountId: brokerAccount.id,
-      uploadedBy,
-      ...documentData,
+    const document = await this.prisma.brokerDocument.create({
+      data: {
+        brokerId,
+        brokerAccountId: brokerAccount.id,
+        uploadedBy,
+        ...documentData
+      }
     });
 
-    return await this.brokerDocumentRepository.save(document);
+    return document;
   }
 
   async verifyBrokerDocument(
     documentId: string,
     verifiedBy: string,
     status: 'APPROVED' | 'REJECTED',
-    rejectionReason?: string,
-  ): Promise<BrokerDocument> {
-    const document = await this.brokerDocumentRepository.findOne({
-      where: { id: documentId },
+    rejectionReason?: string) {
+    const document = await this.prisma.brokerDocument.findFirst({
+      where: { id: documentId }
     });
 
     if (!document) {
       throw new NotFoundException('Document not found');
     }
 
-    document.status = status;
-    document.verifiedBy = verifiedBy;
-    document.verifiedAt = new Date();
-
-    if (status === 'REJECTED' && rejectionReason) {
-      document.rejectionReason = rejectionReason;
-    }
-
-    return await this.brokerDocumentRepository.save(document);
-  }
-
-  async getBrokerDocuments(brokerId: string): Promise<BrokerDocument[]> {
-    return await this.brokerDocumentRepository.find({
-      where: { brokerId },
-      relations: ['uploader', 'verifier'],
-      order: { createdAt: 'DESC' },
+    return await this.prisma.brokerDocument.update({
+      where: { id: documentId },
+      data: {
+        status,
+        verifiedBy,
+        verifiedAt: new Date(),
+        ...(status === 'REJECTED' && rejectionReason && { rejectionReason })
+      }
     });
   }
 
-  async getBrokerMetrics(brokerId: string): Promise<any> {
+  async getBrokerDocuments(brokerId: string) {
+    return await this.prisma.brokerDocument.findMany({
+      where: { brokerId },
+      include: {
+        uploader: true,
+        verifier: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async getBrokerMetrics(brokerId: string) {
     const account = await this.getBrokerAccount(brokerId);
 
     // Get metrics from various tables
-    const [totalInvoices, totalPaid, totalOutstanding] = await Promise.all([
-      this.brokerInvoiceRepository.count({
+    const [
+      _totalInvoices,
+      _totalPaid,
+      _totalOutstanding,
+      pendingDocuments
+    ] = await Promise.all([
+      this.prisma.brokerInvoice.aggregate({
         where: { brokerId },
+        _count: true,
+        _sum: { totalAmount: true }
       }),
-      this.brokerPaymentRepository.sum('amount', {
+      this.prisma.brokerPayment.aggregate({
         where: { brokerId, status: 'COMPLETED' },
+        _sum: { amount: true }
       }),
-      this.brokerInvoiceRepository.sum('totalAmount', {
+      this.prisma.brokerInvoice.aggregate({
         where: { brokerId, status: 'SENT' },
+        _sum: { totalAmount: true }
       }),
+      this.prisma.brokerDocument.count({
+        where: { brokerId, status: 'PENDING' }
+      })
     ]);
 
-    const documents = await this.brokerDocumentRepository.count({
-      where: { brokerId, status: 'PENDING' },
-    });
+    const totalInvoices = _totalInvoices._count || 0;
+    const totalPaid = _totalPaid._sum.amount || 0;
+    const totalOutstanding = _totalOutstanding._sum.amount || 0;
 
     return {
       accountStatus: account.status,
       complianceStatus: account.complianceStatus,
       riskRating: account.rating,
-      totalInvoices: totalInvoices || 0,
-      totalPaid: totalPaid || 0,
-      totalOutstanding: totalOutstanding || 0,
-      pendingDocuments: documents,
+      totalInvoices,
+      totalPaid,
+      totalOutstanding,
+      pendingDocuments
     };
   }
 
@@ -458,36 +452,18 @@ export class BrokerCrmService {
     const month = String(date.getMonth() + 1).padStart(2, '0');
 
     // Get count for this month
-    const count = await this.brokerInvoiceRepository.count({
+    const count = await this.prisma.brokerInvoice.count({
       where: {
         createdAt: {
-          $gte: new Date(year, date.getMonth(), 1),
-          $lt: new Date(year, date.getMonth() + 1, 1),
-        },
-      },
+          gte: new Date(year, date.getMonth(), 1),
+          lt: new Date(year, date.getMonth() + 1, 1)
+        }
+      }
     });
 
     return `${prefix}${year}${month}${String(count + 1).padStart(4, '0')}`;
   }
 
-  async updateComplianceStatus(
-    brokerId: string,
-    status: string,
-    reason: string,
-    verifiedBy?: string,
-  ): Promise<BrokerAccount> {
-    const account = await this.getBrokerAccount(brokerId);
-
-    account.complianceStatus = status;
-    account.complianceNotes = reason;
-    account.fscaVerified = status === 'APPROVED';
-    account.fscaVerificationDate = new Date();
-    account.verifiedBy = verifiedBy || 'system';
-
-    return await this.brokerAccountRepository.save(account);
-  }
-
-  // Document security and validation methods
   private async validateDocumentType(documentType: string, file: Express.Multer.File): Promise<void> {
     // FSCA document type validation
     const allowedDocumentTypes = [
@@ -515,7 +491,7 @@ export class BrokerCrmService {
     }
 
     // File type validation based on document type
-    const documentTypeFileRules = {
+    const documentTypeFileRules: Record<string, string[]> = {
       'FSP_LICENSE': ['application/pdf', 'image/jpeg', 'image/png'],
       'PROOF_OF_ADDRESS': ['application/pdf', 'image/jpeg', 'image/png'],
       'BANK_STATEMENT': ['application/pdf', 'image/jpeg', 'image/png'],
@@ -523,7 +499,7 @@ export class BrokerCrmService {
       'PASSPORT': ['application/pdf', 'image/jpeg', 'image/png'],
       'COMPANY_REGISTRATION': ['application/pdf', 'image/jpeg', 'image/png'],
       'TAX_CLEARANCE': ['application/pdf', 'image/jpeg', 'image/png'],
-      'FINANCIAL_STATEMENTS': ['application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'],
+      'FINANCIAL_STATEMENTS': ['application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel']
     };
 
     const allowedMimeTypes = documentTypeFileRules[documentType] || ['application/pdf'];
@@ -545,37 +521,20 @@ export class BrokerCrmService {
         isReadable: true,
         hasValidFormat: true,
         notExpired: true,
-        containsRequiredFields: false, // Would need OCR verification
+        containsRequiredFields: false,
         digitallySigned: false,
-        watermarked: false,
+        watermarked: false
       },
       documentCategory: this.getFSCACategory(documentType),
       expiryDate: this.getDocumentExpiryDate(documentType),
-      verificationLevel: this.getVerificationLevel(documentType),
+      verificationLevel: this.getVerificationLevel(documentType)
     };
-
-    // Additional FSCA-specific checks
-    switch (documentType) {
-      case 'FSP_LICENSE':
-        fscaRequirements.complianceChecklist.containsRequiredFields = true;
-        fscaRequirements.verificationLevel = 'HIGH';
-        break;
-      case 'FITNESS_PROPERITY_REPORT':
-        fscaRequirements.verificationLevel = 'CRITICAL';
-        break;
-      case 'FINANCIAL_STATEMENTS':
-        fscaRequirements.complianceChecklist.notExpired = false; // Financial statements don't expire but should be recent
-        fscaRequirements.verificationLevel = 'HIGH';
-        break;
-      default:
-        fscaRequirements.verificationLevel = 'MEDIUM';
-    }
 
     return fscaRequirements;
   }
 
   private getFSCACategory(documentType: string): string {
-    const categories = {
+    const categories: Record<string, string> = {
       'FSP_LICENSE': 'REGULATORY',
       'FITNESS_PROPERITY_REPORT': 'COMPLIANCE',
       'FINANCIAL_STATEMENTS': 'FINANCIAL',
@@ -585,19 +544,19 @@ export class BrokerCrmService {
       'COMPANY_REGISTRATION': 'BUSINESS',
       'TAX_CLEARANCE': 'TAX',
       'BOARD_RESOLUTION': 'GOVERNANCE',
-      'SHAREHOLDER_REGISTER': 'GOVERNANCE',
+      'SHAREHOLDER_REGISTER': 'GOVERNANCE'
     };
 
     return categories[documentType] || 'GENERAL';
   }
 
   private getDocumentExpiryDate(documentType: string): Date | null {
-    const expiryPeriods = {
-      'FSP_LICENSE': 365 * 3, // 3 years
-      'FITNESS_PROPERITY_REPORT': 365, // 1 year
-      'PROOF_OF_ADDRESS': 90, // 3 months
-      'BANK_STATEMENT': 90, // 3 months
-      'TAX_CLEARANCE': 365, // 1 year
+    const expiryPeriods: Record<string, number> = {
+      'FSP_LICENSE': 365 * 3,
+      'FITNESS_PROPERITY_REPORT': 365,
+      'PROOF_OF_ADDRESS': 90,
+      'BANK_STATEMENT': 90,
+      'TAX_CLEARANCE': 365
     };
 
     const days = expiryPeriods[documentType];
@@ -605,7 +564,7 @@ export class BrokerCrmService {
   }
 
   private getVerificationLevel(documentType: string): string {
-    const levels = {
+    const levels: Record<string, string> = {
       'FSP_LICENSE': 'CRITICAL',
       'FITNESS_PROPERITY_REPORT': 'CRITICAL',
       'FINANCIAL_STATEMENTS': 'HIGH',
@@ -613,81 +572,29 @@ export class BrokerCrmService {
       'COMPANY_REGISTRATION': 'HIGH',
       'PROOF_OF_ADDRESS': 'MEDIUM',
       'ID_DOCUMENT': 'HIGH',
-      'PASSPORT': 'HIGH',
+      'PASSPORT': 'HIGH'
     };
 
     return levels[documentType] || 'LOW';
   }
 
   private async queueDocumentProcessing(documentId: string, fileId: string): Promise<void> {
-    // Queue virus scanning
-    await this.fileScanningQueue.add('scan-file', {
+    // Queue document processing tasks
+    await this.crmDocsQueue.add('scan-document', {
       documentId,
-      fileId,
-      priority: 'HIGH',
-      scanType: 'MALWARE',
+      fileId
+    }, {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 2000
+      }
     });
-
-    // Queue document processing and OCR
-    await this.fileScanningQueue.add('process-document', {
-      documentId,
-      fileId,
-      processingType: 'OCR_EXTRACTION',
-      extractFields: true,
-      validateFormat: true,
-    });
-
-    // Queue FSCA compliance check
-    await this.fileScanningQueue.add('fsca-compliance-check', {
-      documentId,
-      fileId,
-      verifySignature: true,
-      validateWatermarks: true,
-      checkExpiry: true,
-    });
-
-    this.logger.log(`Document processing queued for document ${documentId}, file ${fileId}`);
-  }
-
-  // Additional document management methods
-  async getDocumentsWithSecurityChecks(brokerId: string, userId?: string): Promise<BrokerDocument[]> {
-    const documents = await this.brokerDocumentRepository.find({
-      where: { brokerId },
-      relations: ['brokerAccount'],
-      order: { uploadedAt: 'DESC' },
-    });
-
-    // Filter documents based on user permissions
-    if (userId) {
-      const userRole = await this.getUserRole(userId);
-      return documents.filter(doc => this.hasDocumentAccess(doc, userRole, userId));
-    }
-
-    return documents;
-  }
-
-  private async getUserRole(userId: string): Promise<string> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      select: { role: true },
-    });
-
-    return user?.role || 'USER';
-  }
-
-  private hasDocumentAccess(document: BrokerDocument, userRole: string, userId: string): boolean {
-    // Admin and compliance roles can access all documents
-    if (['ADMIN', 'COMPLIANCE', 'SALES'].includes(userRole)) {
-      return true;
-    }
-
-    // Users can only access their own documents
-    return document.uploadedBy === userId;
   }
 
   async deleteDocumentSecurely(brokerId: string, documentId: string, userId: string): Promise<void> {
-    const document = await this.brokerDocumentRepository.findOne({
-      where: { id: documentId, brokerId },
+    const document = await this.prisma.brokerDocument.findFirst({
+      where: { id: documentId, brokerId }
     });
 
     if (!document) {
@@ -710,153 +617,48 @@ export class BrokerCrmService {
     }
 
     // Delete broker document record
-    await this.brokerDocumentRepository.remove(document);
+    await this.prisma.brokerDocument.delete({
+      where: { id: documentId }
+    });
 
     this.logger.log(`Document ${documentId} deleted securely for broker ${brokerId}`);
   }
 
-  async completeDocumentUpload(
-    brokerId: string,
-    documentId: string,
-    uploadData: {
-      s3Path: string;
-      fileHash: string;
-      mimeType: string;
-      documentType: string;
-      description?: string;
-      tags?: string[];
-      expiryDate?: string;
-    }
-  ): Promise<BrokerDocument> {
-    // Validate broker exists
-    const broker = await this.brokerRepository.findOne({
-      where: { id: brokerId },
+  private async getUserRole(userId: string): Promise<string> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId },
+      select: { role: true }
     });
 
-    if (!broker) {
-      throw new NotFoundException('Broker not found');
+    return user?.role || 'USER';
+  }
+
+  private hasDocumentAccess(document: any, userRole: string, userId: string): boolean {
+    // Admin and compliance roles can access all documents
+    if (['ADMIN', 'COMPLIANCE', 'SALES'].includes(userRole)) {
+      return true;
     }
 
-    // Get or create broker account
-    let brokerAccount = await this.brokerAccountRepository.findOne({
-      where: { brokerId },
-    });
-
-    if (!brokerAccount) {
-      brokerAccount = await this.brokerAccountRepository.save({
-        brokerId,
-        accountNumber: `BKR-${Date.now()}`,
-        status: 'PENDING_VERIFICATION',
-      });
-    }
-
-    // Create broker document record
-    const document = this.brokerDocumentRepository.create({
-      id: documentId,
-      brokerId,
-      brokerAccountId: brokerAccount.id,
-      documentType: uploadData.documentType,
-      title: `${uploadData.documentType.replace('_', ' ')} - ${new Date().toISOString().split('T')[0]}`,
-      description: uploadData.description,
-      fileName: uploadData.s3Path.split('/').pop(),
-      s3Path: uploadData.s3Path,
-      fileHash: uploadData.fileHash,
-      mimeType: uploadData.mimeType,
-      fileSize: 0, // Will be updated after S3 file verification
-      tags: uploadData.tags || [],
-      uploadedAt: new Date(),
-      status: 'PENDING',
-      uploadedBy: 'system', // Will be updated with actual user ID
-      expiryDate: uploadData.expiryDate ? new Date(uploadData.expiryDate) : null,
-      metadata: {
-        uploadSource: 'S3_PRESIGNED',
-        uploadTimestamp: new Date().toISOString(),
-      },
-    });
-
-    const savedDocument = await this.brokerDocumentRepository.save(document);
-
-    // Enqueue document scanning
-    await this.crmDocsQueue.add('scan-document', {
-      docId: documentId,
-      s3Path: uploadData.s3Path,
-      brokerId,
-    }, {
-      attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 2000,
-      },
-    });
-
-    this.logger.log(`Document upload completed for broker ${brokerId}, document ${documentId}`);
-    return savedDocument;
+    // Users can only access their own documents
+    return document.uploadedBy === userId;
   }
 
   async updateComplianceStatus(
     brokerId: string,
     status: string,
-    reason?: string
-  ): Promise<BrokerAccount> {
-    const brokerAccount = await this.brokerAccountRepository.findOne({
-      where: { brokerId },
-    });
+    reason: string,
+    verifiedBy?: string) {
+    const account = await this.getBrokerAccount(brokerId);
 
-    if (!brokerAccount) {
-      throw new NotFoundException('Broker account not found');
-    }
-
-    // If status is PENDING, initiate FSCA verification
-    if (status === 'PENDING') {
-      const broker = await this.brokerRepository.findOne({
-        where: { id: brokerId },
-      });
-
-      if (broker?.fscaLicenseNumber) {
-        try {
-          // Call FSCA API for verification (placeholder implementation)
-          const fscaResponse = await this.verifyFSCALicense(broker.fscaLicenseNumber);
-
-          if (fscaResponse.verified) {
-            brokerAccount.fscaVerified = true;
-            brokerAccount.fscaVerifiedAt = new Date();
-            status = 'VERIFIED';
-          } else {
-            // Create manual review task
-            await this.crmOnboardingQueue.add('fsca-review', {
-              brokerId,
-              reason: `FSCA verification failed: ${fscaResponse.reason}`,
-            });
-          }
-        } catch (error) {
-          // FSCA API unavailable - queue for manual review
-          await this.crmOnboardingQueue.add('fsca-review', {
-            brokerId,
-            reason: 'FSCA API unavailable - manual review required',
-          });
-        }
+    return await this.prisma.brokerAccount.update({
+      where: { id: account.id },
+      data: {
+        complianceStatus: status,
+        complianceNotes: reason,
+        fscaVerified: status === 'APPROVED',
+        fscaVerificationDate: new Date(),
+        verifiedBy: verifiedBy || 'system'
       }
-    }
-
-    brokerAccount.status = status;
-    if (reason) {
-      await this.brokerNoteRepository.save({
-        brokerId,
-        content: `Status update: ${status} - ${reason}`,
-        category: 'COMPLIANCE',
-        createdBy: 'system',
-      });
-    }
-
-    return await this.brokerAccountRepository.save(brokerAccount);
-  }
-
-  private async verifyFSCALicense(licenseNumber: string): Promise<{ verified: boolean; reason?: string }> {
-    // Placeholder for FSCA API integration
-    // In real implementation, this would make HTTP request to FSCA verification service
-    return {
-      verified: Math.random() > 0.3, // Simulate 70% success rate
-      reason: 'License not found in FSCA database',
-    };
+    });
   }
 }

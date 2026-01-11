@@ -1,12 +1,11 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { FSCAService } from '../services/fsca.service';
-import { BrokerVerification, VerificationStatus, VerificationType, KycStatus } from '../entities/broker-verification.entity';
-import { NotificationService } from '../../notifications/services/notification.service';
-import { PrismaService } from '../../../prisma/prisma.service';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerVerification, VerificationStatus, VerificationType, KycStatus } from '../entities/broker-verification.entity';
+import { NotificationService } from "../../notifications/services/notification.service";
+import { PrismaService } from "../../../prisma/prisma.service";
 
 export interface VerificationJobData {
   brokerId: string;
@@ -17,34 +16,53 @@ export interface VerificationJobData {
 }
 
 @Processor('broker-verification')
-export class BrokerVerificationProcessor {
+export class BrokerVerificationProcessor extends WorkerHost {
   private readonly logger = new Logger(BrokerVerificationProcessor.name);
 
   constructor(
-    @InjectRepository(BrokerVerification)
-    private readonly verificationRepository: Repository<BrokerVerification>,
+        private prisma: PrismaService,
     private readonly fscsService: FSCAService,
     private readonly notificationService: NotificationService,
-    private readonly prismaService: PrismaService,
-  ) {}
+    private readonly prismaService: PrismaService) {
+    super();
+}
 
-  @OnQueueActive()
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'verify-fsca-license':
+        return this.handleFSCALicenseVerification(job);
+      case 'verify-documents':
+        return this.handleDocumentVerification(job);
+      case 'verify-directors':
+        return this.handleDirectorVerification(job);
+      case 'manual-review':
+        return this.handleManualReview(job);
+      case 'send-verification-result':
+        return this.handleSendVerificationResult(job);
+      case 'license-renewal-reminder':
+        return this.handleLicenseRenewalReminder(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  @OnWorkerEvent('active')
   onActive(job: Job<VerificationJobData>) {
     this.logger.log(`Processing job ${job.id} of type ${job.name}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job<VerificationJobData>) {
     this.logger.log(`Completed job ${job.id} of type ${job.name}`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job<VerificationJobData>, error: Error) {
     this.logger.error(`Failed job ${job.id} of type ${job.name}:`, error);
   }
 
-  @Process('verify-fsca-license')
-  async handleFSCALicenseVerification(job: Job<VerificationJobData>) {
+  private async handleFSCALicenseVerification(job: Job<VerificationJobData>) {
     const { brokerId, fscaLicenseNumber, registrationNumber } = job.data;
 
     this.logger.log(`Processing FSCA license verification for broker ${brokerId}`);
@@ -55,13 +73,13 @@ export class BrokerVerificationProcessor {
         fscaLicenseNumber,
         registrationNumber,
         licenseCategory: 'II', // Default category
-        directors: [], // Would need to be provided in job data
+        directors: [] // Would need to be provided in job data
       });
 
       await this.logVerificationActivity(brokerId, 'FSCA_LICENSE_VERIFICATION', {
         fscaLicenseNumber,
         result: result.isValid ? 'VERIFIED' : 'FAILED',
-        licenseStatus: result.licenseStatus,
+        licenseStatus: result.licenseStatus
       });
 
       this.logger.log(`FSCA license verification completed for broker ${brokerId}: ${result.isValid ? 'VERIFIED' : 'FAILED'}`);
@@ -71,15 +89,14 @@ export class BrokerVerificationProcessor {
 
       await this.logVerificationActivity(brokerId, 'FSCA_LICENSE_VERIFICATION_ERROR', {
         fscaLicenseNumber,
-        error: error.message,
+        error: error.message
       });
 
       throw error;
     }
   }
 
-  @Process('verify-documents')
-  async handleDocumentVerification(job: Job<VerificationJobData>) {
+  private async handleDocumentVerification(job: Job<VerificationJobData>) {
     const { brokerId, verificationData } = job.data;
 
     this.logger.log(`Processing document verification for broker ${brokerId}`);
@@ -107,7 +124,7 @@ export class BrokerVerificationProcessor {
         documentCount: verificationData.documents?.length || 0,
         documentTypes: verificationData.documentTypes,
         result: verificationResult.isValid ? 'VERIFIED' : 'FAILED',
-        issues: verificationResult.issues,
+        issues: verificationResult.issues
       });
 
       // Trigger comprehensive KYC decision if this was an AML check
@@ -121,15 +138,14 @@ export class BrokerVerificationProcessor {
       this.logger.error(`Document verification failed for broker ${brokerId}:`, error);
 
       await this.logVerificationActivity(brokerId, 'DOCUMENT_VERIFICATION_ERROR', {
-        error: error.message,
+        error: error.message
       });
 
       throw error;
     }
   }
 
-  @Process('verify-directors')
-  async handleDirectorVerification(job: Job<VerificationJobData>) {
+  private async handleDirectorVerification(job: Job<VerificationJobData>) {
     const { brokerId, verificationData } = job.data;
 
     this.logger.log(`Processing director verification for broker ${brokerId}`);
@@ -145,7 +161,7 @@ export class BrokerVerificationProcessor {
         directorCount: directors.length,
         result: validationResult.valid ? 'VERIFIED' : 'FAILED',
         sanctions: validationResult.sanctions,
-        issues: validationResult.issues,
+        issues: validationResult.issues
       });
 
       // Trigger comprehensive KYC decision if all checks are complete
@@ -157,15 +173,14 @@ export class BrokerVerificationProcessor {
       this.logger.error(`Director verification failed for broker ${brokerId}:`, error);
 
       await this.logVerificationActivity(brokerId, 'DIRECTOR_VERIFICATION_ERROR', {
-        error: error.message,
+        error: error.message
       });
 
       throw error;
     }
   }
 
-  @Process('manual-review')
-  async handleManualReview(job: Job<VerificationJobData>) {
+  private async handleManualReview(job: Job<VerificationJobData>) {
     const { brokerId, verificationData, verificationId } = job.data;
 
     this.logger.log(`Queueing manual review for broker ${brokerId}`);
@@ -180,7 +195,7 @@ export class BrokerVerificationProcessor {
         message: `Manual review required for broker verification`,
         details: {
           verificationData,
-          requiresAction: 'Please review and approve/reject broker verification',
+          requiresAction: 'Please review and approve/reject broker verification'
         },
         recommendations: [
           'Review submitted documents',
@@ -189,12 +204,12 @@ export class BrokerVerificationProcessor {
           'Validate business information',
         ],
         createdAt: new Date(),
-        status: 'OPEN',
+        status: 'OPEN'
       });
 
       await this.logVerificationActivity(brokerId, 'MANUAL_REVIEW_QUEUED', {
         verificationId,
-        verificationData,
+        verificationData
       });
 
       this.logger.log(`Manual review queued for broker ${brokerId}`);
@@ -205,8 +220,7 @@ export class BrokerVerificationProcessor {
     }
   }
 
-  @Process('send-verification-result')
-  async handleSendVerificationResult(job: Job<VerificationJobData>) {
+  private async handleSendVerificationResult(job: Job<VerificationJobData>) {
     const { brokerId, verificationData } = job.data;
 
     this.logger.log(`Sending verification result notification for broker ${brokerId}`);
@@ -222,7 +236,7 @@ export class BrokerVerificationProcessor {
 
       await this.logVerificationActivity(brokerId, 'VERIFICATION_RESULT_SENT', {
         isApproved,
-        rejectionReason,
+        rejectionReason
       });
 
       this.logger.log(`Verification result notification sent for broker ${brokerId}`);
@@ -233,8 +247,7 @@ export class BrokerVerificationProcessor {
     }
   }
 
-  @Process('license-renewal-reminder')
-  async handleLicenseRenewalReminder(job: Job<VerificationJobData>) {
+  private async handleLicenseRenewalReminder(job: Job<VerificationJobData>) {
     const { brokerId, verificationData, expiryDate, reminderType } = job.data;
 
     this.logger.log(`Sending license renewal reminder for broker ${brokerId}`);
@@ -253,7 +266,7 @@ export class BrokerVerificationProcessor {
         details: {
           expiryDate: actualExpiryDate,
           reminderType: actualReminderType,
-          daysUntilExpiry: Math.ceil((actualExpiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+          daysUntilExpiry: Math.ceil((actualExpiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
         },
         recommendations: [
           'Contact FSCA to renew license',
@@ -261,12 +274,12 @@ export class BrokerVerificationProcessor {
           'Ensure continuity of compliance',
         ],
         createdAt: new Date(),
-        status: 'OPEN',
+        status: 'OPEN'
       });
 
       await this.logVerificationActivity(brokerId, 'LICENSE_RENEWAL_REMINDER', {
         expiryDate: actualExpiryDate,
-        reminderType: actualReminderType,
+        reminderType: actualReminderType
       });
 
       this.logger.log(`License renewal reminder sent for broker ${brokerId}`);
@@ -300,7 +313,7 @@ export class BrokerVerificationProcessor {
       isValid: issues.length === 0,
       validDocuments: validDocuments.length,
       totalDocuments: documents.length,
-      issues,
+      issues
     };
   }
 
@@ -313,7 +326,7 @@ export class BrokerVerificationProcessor {
         'Complete your integration setup',
         'Review API documentation',
         'Start testing your integration',
-      ],
+      ]
     });
   }
 
@@ -327,26 +340,26 @@ export class BrokerVerificationProcessor {
         'Review the rejection reasons',
         'Update your documentation',
         'Resubmit your application',
-      ],
+      ]
     });
   }
 
   private async updateKycDirectorVerification(brokerId: string, directors: any[], validationResult: any): Promise<void> {
     try {
       // Find or create KYC verification record
-      let kycVerification = await this.verificationRepository.findOne({
+      let kycVerification = await this.prisma.verificationrepository.findFirst({
         where: {
           brokerId,
-          verificationType: VerificationType.KYC_DIRECTORS,
-        },
+          verificationType: VerificationType.KYC_DIRECTORS
+        }
       });
 
       if (!kycVerification) {
-        kycVerification = this.verificationRepository.create({
+        kycVerification = this.prisma.verificationrepository.create({
           brokerId,
           verificationType: VerificationType.KYC_DIRECTORS,
           status: VerificationStatus.IN_PROGRESS,
-          kycStatus: KycStatus.IN_PROGRESS,
+          kycStatus: KycStatus.IN_PROGRESS
         });
       }
 
@@ -362,14 +375,14 @@ export class BrokerVerificationProcessor {
         verificationDate: new Date(),
         documents: director.documents || [],
         riskScore: validationResult.sanctions?.length > 0 ? 80 : 20,
-        notes: validationResult.sanctions?.length > 0 ? 'Sanctions match found' : 'No issues found',
+        notes: validationResult.sanctions?.length > 0 ? 'Sanctions match found' : 'No issues found'
       }));
 
       kycVerification.kycData = kycData;
       kycVerification.status = validationResult.valid ? VerificationStatus.APPROVED : VerificationStatus.REJECTED;
       kycVerification.kycStatus = validationResult.valid ? KycStatus.UNDER_REVIEW : KycStatus.IN_PROGRESS;
 
-      await this.verificationRepository.save(kycVerification);
+      await this.prisma.verificationrepository.upsert(kycVerification);
     } catch (error) {
       this.logger.error(`Failed to update KYC director verification for ${brokerId}:`, error);
     }
@@ -378,18 +391,18 @@ export class BrokerVerificationProcessor {
   private async updateAmlVerification(brokerId: string, amlResult: any): Promise<void> {
     try {
       // Find or create AML verification record
-      let amlVerification = await this.verificationRepository.findOne({
+      let amlVerification = await this.prisma.verificationrepository.findFirst({
         where: {
           brokerId,
-          verificationType: VerificationType.AML_SANCTIONS,
-        },
+          verificationType: VerificationType.AML_SANCTIONS
+        }
       });
 
       if (!amlVerification) {
-        amlVerification = this.verificationRepository.create({
+        amlVerification = this.prisma.verificationrepository.create({
           brokerId,
           verificationType: VerificationType.AML_SANCTIONS,
-          status: VerificationStatus.IN_PROGRESS,
+          status: VerificationStatus.IN_PROGRESS
         });
       }
 
@@ -400,20 +413,20 @@ export class BrokerVerificationProcessor {
           checked: true,
           result: amlResult.sanctionsFound ? 'MATCH' : 'CLEAR',
           checkedAt: new Date(),
-          details: amlResult.sanctionsDetails,
+          details: amlResult.sanctionsDetails
         },
         pepScreening: {
           checked: amlResult.documentTypes?.includes('pep_screening'),
           result: amlResult.pepFound ? 'MATCH' : 'CLEAR',
           checkedAt: new Date(),
-          details: amlResult.pepDetails,
+          details: amlResult.pepDetails
         },
         adverseMedia: {
           checked: amlResult.documentTypes?.includes('adverse_media'),
           result: amlResult.adverseMediaFound ? 'FOUND' : 'CLEAR',
           checkedAt: new Date(),
-          details: amlResult.adverseMediaDetails,
-        },
+          details: amlResult.adverseMediaDetails
+        }
       };
 
       const hasIssues = amlResult.sanctionsFound || amlResult.pepFound || amlResult.adverseMediaFound;
@@ -421,7 +434,7 @@ export class BrokerVerificationProcessor {
       amlVerification.kycData = kycData;
       amlVerification.status = hasIssues ? VerificationStatus.REJECTED : VerificationStatus.APPROVED;
 
-      await this.verificationRepository.save(amlVerification);
+      await this.prisma.verificationrepository.upsert(amlVerification);
     } catch (error) {
       this.logger.error(`Failed to update AML verification for ${brokerId}:`, error);
     }
@@ -430,18 +443,18 @@ export class BrokerVerificationProcessor {
   private async updateDocumentVerification(brokerId: string, documents: any[], verificationResult: any): Promise<void> {
     try {
       // Find document verification record
-      let docVerification = await this.verificationRepository.findOne({
+      let docVerification = await this.prisma.verificationrepository.findFirst({
         where: {
           brokerId,
-          verificationType: VerificationType.DOCUMENTS,
-        },
+          verificationType: VerificationType.DOCUMENTS
+        }
       });
 
       if (!docVerification) {
-        docVerification = this.verificationRepository.create({
+        docVerification = this.prisma.verificationrepository.create({
           brokerId,
           verificationType: VerificationType.DOCUMENTS,
-          status: VerificationStatus.IN_PROGRESS,
+          status: VerificationStatus.IN_PROGRESS
         });
       }
 
@@ -456,13 +469,13 @@ export class BrokerVerificationProcessor {
         verifiedAt: new Date(),
         verifiedBy: 'System',
         rejectionReason: verificationResult.issues?.includes(doc.id) ? 'Document validation failed' : undefined,
-        expiryDate: doc.expiryDate,
+        expiryDate: doc.expiryDate
       }));
 
       docVerification.documents = updatedDocuments;
       docVerification.status = verificationResult.isValid ? VerificationStatus.APPROVED : VerificationStatus.REJECTED;
 
-      await this.verificationRepository.save(docVerification);
+      await this.prisma.verificationrepository.upsert(docVerification);
     } catch (error) {
       this.logger.error(`Failed to update document verification for ${brokerId}:`, error);
     }
@@ -470,8 +483,8 @@ export class BrokerVerificationProcessor {
 
   private async evaluateKycDecision(brokerId: string): Promise<void> {
     try {
-      const verifications = await this.verificationRepository.find({
-        where: { brokerId },
+      const verifications = await this.prisma.verificationrepository.findMany({
+        where: { brokerId }
       });
 
       const kycVerification = verifications.find(v => v.verificationType === VerificationType.KYC_DIRECTORS);
@@ -516,14 +529,14 @@ export class BrokerVerificationProcessor {
         reason,
         additionalInfoRequired,
         nextReviewDate: decisionStatus === 'REQUIRES_ADDITIONAL_INFO' ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) : undefined,
-        conditions: decisionStatus === 'APPROVED' ? ['Periodic review required'] : [],
+        conditions: decisionStatus === 'APPROVED' ? ['Periodic review required'] : []
       };
 
       kycVerification.kycData = kycData;
       kycVerification.kycStatus = decisionStatus === 'APPROVED' ? KycStatus.APPROVED :
                                 decisionStatus === 'REJECTED' ? KycStatus.REJECTED : KycStatus.ADDITIONAL_INFO_REQUIRED;
 
-      await this.verificationRepository.save(kycVerification);
+      await this.prisma.verificationrepository.upsert(kycVerification);
 
       // Re-evaluate broker verification status
       await this.fscsService.updateBrokerVerificationStatus(brokerId, true);
@@ -546,7 +559,7 @@ export class BrokerVerificationProcessor {
       sanctionsDetails: sanctionsFound ? ['Match found on international sanctions list'] : [],
       pepDetails: pepFound ? ['Politically exposed person identified'] : [],
       adverseMediaDetails: adverseMediaFound ? ['Negative news articles found'] : [],
-      documentTypes,
+      documentTypes
     };
   }
 
@@ -560,12 +573,12 @@ export class BrokerVerificationProcessor {
         newValues: JSON.stringify({
           activity,
           details,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString()
         }),
         userId: null,
         ipAddress: null,
-        userAgent: 'Bull Processor',
-      },
+        userAgent: 'Bull Processor'
+      }
     });
   }
 }

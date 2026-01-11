@@ -10,23 +10,22 @@ import {
   UseGuards,
   Request,
   NotFoundException,
-  InjectQueue,
-  Logger,
+  Logger
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { Queue } from 'bull';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
-  ApiQuery,
+  ApiQuery
 } from '@nestjs/swagger';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThan } from 'typeorm';
 
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { CurrentUser } from "../../auth/decorators/current-user.decorator";
 
 import { MatchingEngineService } from '../services/matching-engine.service';
 import { OrderBookService } from '../services/order-book.service';
@@ -35,8 +34,7 @@ import { PlaceOrderDto } from '../dto/place-order.dto';
 import { CancelOrderDto } from '../dto/cancel-order.dto';
 import { UpdateOrderDto } from '../dto/update-order.dto';
 import { OrderResponseDto } from '../dto/order-response.dto';
-import { Order } from '../../market-aggregation/entities/order.entity';
-import { ClientAttributionService } from '../../brokers/services/client-attribution.service';
+import { ClientAttributionService } from "../../brokers/services/client-attribution.service";
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -57,13 +55,11 @@ export class OrderController {
     private readonly orderBookService: OrderBookService,
     private readonly orderValidationService: OrderValidationService,
     private readonly clientAttributionService: ClientAttributionService,
-    @InjectRepository(Order)
-    private readonly orderRepository: Repository<Order>,
+    private readonly prisma: PrismaService,
     @InjectQueue('order-execution')
     private readonly orderExecutionQueue: Queue,
     @InjectQueue('order-settlement')
-    private readonly orderSettlementQueue: Queue,
-  ) {}
+    private readonly orderSettlementQueue: Queue) {}
 
   @Post()
   @Throttle(100, 60) // 100 requests per minute
@@ -73,57 +69,45 @@ export class OrderController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async placeOrder(
     @Body() placeOrderDto: PlaceOrderDto,
-    @CurrentUser() user: { id: string },
-  ): Promise<{ success: boolean; order: OrderResponseDto; errors?: string[] }> {
+    @CurrentUser() user: { id: string }): Promise<{ success: boolean; order: OrderResponseDto; errors?: string[] }> {
     try {
-      // Create order entity with mapping layer
-      const order = new Order();
-      order.userId = user.id;
-      order.symbol = placeOrderDto.symbol;
-      order.side = placeOrderDto.side;
-      order.quantity = placeOrderDto.quantity;
-      order.time_in_force = placeOrderDto.timeInForce || 'GTC';
-      order.client_order_id = placeOrderDto.clientOrderId;
-      order.status = 'PENDING';
-      order.filled_quantity = 0;
-      order.remaining_quantity = placeOrderDto.quantity;
-      order.commission = 0;
-      order.fee = 0;
-      order.source = 'API';
-      order.metadata = { originalOrderType: placeOrderDto.orderType };
-
       // Map external order types to internal order types
+      let orderType: string;
+      let stopPrice: number | undefined;
+      let limitPrice: number | undefined;
+
       switch (placeOrderDto.orderType) {
         case 'STOP_LOSS':
-          order.order_type = 'STOP';
-          order.stop_price = placeOrderDto.stopPrice;
+          orderType = 'STOP';
+          stopPrice = placeOrderDto.stopPrice;
           break;
         case 'TAKE_PROFIT':
-          order.order_type = 'STOP_LIMIT';
-          order.stop_price = placeOrderDto.takeProfitPrice;
-          order.price = placeOrderDto.price; // Optional limit price for take profit
+          orderType = 'STOP_LIMIT';
+          stopPrice = placeOrderDto.takeProfitPrice;
+          limitPrice = placeOrderDto.price;
           break;
         case 'MARKET':
-          order.order_type = 'MARKET';
-          order.price = placeOrderDto.price;
+          orderType = 'MARKET';
+          limitPrice = placeOrderDto.price;
           break;
         case 'LIMIT':
-          order.order_type = 'LIMIT';
-          order.price = placeOrderDto.price;
+          orderType = 'LIMIT';
+          limitPrice = placeOrderDto.price;
           break;
         default:
-          order.order_type = placeOrderDto.orderType as any;
+          orderType = placeOrderDto.orderType;
       }
 
       // Handle broker attribution
+      let brokerId: string | undefined;
       if (placeOrderDto.brokerId) {
-        order.broker_id = placeOrderDto.brokerId;
+        brokerId = placeOrderDto.brokerId;
       } else {
         // Try to get broker from user relationship
         try {
           const userBrokerId = await this.clientAttributionService.getUserBrokerId(user.id);
           if (userBrokerId) {
-            order.broker_id = userBrokerId;
+            brokerId = userBrokerId;
           }
         } catch (error) {
           // Continue without broker if lookup fails
@@ -131,8 +115,28 @@ export class OrderController {
         }
       }
 
-      // Save order to get valid ID
-      const savedOrder = await this.orderRepository.save(order);
+      // Create order with Prisma
+      const savedOrder = await this.prisma.order.create({
+        data: {
+          userId: user.id,
+          symbol: placeOrderDto.symbol,
+          side: placeOrderDto.side,
+          orderType,
+          price: limitPrice || 0,
+          stopPrice: stopPrice || 0,
+          quantity: placeOrderDto.quantity,
+          timeInForce: placeOrderDto.timeInForce || 'GTC',
+          clientOrderId: placeOrderDto.clientOrderId,
+          status: 'PENDING',
+          filledQuantity: 0,
+          remainingQuantity: placeOrderDto.quantity,
+          commission: 0,
+          fee: 0,
+          source: 'API',
+          brokerId: brokerId || null,
+          metadata: { originalOrderType: placeOrderDto.orderType }
+        }
+      });
 
       // Enqueue order for execution
       await this.orderExecutionQueue.add(
@@ -146,13 +150,13 @@ export class OrderController {
           attempts: 3,
           backoff: {
             type: 'exponential',
-            delay: 1000,
-          },
+            delay: 1000
+          }
         }
       );
 
       // Trigger commission attribution asynchronously
-      if (savedOrder.broker_id) {
+      if (brokerId) {
         this.clientAttributionService.processCommissionAttribution(savedOrder.id).catch(error => {
           this.logger.error('Failed to process commission attribution:', error.stack || error.message);
         });
@@ -161,7 +165,7 @@ export class OrderController {
       return {
         success: true,
         order: OrderResponseDto.toDTO(savedOrder),
-        errors: undefined,
+        errors: undefined
       };
     } catch (error) {
       throw error;
@@ -189,53 +193,54 @@ export class OrderController {
     @Query('orderType') orderType?: string,
     @Query('side') side?: string,
     @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ): Promise<{ orders: OrderResponseDto[]; total: number; page: number; limit: number }> {
+    @Query('dateTo') dateTo?: string): Promise<{ orders: OrderResponseDto[]; total: number; page: number; limit: number }> {
     try {
       const skip = (page - 1) * limit;
 
-      // Build query
-      const query = this.orderRepository.createQueryBuilder('order')
-        .where('order.userId = :userId', { userId: user.id });
+      // Build where clause
+      const where: any = {
+        userId: user.id
+      };
 
       // Apply filters
       if (symbol) {
-        query.andWhere('order.symbol = :symbol', { symbol });
+        where.symbol = symbol;
       }
 
       if (status) {
-        query.andWhere('order.status = :status', { status });
+        where.status = status;
       }
 
       if (orderType) {
-        query.andWhere('order.order_type = :orderType', { orderType });
+        where.orderType = orderType;
       }
 
       if (side) {
-        query.andWhere('order.side = :side', { side });
+        where.side = side;
       }
 
-      if (dateFrom) {
-        query.andWhere('order.created_at >= :dateFrom', {
-          dateFrom: new Date(dateFrom)
-        });
+      if (dateFrom || dateTo) {
+        where.createdAt = {};
+        if (dateFrom) {
+          where.createdAt.gte = new Date(dateFrom);
+        }
+        if (dateTo) {
+          where.createdAt.lte = new Date(dateTo);
+        }
       }
 
-      if (dateTo) {
-        query.andWhere('order.created_at <= :dateTo', {
-          dateTo: new Date(dateTo)
-        });
-      }
-
-      // Get total count
-      const total = await query.getCount();
-
-      // Get orders with pagination
-      const orders = await query
-        .orderBy('order.created_at', 'DESC')
-        .skip(skip)
-        .take(limit)
-        .getMany();
+      // Get total count and orders in parallel
+      const [total, orders] = await Promise.all([
+        this.prisma.order.count({ where }),
+        this.prisma.order.findMany({
+          where,
+          orderBy: {
+            createdAt: 'desc'
+          },
+          skip,
+          take: limit
+        })
+      ]);
 
       // Convert to DTOs
       const orderDtos = orders.map(order => OrderResponseDto.toDTO(order));
@@ -244,7 +249,7 @@ export class OrderController {
         orders: orderDtos,
         total,
         page,
-        limit,
+        limit
       };
     } catch (error) {
       throw error;
@@ -258,10 +263,9 @@ export class OrderController {
   @ApiResponse({ status: 404, description: 'Order not found' })
   async getOrder(
     @Param('id') id: string,
-    @CurrentUser() user: { id: string },
-  ): Promise<OrderResponseDto> {
+    @CurrentUser() user: { id: string }): Promise<OrderResponseDto> {
     try {
-      const order = await this.orderRepository.findOne({
+      const order = await this.prisma.order.findFirst({
         where: { id, userId: user.id }
       });
 
@@ -284,57 +288,60 @@ export class OrderController {
   async updateOrder(
     @Param('id') id: string,
     @Body() updateOrderDto: UpdateOrderDto,
-    @CurrentUser() user: { id: string },
-  ): Promise<{ success: boolean; order?: OrderResponseDto; errors?: string[] }> {
+    @CurrentUser() user: { id: string }): Promise<{ success: boolean; order?: OrderResponseDto; errors?: string[] }> {
     try {
       // Validate update request
       const validation = await this.orderValidationService.validateUpdateOrder(
         id,
         user.id,
-        updateOrderDto,
-      );
+        updateOrderDto);
 
       if (!validation.isValid) {
         return {
           success: false,
-          errors: validation.errors,
+          errors: validation.errors
         };
       }
 
       // Get existing order
-      const order = await this.orderRepository.findOne({
+      const order = await this.prisma.order.findFirst({
         where: { id, userId: user.id }
       });
 
       if (!order) {
         return {
           success: false,
-          errors: ['Order not found'],
+          errors: ['Order not found']
         };
       }
 
-      // Apply allowed updates
+      // Build update data
+      const updateData: any = {};
+
       if (updateOrderDto.price !== undefined) {
-        order.price = updateOrderDto.price;
+        updateData.price = updateOrderDto.price;
       }
 
       if (updateOrderDto.quantity !== undefined) {
-        if (updateOrderDto.quantity < order.filled_quantity) {
+        if (updateOrderDto.quantity < order.filledQuantity) {
           return {
             success: false,
-            errors: ['Cannot reduce quantity below filled amount'],
+            errors: ['Cannot reduce quantity below filled amount']
           };
         }
-        order.quantity = updateOrderDto.quantity;
-        order.remaining_quantity = order.quantity - order.filled_quantity;
+        updateData.quantity = updateOrderDto.quantity;
+        updateData.remainingQuantity = updateOrderDto.quantity - order.filledQuantity;
       }
 
       // Save updated order
-      const updatedOrder = await this.orderRepository.save(order);
+      const updatedOrder = await this.prisma.order.update({
+        where: { id },
+        data: updateData
+      });
 
       return {
         success: true,
-        order: OrderResponseDto.toDTO(updatedOrder),
+        order: OrderResponseDto.toDTO(updatedOrder)
       };
     } catch (error) {
       throw error;
@@ -350,19 +357,17 @@ export class OrderController {
   async cancelOrder(
     @Param('id') id: string,
     @Body() cancelOrderDto: CancelOrderDto,
-    @CurrentUser() user: { id: string },
-  ): Promise<{ success: boolean; order?: OrderResponseDto; errors?: string[] }> {
+    @CurrentUser() user: { id: string }): Promise<{ success: boolean; order?: OrderResponseDto; errors?: string[] }> {
     try {
       const result = await this.matchingEngineService.cancelOrder(
         id,
         user.id,
-        cancelOrderDto.reason,
-      );
+        cancelOrderDto.reason);
 
       return {
         success: result.success,
         order: result.order ? OrderResponseDto.toDTO(result.order) : undefined,
-        errors: result.errors.length > 0 ? result.errors : undefined,
+        errors: result.errors.length > 0 ? result.errors : undefined
       };
     } catch (error) {
       throw error;
@@ -376,10 +381,9 @@ export class OrderController {
   @ApiResponse({ status: 404, description: 'Order not found' })
   async getOrderFills(
     @Param('id') id: string,
-    @CurrentUser() user: { id: string },
-  ): Promise<{ fills: any[] }> {
+    @CurrentUser() user: { id: string }): Promise<{ fills: any[] }> {
     try {
-      const order = await this.orderRepository.findOne({
+      const order = await this.prisma.order.findFirst({
         where: { id, userId: user.id }
       });
 
@@ -387,7 +391,7 @@ export class OrderController {
         throw new NotFoundException('Order not found');
       }
 
-      return { fills: order.fills || [] };
+      return { fills: (order.fills as any) || [] };
     } catch (error) {
       throw error;
     }
@@ -400,8 +404,7 @@ export class OrderController {
   @ApiQuery({ name: 'depth', required: false, type: Number, description: 'Order book depth' })
   async getOrderBook(
     @Param('symbol') symbol: string,
-    @Query('depth') depth: number = 20,
-  ): Promise<any> {
+    @Query('depth') depth: number = 20): Promise<any> {
     const orderBook = await this.orderBookService.getOrderBook(symbol, depth);
     return orderBook;
   }
@@ -413,8 +416,7 @@ export class OrderController {
   @ApiQuery({ name: 'levels', required: false, type: Number, description: 'Number of depth levels' })
   async getMarketDepth(
     @Param('symbol') symbol: string,
-    @Query('levels') levels: number = 10,
-  ): Promise<any> {
+    @Query('levels') levels: number = 10): Promise<any> {
     const depth = await this.orderBookService.getMarketDepth(symbol, levels);
     return depth;
   }

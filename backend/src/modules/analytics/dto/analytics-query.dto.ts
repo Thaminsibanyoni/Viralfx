@@ -5,7 +5,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class AnalyticsQueryDto {
   @ApiProperty({
     description: 'Symbol to query analytics for',
-    example: 'AAPL',
+    example: 'AAPL'
   })
   @IsString()
   @IsNotEmpty()
@@ -13,7 +13,7 @@ export class AnalyticsQueryDto {
 
   @ApiPropertyOptional({
     description: 'Start time for query period',
-    example: '2024-01-01T00:00:00Z',
+    example: '2024-01-01T00:00:00Z'
   })
   @IsDate()
   @Type(() => Date)
@@ -22,7 +22,7 @@ export class AnalyticsQueryDto {
 
   @ApiPropertyOptional({
     description: 'End time for query period',
-    example: '2024-12-31T23:59:59Z',
+    example: '2024-12-31T23:59:59Z'
   })
   @IsDate()
   @Type(() => Date)
@@ -33,7 +33,7 @@ export class AnalyticsQueryDto {
     description: 'Data interval',
     enum: ['1m', '5m', '15m', '1h', '4h', '1d'],
     example: '1h',
-    default: '1h',
+    default: '1h'
   })
   @IsEnum(['1m', '5m', '15m', '1h', '4h', '1d'])
   @IsOptional()
@@ -42,7 +42,7 @@ export class AnalyticsQueryDto {
   @ApiPropertyOptional({
     description: 'Metrics to include in response',
     example: ['viralityScore', 'sentimentScore', 'velocity'],
-    type: [String],
+    type: [String]
   })
   @IsArray()
   @IsStringValidator({ each: true })
@@ -53,7 +53,7 @@ export class AnalyticsQueryDto {
     description: 'Aggregation method for metrics',
     enum: ['avg', 'sum', 'min', 'max', 'count'],
     example: 'avg',
-    default: 'avg',
+    default: 'avg'
   })
   @IsEnum(['avg', 'sum', 'min', 'max', 'count'])
   @IsOptional()
@@ -70,7 +70,7 @@ export class AnalyticsQueryDto {
       '15m': 60 * 24 * 60 * 60 * 1000, // 60 days for 15-minute data
       '1h': 365 * 24 * 60 * 60 * 1000, // 1 year for hourly data
       '4h': 365 * 24 * 60 * 60 * 1000, // 1 year for 4-hour data
-      '1d': 5 * 365 * 24 * 60 * 60 * 1000, // 5 years for daily data
+      '1d': 5 * 365 * 24 * 60 * 60 * 1000 // 5 years for daily data
     };
 
     const maxDuration = maxDurationByInterval[this.interval] || maxDurationByInterval['1h'];

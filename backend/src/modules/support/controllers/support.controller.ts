@@ -4,16 +4,17 @@ import {
   Post,
   Body,
   Query,
+  Param,
   UseGuards,
   Request,
   HttpStatus,
-  HttpCode,
+  HttpCode
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../auth/enums/user-role.enum';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
+import { UserRole } from "../../../common/enums/user-role.enum";
 import { SupportService } from '../services/support.service';
 import { TicketService } from '../services/ticket.service';
 import { SlaService } from '../services/sla.service';
@@ -28,8 +29,7 @@ export class SupportController {
   constructor(
     private readonly supportService: SupportService,
     private readonly ticketService: TicketService,
-    private readonly slaService: SlaService,
-  ) {}
+    private readonly slaService: SlaService) {}
 
   @Get('dashboard')
   @ApiOperation({ summary: 'Get support dashboard metrics' })
@@ -95,7 +95,7 @@ export class SupportController {
     const report = await this.supportService.generateSupportReport({
       startDate: filters.startDate,
       endDate: filters.endDate,
-      format: 'csv',
+      format: 'csv'
     });
     return report;
   }
@@ -115,13 +115,13 @@ export class SupportController {
         openTickets: metrics.summary.openTickets,
         overdueTickets: metrics.summary.overdueTickets,
         avgResolutionTime: metrics.summary.avgResolutionTime,
-        slaComplianceRate: metrics.summary.slaComplianceRate,
+        slaComplianceRate: metrics.summary.slaComplianceRate
       },
       system: {
         activeAgents: analytics.activeAgents,
         activeCategories: analytics.activeCategories,
-        knowledgeBaseArticles: analytics.knowledgeBaseUsage.totalViews,
-      },
+        knowledgeBaseArticles: analytics.knowledgeBaseUsage.totalViews
+      }
     };
   }
 
@@ -145,7 +145,7 @@ export class SupportController {
           trend: trends.trends.length > 1 ?
             (trends.trends[trends.trends.length - 1].created > trends.trends[0].created ? 'up' : 'down') :
             'stable',
-          value: trends.trends.length > 0 ? trends.trends[trends.trends.length - 1].created : 0,
+          value: trends.trends.length > 0 ? trends.trends[trends.trends.length - 1].created : 0
         },
         {
           type: 'sla_performance',
@@ -153,7 +153,7 @@ export class SupportController {
           description: `SLA compliance rate is ${dashboardMetrics.summary.slaComplianceRate.toFixed(1)}%`,
           trend: dashboardMetrics.summary.slaComplianceRate >= 90 ? 'good' :
                  dashboardMetrics.summary.slaComplianceRate >= 75 ? 'warning' : 'critical',
-          value: dashboardMetrics.summary.slaComplianceRate,
+          value: dashboardMetrics.summary.slaComplianceRate
         },
         {
           type: 'resolution_time',
@@ -161,7 +161,7 @@ export class SupportController {
           description: `Average resolution time is ${dashboardMetrics.summary.avgResolutionTime} minutes`,
           trend: dashboardMetrics.summary.avgResolutionTime <= 240 ? 'good' :
                  dashboardMetrics.summary.avgResolutionTime <= 480 ? 'warning' : 'critical',
-          value: dashboardMetrics.summary.avgResolutionTime,
+          value: dashboardMetrics.summary.avgResolutionTime
         },
         {
           type: 'customer_satisfaction',
@@ -169,10 +169,10 @@ export class SupportController {
           description: `Average satisfaction score is ${satisfaction.averageScore}/5`,
           trend: satisfaction.averageScore >= 4.0 ? 'good' :
                  satisfaction.averageScore >= 3.0 ? 'warning' : 'critical',
-          value: satisfaction.averageScore,
+          value: satisfaction.averageScore
         },
       ],
-      recommendations: this.generateRecommendations(dashboardMetrics, trends, satisfaction),
+      recommendations: this.generateRecommendations(dashboardMetrics, trends, satisfaction)
     };
   }
 

@@ -1,19 +1,17 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Job, Queue } from 'bull';
-import { InjectQueue } from '@nestjs/bull';
+import { Job, Queue } from 'bullmq';
+import { InjectQueue } from '@nestjs/bullmq';
 
-import { ViralAsset, ViralCategory, SocialPlatform, ContentSafetyLevel, ModerationStatus } from '../entities/viral-asset.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { ViralAsset, ViralCategory, SocialPlatform, ContentSafetyLevel, ModerationStatus } from '../entities/viral-asset.entity';
 import { SocialContent } from '../interfaces/social-content.interface';
 import { ClassificationResult, ContentFeatures, AssetMetrics } from '../interfaces/classification.interface';
-import { MLService } from '../../ml/services/ml.service';
-import { VisionService } from '../../vision/services/vision.service';
-import { NLPService } from '../../nlp/services/nlp.service';
+import { MLService } from "../../ml/services/ml.service";
+import { VisionService } from "../../vision/services/vision.service";
+import { NLPService } from "../../nlp/services/nlp.service";
 import { ComplianceService } from '../services/compliance.service';
 import { SocialDataService } from '../services/social-data.service';
-import { WebSocketGateway } from '../../websocket/websocket.gateway';
+import { WebSocketGatewayHandler } from "../../websocket/gateways/websocket.gateway";
 import { PricingEngineService } from '../services/pricing-engine.service';
 
 @Injectable()
@@ -22,14 +20,12 @@ export class AssetClassificationService {
 
   constructor(
     private config: ConfigService,
-    @InjectRepository(ViralAsset)
-    private assetRepository: Repository<ViralAsset>,
-    private mlService: MLService,
+        private mlService: MLService,
     private visionService: VisionService,
     private nlpService: NLPService,
     private complianceService: ComplianceService,
     private socialDataService: SocialDataService,
-    private websocketGateway: WebSocketGateway,
+    private websocketGateway: WebSocketGatewayHandler,
     private pricingEngine: PricingEngineService,
     @InjectQueue('asset-classification')
     private classificationQueue: Queue,
@@ -188,7 +184,7 @@ export class AssetClassificationService {
       is_trending: classification.momentum > 70
     };
 
-    const createdAsset = await this.assetRepository.save(asset);
+    const createdAsset = await this.prisma.asset.upsert(asset);
 
     // Queue initial price history entry
     await this.updateQueue.add('create-price-history', {
@@ -223,7 +219,7 @@ export class AssetClassificationService {
     }
 
     // Update asset
-    await this.assetRepository.update(asset.id, {
+    await this.prisma.asset.update(asset.id, {
       current_platforms: currentPlatforms,
       momentum_score: updatedMetrics.momentum,
       sentiment_index: updatedMetrics.sentiment,
@@ -237,12 +233,12 @@ export class AssetClassificationService {
     // Recalculate price if significant change
     if (this.hasSignificantChange(asset, updatedMetrics)) {
       const newPrice = await this.pricingEngine.recalculatePrice(asset.id, updatedMetrics);
-      await this.assetRepository.update(asset.id, {
+      await this.prisma.asset.update(asset.id, {
         current_price: newPrice
       });
     }
 
-    const updatedAsset = await this.assetRepository.findOne({ where: { id: asset.id } });
+    const updatedAsset = await this.prisma.asset.findFirst({ where: { id: asset.id } });
 
     // Broadcast updates
     this.websocketGateway.broadcastAssetUpdate(asset.id, updatedMetrics);
@@ -480,7 +476,7 @@ export class AssetClassificationService {
   }
 
   async getAssetBySymbol(symbol: string): Promise<ViralAsset | null> {
-    return this.assetRepository.findOne({
+    return this.prisma.asset.findFirst({
       where: { symbol },
       relations: ['price_history']
     });

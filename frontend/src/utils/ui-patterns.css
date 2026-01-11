@@ -1,0 +1,639 @@
+/* ============================================
+   VIRALFX MODERN UI PATTERNS
+   Advanced Glassmorphism, Animations, & Effects
+   ============================================ */
+
+/* ============================================
+   ADVANCED GLASSMORPHISM CARDS
+   ============================================ */
+.glass-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.125);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+}
+
+.glass-card-dark {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+/* ============================================
+   NEUMORPHISM (SOFT UI) EFFECTS
+   ============================================ */
+.neumorphic {
+  background: #f0f0f3;
+  box-shadow:
+    8px 8px 16px rgba(0, 0, 0, 0.1),
+    -8px -8px 16px rgba(255, 255, 255, 0.8);
+  border-radius: 16px;
+  border: none;
+}
+
+.neumorphic-inset {
+  background: #f0f0f3;
+  box-shadow:
+    inset 8px 8px 16px rgba(0, 0, 0, 0.1),
+    inset -8px -8px 16px rgba(255, 255, 255, 0.8);
+  border-radius: 16px;
+  border: none;
+}
+
+.dark .neumorphic {
+  background: #1a1a2e;
+  box-shadow:
+    8px 8px 16px rgba(0, 0, 0, 0.4),
+    -8px -8px 16px rgba(255, 255, 255, 0.05);
+}
+
+.dark .neumorphic-inset {
+  background: #1a1a2e;
+  box-shadow:
+    inset 8px 8px 16px rgba(0, 0, 0, 0.4),
+    inset -8px -8px 16px rgba(255, 255, 255, 0.05);
+}
+
+/* ============================================
+   GRADIENT BORDERS
+   ============================================ */
+.gradient-border {
+  position: relative;
+  background: white;
+  border-radius: 16px;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  padding: 2px;
+  background: linear-gradient(135deg, #4B0082, #FFB300);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.dark .gradient-border {
+  background: #1e293b;
+}
+
+/* ============================================
+   ANIMATED GRADIENT BACKGROUNDS
+   ============================================ */
+.animated-gradient {
+  background: linear-gradient(
+    -45deg,
+    #4B0082,
+    #7c3aed,
+    #FFB300,
+    #f59e0b
+  );
+  background-size: 400% 400%;
+  animation: gradientShift 8s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ============================================
+   MORPHING SHAPES
+   ============================================ */
+.morphing-blob {
+  border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  animation: morph 8s ease-in-out infinite;
+}
+
+@keyframes morph {
+  0% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+  50% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
+  100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+}
+
+/* ============================================
+   LOADING STATES & SKELETONS
+   ============================================ */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.06) 25%,
+    rgba(0, 0, 0, 0.15) 37%,
+    rgba(0, 0, 0, 0.06) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-loading 1.4s ease infinite;
+}
+
+.dark .skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.06) 25%,
+    rgba(255, 255, 255, 0.15) 37%,
+    rgba(255, 255, 255, 0.06) 63%
+  );
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* Ripple effect */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.4) 10%, transparent 10.01%);
+  background-repeat: no-repeat;
+  background-position: 50%;
+  transform: scale(10, 10);
+  opacity: 0;
+  transition: transform 0.5s, opacity 1s;
+}
+
+.ripple:active::after {
+  transform: scale(0, 0);
+  opacity: 0.3;
+  transition: 0s;
+}
+
+/* ============================================
+   MICRO-INTERACTIONS
+   ============================================ */
+/* Tooltip styles */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::before,
+[data-tooltip]::after {
+  position: absolute;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
+  pointer-events: none;
+}
+
+[data-tooltip]::before {
+  content: attr(data-tooltip);
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  padding: 6px 12px;
+  background: rgba(15, 23, 42, 0.95);
+  color: white;
+  font-size: 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+[data-tooltip]::after {
+  content: '';
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  border: 6px solid transparent;
+  border-top-color: rgba(15, 23, 42, 0.95);
+}
+
+[data-tooltip]:hover::before,
+[data-tooltip]:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+[data-tooltip]:hover::before {
+  transform: translateX(-50%) translateY(-8px);
+}
+
+[data-tooltip]:hover::after {
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ============================================
+   3D CARD EFFECTS
+   ============================================ */
+.card-3d {
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-3d:hover {
+  transform: perspective(1000px) rotateX(5deg) rotateY(-5deg) scale(1.02);
+}
+
+.card-3d-reverse:hover {
+  transform: perspective(1000px) rotateX(-5deg) rotateY(5deg) scale(1.02);
+}
+
+/* ============================================
+   TEXT SHADOWS & GLOWS
+   ============================================ */
+.text-glow {
+  text-shadow:
+    0 0 10px rgba(75, 0, 130, 0.5),
+    0 0 20px rgba(75, 0, 130, 0.3),
+    0 0 30px rgba(75, 0, 130, 0.2);
+}
+
+.text-glow-gold {
+  text-shadow:
+    0 0 10px rgba(255, 179, 0, 0.5),
+    0 0 20px rgba(255, 179, 0, 0.3),
+    0 0 30px rgba(255, 179, 0, 0.2);
+}
+
+/* ============================================
+   HOVER EFFECTS
+   ============================================ */
+.hover-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.hover-shine::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  transform: skewX(-25deg);
+  transition: left 0.75s;
+}
+
+.hover-shine:hover::before {
+  left: 125%;
+}
+
+/* ============================================
+   TOGGLE SWITCH
+   ============================================ */
+.toggle-switch {
+  position: relative;
+  width: 56px;
+  height: 28px;
+  background: #cbd5e1;
+  border-radius: 28px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.toggle-switch.active {
+  background: linear-gradient(135deg, #4B0082, #7c3aed);
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 24px;
+  height: 24px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch.active::after {
+  transform: translateX(28px);
+}
+
+/* ============================================
+   PROGRESS BAR
+   ============================================ */
+.progress-bar {
+  height: 8px;
+  background: rgba(75, 0, 130, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4B0082, #FFB300);
+  border-radius: 10px;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: progressShine 1.5s infinite;
+}
+
+@keyframes progressShine {
+  100% { transform: translateX(100%); }
+}
+
+/* ============================================
+   NOTIFICATION DOT
+   ============================================ */
+.notification-dot {
+  position: relative;
+}
+
+.notification-dot::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 12px;
+  height: 12px;
+  background: #ef4444;
+  border: 2px solid white;
+  border-radius: 50%;
+  animation: pulse-dot 2s infinite;
+}
+
+.dark .notification-dot::before {
+  border-color: #1e293b;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+}
+
+/* ============================================
+   DIVIDER WITH GRADIENT
+   ============================================ */
+.divider-gradient {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(75, 0, 130, 0.3),
+    rgba(255, 179, 0, 0.3),
+    rgba(75, 0, 130, 0.3),
+    transparent
+  );
+}
+
+/* ============================================
+   FLOATING ACTION BUTTON (FAB)
+   ============================================ */
+.fab {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4B0082, #FFB300);
+  border: none;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 6px 20px rgba(75, 0, 130, 0.4),
+    0 2px 6px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fab:hover {
+  transform: scale(1.1) rotate(90deg);
+  box-shadow:
+    0 8px 30px rgba(75, 0, 130, 0.5),
+    0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.fab:active {
+  transform: scale(0.95);
+}
+
+/* ============================================
+   CHIP/TAG COMPONENTS
+   ============================================ */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(75, 0, 130, 0.1);
+  border: 1px solid rgba(75, 0, 130, 0.2);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #4B0082;
+  transition: all 0.2s;
+}
+
+.dark .chip {
+  background: rgba(139, 92, 246, 0.1);
+  border-color: rgba(139, 92, 246, 0.2);
+  color: #c4b5fd;
+}
+
+.chip:hover {
+  background: rgba(75, 0, 130, 0.15);
+  transform: translateY(-1px);
+}
+
+.dark .chip:hover {
+  background: rgba(139, 92, 246, 0.2);
+}
+
+.chip .chip-close {
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.chip .chip-close:hover {
+  opacity: 1;
+}
+
+/* ============================================
+   ACCORDION ANIMATIONS
+   ============================================ */
+.accordion-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.accordion-content.open {
+  max-height: 1000px;
+}
+
+.accordion-icon {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.accordion-icon.open {
+  transform: rotate(180deg);
+}
+
+/* ============================================
+   TABS
+   ============================================ */
+.tab-indicator {
+  position: absolute;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #4B0082, #FFB300);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 2px 2px 0 0;
+}
+
+/* ============================================
+   MODAL OVERLAY
+   ============================================ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 9999;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+  animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* ============================================
+   STEP PROGRESS INDICATOR
+   ============================================ */
+.step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  transition: all 0.3s;
+  border: 2px solid #cbd5e1;
+  background: white;
+  color: #64748b;
+}
+
+.step-circle.completed {
+  background: linear-gradient(135deg, #4B0082, #7c3aed);
+  border-color: #4B0082;
+  color: white;
+}
+
+.step-circle.active {
+  border-color: #4B0082;
+  color: #4B0082;
+  box-shadow: 0 0 0 4px rgba(75, 0, 130, 0.1);
+}
+
+.step-line {
+  flex: 1;
+  height: 2px;
+  background: #cbd5e1;
+  transition: all 0.3s;
+}
+
+.step-line.completed {
+  background: linear-gradient(90deg, #4B0082, #7c3aed);
+}
+
+.dark .step-circle {
+  background: #1e293b;
+  border-color: #475569;
+  color: #94a3b8;
+}
+
+.dark .step-circle.active {
+  border-color: #8b5cf6;
+  color: #8b5cf6;
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+}
+
+/* ============================================
+   RESPONSIVE UTILITIES
+   ============================================ */
+@media (max-width: 640px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .hide-tablet {
+    display: none !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .show-mobile-only {
+    display: none !important;
+  }
+}
+
+/* ============================================
+   PRINT STYLES
+   ============================================ */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  a[href]:after {
+    content: " (" attr(href) ")";
+  }
+}

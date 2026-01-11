@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 
 interface SentimentData {
@@ -31,8 +31,7 @@ export class SentimentAggregationService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly redis: Redis,
-  ) {}
+    private readonly redis: Redis) {}
 
   async aggregateSentiment(topicId: string, timeWindow?: { from: Date; to: Date }): Promise<AggregatedSentiment> {
     const cacheKey = `sentiment:aggregated:${topicId}:${JSON.stringify(timeWindow)}`;
@@ -46,21 +45,21 @@ export class SentimentAggregationService {
     // Build time window filter
     const timeFilter = timeWindow ? {
       gte: timeWindow.from,
-      lte: timeWindow.to,
+      lte: timeWindow.to
     } : {
-      gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
+      gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
     };
 
     // Fetch sentiment entries from the last 24 hours
     const sentiments = await this.prisma.sentimentEntry.findMany({
       where: {
         topicId,
-        timestamp: timeFilter,
+        timestamp: timeFilter
       },
       orderBy: {
-        timestamp: 'desc',
+        timestamp: 'desc'
       },
-      take: 1000, // Limit to recent entries for performance
+      take: 1000 // Limit to recent entries for performance
     });
 
     if (sentiments.length === 0) {
@@ -72,7 +71,7 @@ export class SentimentAggregationService {
         negativeCount: 0,
         neutralCount: 0,
         confidence: 0,
-        lastUpdated: new Date(),
+        lastUpdated: new Date()
       };
 
       await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(emptyResult));
@@ -119,7 +118,7 @@ export class SentimentAggregationService {
       confidence,
       lastUpdated: new Date(),
       trendScore,
-      volatilityScore,
+      volatilityScore
     };
 
     // Cache the result
@@ -130,8 +129,8 @@ export class SentimentAggregationService {
       where: {
         topicId_timeWindow: {
           topicId,
-          timeWindow: timeWindow?.from.toISOString() || '24h',
-        },
+          timeWindow: timeWindow?.from.toISOString() || '24h'
+        }
       },
       update: {
         averageScore,
@@ -142,7 +141,7 @@ export class SentimentAggregationService {
         confidence,
         trendScore,
         volatilityScore,
-        lastUpdated: new Date(),
+        lastUpdated: new Date()
       },
       create: {
         topicId,
@@ -154,8 +153,8 @@ export class SentimentAggregationService {
         neutralCount,
         confidence,
         trendScore,
-        volatilityScore,
-      },
+        volatilityScore
+      }
     });
 
     this.logger.log(`Aggregated sentiment for topic ${topicId}: ${averageScore.toFixed(3)} (${totalEntries} entries)`);
@@ -228,20 +227,20 @@ export class SentimentAggregationService {
     const topTopics = await this.prisma.sentimentAggregated.findMany({
       where: {
         lastUpdated: {
-          gte: timeFilter,
-        },
+          gte: timeFilter
+        }
       },
       orderBy: {
-        totalEntries: 'desc',
+        totalEntries: 'desc'
       },
       take: limit,
       include: {
         topic: {
           select: {
-            name: true,
-          },
-        },
-      },
+            name: true
+          }
+        }
+      }
     });
 
     const result = topTopics.map(topic => ({
@@ -249,7 +248,7 @@ export class SentimentAggregationService {
       topicName: topic.topic?.name || 'Unknown',
       averageScore: topic.averageScore,
       totalEntries: topic.totalEntries,
-      trendScore: topic.trendScore || 0,
+      trendScore: topic.trendScore || 0
     }));
 
     await this.redis.setex(cacheKey, 300, JSON.stringify(result)); // 5 minutes cache
@@ -291,12 +290,12 @@ export class SentimentAggregationService {
     const deletedCount = await this.prisma.sentimentAggregated.deleteMany({
       where: {
         lastUpdated: {
-          lt: thirtyDaysAgo,
+          lt: thirtyDaysAgo
         },
         timeWindow: {
-          not: '24h', // Keep 24h aggregations
-        },
-      },
+          not: '24h' // Keep 24h aggregations
+        }
+      }
     });
 
     this.logger.log(`Cleaned up ${deletedCount.count} old sentiment aggregations`);

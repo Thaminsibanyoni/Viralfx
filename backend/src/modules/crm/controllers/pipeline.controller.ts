@@ -11,18 +11,18 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  Req,
+  Req
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PipelineService } from '../services/pipeline.service';
 import { CreateStageDto } from '../dto/create-stage.dto';
 import { UpdateStageDto } from '../dto/update-stage.dto';
 import { CreateDealDto } from '../dto/create-deal.dto';
 import { UpdateDealDto } from '../dto/update-deal.dto';
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from "../../../common/enums/user-role.enum";
 
 @ApiTags('CRM - Pipeline')
 @ApiBearerAuth()
@@ -44,7 +44,7 @@ export class PipelineController {
     return {
       success: true,
       message: 'Stage created successfully',
-      data: stage,
+      data: stage
     };
   }
 
@@ -57,7 +57,7 @@ export class PipelineController {
 
     return {
       success: true,
-      data: stages,
+      data: stages
     };
   }
 
@@ -70,14 +70,13 @@ export class PipelineController {
   @HttpCode(HttpStatus.OK)
   async updateStage(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() updateStageDto: UpdateStageDto,
-  ) {
+    @Body() updateStageDto: UpdateStageDto) {
     const stage = await this.pipelineService.updateStage(id, updateStageDto);
 
     return {
       success: true,
       message: 'Stage updated successfully',
-      data: stage,
+      data: stage
     };
   }
 
@@ -93,7 +92,7 @@ export class PipelineController {
 
     return {
       success: true,
-      message: 'Stage deleted successfully',
+      message: 'Stage deleted successfully'
     };
   }
 
@@ -103,17 +102,16 @@ export class PipelineController {
   @ApiResponse({ status: 400, description: 'Bad Request' })
   async createDeal(
     @Body() createDealDto: CreateDealDto,
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const deal = await this.pipelineService.createDeal({
       ...createDealDto,
-      ownerId: req.user.id,
+      ownerId: req.user.id
     });
 
     return {
       success: true,
       message: 'Deal created successfully',
-      data: deal,
+      data: deal
     };
   }
 
@@ -135,7 +133,7 @@ export class PipelineController {
       minValue: query.minValue ? parseFloat(query.minValue) : undefined,
       maxValue: query.maxValue ? parseFloat(query.maxValue) : undefined,
       page: parseInt(query.page) || 1,
-      limit: parseInt(query.limit) || 10,
+      limit: parseInt(query.limit) || 10
     };
 
     const result = await this.pipelineService.getDeals(filters);
@@ -147,8 +145,8 @@ export class PipelineController {
         page: result.page,
         limit: result.limit,
         total: result.total,
-        totalPages: Math.ceil(result.total / result.limit),
-      },
+        totalPages: Math.ceil(result.total / result.limit)
+      }
     };
   }
 
@@ -161,7 +159,7 @@ export class PipelineController {
 
     return {
       success: true,
-      data: deal,
+      data: deal
     };
   }
 
@@ -172,14 +170,13 @@ export class PipelineController {
   @HttpCode(HttpStatus.OK)
   async updateDeal(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() updateDealDto: UpdateDealDto,
-  ) {
+    @Body() updateDealDto: UpdateDealDto) {
     const deal = await this.pipelineService.updateDeal(id, updateDealDto);
 
     return {
       success: true,
       message: 'Deal updated successfully',
-      data: deal,
+      data: deal
     };
   }
 
@@ -190,18 +187,16 @@ export class PipelineController {
   @HttpCode(HttpStatus.OK)
   async moveDeal(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() moveData: { targetStageId: string; notes: string },
-  ) {
+    @Body() moveData: { targetStageId: string; notes: string }) {
     const deal = await this.pipelineService.moveDeal(
       id,
       moveData.targetStageId,
-      moveData.notes,
-    );
+      moveData.notes);
 
     return {
       success: true,
       message: 'Deal moved successfully',
-      data: deal,
+      data: deal
     };
   }
 
@@ -211,17 +206,16 @@ export class PipelineController {
   @ApiResponse({ status: 404, description: 'Deal not found' })
   async addActivity(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() activityData: { type: string; description: string; scheduledFor?: string },
-  ) {
+    @Body() activityData: { type: string; description: string; scheduledFor?: string }) {
     const activity = await this.pipelineService.addActivity(id, {
       ...activityData,
-      dealId: id,
+      dealId: id
     });
 
     return {
       success: true,
       message: 'Activity added successfully',
-      data: activity,
+      data: activity
     };
   }
 
@@ -234,7 +228,7 @@ export class PipelineController {
 
     return {
       success: true,
-      data: activities,
+      data: activities
     };
   }
 
@@ -245,18 +239,16 @@ export class PipelineController {
   @HttpCode(HttpStatus.OK)
   async closeDealWon(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() closeData: { actualCloseValue: number; notes: string },
-  ) {
+    @Body() closeData: { actualCloseValue: number; notes: string }) {
     const deal = await this.pipelineService.closeDealWon(
       id,
       closeData.actualCloseValue,
-      closeData.notes,
-    );
+      closeData.notes);
 
     return {
       success: true,
       message: 'Deal marked as won successfully',
-      data: deal,
+      data: deal
     };
   }
 
@@ -267,18 +259,16 @@ export class PipelineController {
   @HttpCode(HttpStatus.OK)
   async closeDealLost(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() closeData: { lossReason: string; notes: string },
-  ) {
+    @Body() closeData: { lossReason: string; notes: string }) {
     const deal = await this.pipelineService.closeDealLost(
       id,
       closeData.lossReason,
-      closeData.notes,
-    );
+      closeData.notes);
 
     return {
       success: true,
       message: 'Deal marked as lost successfully',
-      data: deal,
+      data: deal
     };
   }
 
@@ -292,14 +282,14 @@ export class PipelineController {
     const filters = {
       startDate: query.startDate ? new Date(query.startDate) : undefined,
       endDate: query.endDate ? new Date(query.endDate) : undefined,
-      groupBy: query.groupBy || 'month',
+      groupBy: query.groupBy || 'month'
     };
 
     const forecast = await this.pipelineService.getForecast(filters);
 
     return {
       success: true,
-      data: forecast,
+      data: forecast
     };
   }
 
@@ -313,14 +303,14 @@ export class PipelineController {
     const filters = {
       startDate: query.startDate ? new Date(query.startDate) : undefined,
       endDate: query.endDate ? new Date(query.endDate) : undefined,
-      ownerId: query.ownerId,
+      ownerId: query.ownerId
     };
 
     const analytics = await this.pipelineService.getAnalytics(filters);
 
     return {
       success: true,
-      data: analytics,
+      data: analytics
     };
   }
 
@@ -332,14 +322,14 @@ export class PipelineController {
   async getKanbanView(@Query() query: any) {
     const filters = {
       ownerId: query.ownerId,
-      status: query.status,
+      status: query.status
     };
 
     const kanbanData = await this.pipelineService.getKanbanView(filters);
 
     return {
       success: true,
-      data: kanbanData,
+      data: kanbanData
     };
   }
 }

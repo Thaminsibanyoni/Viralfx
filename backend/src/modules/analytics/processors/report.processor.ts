@@ -1,17 +1,37 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bullmq';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 
 import { ReportService } from '../services/report.service';
 
 @Processor('analytics-report')
-export class ReportProcessor {
+export class ReportProcessor extends WorkerHost {
   private readonly logger = new Logger(ReportProcessor.name);
 
-  constructor(private readonly reportService: ReportService) {}
+  constructor(private readonly reportService: ReportService) {
+    super();
+}
 
-  @Process('generate-backtest-report')
-  async processBacktestReport(job: Job<{
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'generate-backtest-report':
+        return this.processBacktestReport(job);
+      case 'generate-performance-report':
+        return this.processPerformanceReport(job);
+      case 'generate-comparison-report':
+        return this.processComparisonReport(job);
+      case 'cleanup-expired-reports':
+        return this.processCleanupExpiredReports(job);
+      case 'batch-report-generation':
+        return this.processBatchReportGeneration(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async processBacktestReport(job: Job<{
     reportId: string;
     backtestId: string;
     timestamp: Date;
@@ -34,7 +54,7 @@ export class ReportProcessor {
       return {
         reportId,
         backtestId,
-        completed: true,
+        completed: true
       };
 
     } catch (error) {
@@ -44,8 +64,7 @@ export class ReportProcessor {
     }
   }
 
-  @Process('generate-performance-report')
-  async processPerformanceReport(job: Job<{
+  private async processPerformanceReport(job: Job<{
     reportId: string;
     config: any;
     userId?: string;
@@ -69,7 +88,7 @@ export class ReportProcessor {
       return {
         reportId,
         config,
-        completed: true,
+        completed: true
       };
 
     } catch (error) {
@@ -79,8 +98,7 @@ export class ReportProcessor {
     }
   }
 
-  @Process('generate-comparison-report')
-  async processComparisonReport(job: Job<{
+  private async processComparisonReport(job: Job<{
     reportId: string;
     strategyIds: string[];
     symbol: string;
@@ -113,7 +131,7 @@ export class ReportProcessor {
         reportId,
         strategyIds,
         symbol,
-        completed: true,
+        completed: true
       };
 
     } catch (error) {
@@ -123,8 +141,7 @@ export class ReportProcessor {
     }
   }
 
-  @Process('cleanup-expired-reports')
-  async processCleanupExpiredReports(job: Job<{
+  private async processCleanupExpiredReports(job: Job<{
     hoursToKeep?: number;
     dryRun?: boolean;
   }>): Promise<any> {
@@ -156,7 +173,7 @@ export class ReportProcessor {
           hoursToKeep,
           totalReports: reportHistory.reports.length,
           expiredReports: expiredReports.length,
-          expiredReportIds: expiredReports.map(r => r.id),
+          expiredReportIds: expiredReports.map(r => r.id)
         };
       } else {
         // Delete expired reports from cache
@@ -179,7 +196,7 @@ export class ReportProcessor {
           hoursToKeep,
           totalReports: reportHistory.reports.length,
           expiredReports: expiredReports.length,
-          deletedCount,
+          deletedCount
         };
       }
 
@@ -189,8 +206,7 @@ export class ReportProcessor {
     }
   }
 
-  @Process('batch-report-generation')
-  async processBatchReportGeneration(job: Job<{
+  private async processBatchReportGeneration(job: Job<{
     reportConfigs: Array<{
       type: string;
       entityType: string;
@@ -214,14 +230,14 @@ export class ReportProcessor {
           results.push({
             config,
             reportId,
-            success: true,
+            success: true
           });
         } catch (error) {
           this.logger.warn(`Failed to queue report generation for ${config.entityId}:`, error);
           results.push({
             config,
             success: false,
-            error: error.message,
+            error: error.message
           });
         }
 
@@ -241,7 +257,7 @@ export class ReportProcessor {
         successful,
         failed,
         results,
-        processedAt: new Date(),
+        processedAt: new Date()
       };
 
     } catch (error) {
@@ -250,17 +266,17 @@ export class ReportProcessor {
     }
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onActive(job: Job) {
     this.logger.debug(`Report generation job ${job.id} started: ${job.data}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job, result: any) {
     this.logger.log(`Report generation job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job, error: Error) {
     this.logger.error(`Report generation job ${job.id} failed:`, error);
   }

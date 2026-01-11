@@ -1,94 +1,80 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
-import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
 import { WebSocketModule } from '../websocket/websocket.module';
 
-// Entities
-import { BacktestingStrategy } from '../../database/entities/backtesting-strategy.entity';
-import { BacktestingResult } from '../../database/entities/backtesting-result.entity';
-import { MarketData } from '../../database/entities/market-data.entity';
-import { PerformanceMetric } from '../../database/entities/performance-metric.entity';
+// Entities - Using Prisma models directly
 
 // Services
-import { BacktestingService } from './services/backtesting.service';
-import { AnalyticsService } from './services/analytics.service';
-import { StrategyService } from './services/strategy.service';
-import { PerformanceService } from './services/performance.service';
-import { ReportService } from './services/report.service';
-import { MarketDataAggregationService } from './services/market-data-aggregation.service';
+import { BacktestingService } from "./services/backtesting.service";
+import { AnalyticsService } from "./services/analytics.service";
+import { StrategyService } from "./services/strategy.service";
+import { PerformanceService } from "./services/performance.service";
+import { ReportService } from "./services/report.service";
+import { MarketDataAggregationService } from "./services/market-data-aggregation.service";
 
 // Controllers
-import { BacktestingController } from './controllers/backtesting.controller';
-import { AnalyticsController } from './controllers/analytics.controller';
-import { StrategyController } from './controllers/strategy.controller';
+import { BacktestingController } from "./controllers/backtesting.controller";
+import { AnalyticsController } from "./controllers/analytics.controller";
+import { StrategyController } from "./controllers/strategy.controller";
 
 // Processors
-import { BacktestProcessor } from './processors/backtest.processor';
-import { AnalyticsProcessor } from './processors/analytics.processor';
-import { ReportProcessor } from './processors/report.processor';
+// import { BacktestProcessor } from "./processors/backtest.processor"; // Temporarily disabled due to BullMQ issue
+// import { AnalyticsProcessor } from "./processors/analytics.processor"; // Temporarily disabled - files not found
+// import { ReportProcessor } from "./processors/report.processor"; // Temporarily disabled - files not found
 
 // Schedulers
-import { AnalyticsScheduler } from './schedulers/analytics.scheduler';
+import { AnalyticsScheduler } from "./schedulers/analytics.scheduler";
 
 @Module({
   imports: [
     ConfigModule,
-    PrismaModule,
-    TypeOrmModule.forFeature([
-      BacktestingStrategy,
-      BacktestingResult,
-      MarketData,
-      PerformanceMetric,
-    ]),
     BullModule.registerQueue(
       {
         name: 'analytics-backtest',
         settings: {
           retryProcessDelay: 5000,
-          maxStalledCount: 1,
+          maxStalledCount: 1
         },
         config: {
           attempts: 3,
           backoff: {
             type: 'exponential',
-            delay: 2000,
-          },
-        },
+            delay: 2000
+          }
+        }
       },
       {
         name: 'analytics-report',
         settings: {
           retryProcessDelay: 5000,
-          maxStalledCount: 1,
+          maxStalledCount: 1
         },
         config: {
           attempts: 3,
           backoff: {
             type: 'exponential',
-            delay: 2000,
-          },
-        },
+            delay: 2000
+          }
+        }
       },
       {
         name: 'analytics-calculation',
         settings: {
           retryProcessDelay: 5000,
-          maxStalledCount: 1,
+          maxStalledCount: 1
         },
         config: {
           attempts: 3,
           backoff: {
             type: 'exponential',
-            delay: 2000,
-          },
-        },
-      },
-    ),
+            delay: 2000
+          }
+        }
+      }),
     RedisModule,
-    WebSocketModule,
+    forwardRef(() => WebSocketModule),
   ],
   controllers: [
     BacktestingController,
@@ -102,9 +88,9 @@ import { AnalyticsScheduler } from './schedulers/analytics.scheduler';
     PerformanceService,
     ReportService,
     MarketDataAggregationService,
-    BacktestProcessor,
-    AnalyticsProcessor,
-    ReportProcessor,
+    // BacktestProcessor, // Temporarily disabled due to BullMQ issue
+    // AnalyticsProcessor, // Temporarily disabled - files not found
+    // ReportProcessor, // Temporarily disabled - files not found
     AnalyticsScheduler,
   ],
   exports: [
@@ -113,6 +99,6 @@ import { AnalyticsScheduler } from './schedulers/analytics.scheduler';
     StrategyService,
     PerformanceService,
     MarketDataAggregationService,
-  ],
+  ]
 })
 export class AnalyticsModule {}

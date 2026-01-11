@@ -1,7 +1,7 @@
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { ClientAttributionService } from '../services/client-attribution.service';
-import { Order } from '../../trading/entities/order.entity';
+import { Order } from "../../trading/entities/order.entity";
 
 @Injectable()
 export class CommissionAttributionMiddleware implements NestMiddleware {

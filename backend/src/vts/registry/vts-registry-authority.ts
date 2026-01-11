@@ -5,8 +5,8 @@
  */
 
 import { createHash } from 'crypto';
-import { logger } from '../../common/logger';
-import { VTSSymbol, RegionCode, CategoryCode, VerificationLevel, RiskLevel } from '../../types/vts';
+import { logger } from "../../common/logger";
+import { VTSSymbol, RegionCode, CategoryCode, VerificationLevel, RiskLevel } from "../../types/vts";
 
 export interface VTSRegistration {
   id: string;

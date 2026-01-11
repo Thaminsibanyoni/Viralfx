@@ -3,14 +3,13 @@ import { AuthGuard } from '@nestjs/passport';
 import { WsException } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
-import { AuthService } from '../../auth/services/auth.service';
+import { AuthService } from "../../auth/services/auth.service";
 
 @Injectable()
 export class WsJwtAuthGuard extends AuthGuard('jwt') {
   constructor(
     private readonly jwtService: JwtService,
-    private readonly authService: AuthService,
-  ) {
+    private readonly authService: AuthService) {
     super();
   }
 

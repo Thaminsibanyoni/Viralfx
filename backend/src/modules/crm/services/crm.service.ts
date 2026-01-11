@@ -1,31 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Lead } from '../entities/lead.entity';
-import { Opportunity } from '../entities/opportunity.entity';
-import { Activity, ActivityEntityType, ActivityType, ActivityStatus } from '../entities/activity.entity';
-import { RelationshipManager } from '../entities/relationship-manager.entity';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
-import { RedisService } from '../../redis/redis.service';
-import { LeadStatus } from '../entities/lead.entity';
-import { OpportunityStage } from '../entities/opportunity.entity';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { RedisService } from "../../redis/redis.service";
 
 @Injectable()
 export class CrmService {
   constructor(
-    @InjectRepository(Lead)
-    private readonly leadRepository: Repository<Lead>,
-    @InjectRepository(Opportunity)
-    private readonly opportunityRepository: Repository<Opportunity>,
-    @InjectRepository(Activity)
-    private readonly activityRepository: Repository<Activity>,
-    @InjectRepository(RelationshipManager)
-    private readonly relationshipManagerRepository: Repository<RelationshipManager>,
+    private readonly prisma: PrismaService,
     @InjectQueue('crm-tasks')
     private readonly crmQueue: Queue,
-    private readonly redisService: RedisService,
-  ) {}
+    private readonly redisService: RedisService) {}
 
   async getDashboard(filters: {
     dateRange?: { start: Date; end: Date };
@@ -41,28 +26,37 @@ export class CrmService {
 
     const { dateRange, assignedTo, brokerId } = filters;
 
-    // Lead metrics
-    const leadsByStatus = await this.leadRepository
-      .createQueryBuilder('lead')
-      .select('lead.status', 'status')
-      .addSelect('COUNT(*)', 'count')
-      .where(assignedTo ? 'lead.assignedTo = :assignedTo' : '1=1', { assignedTo })
-      .andWhere(brokerId ? 'lead.brokerId = :brokerId' : '1=1', { brokerId })
-      .andWhere(dateRange ? 'lead.createdAt BETWEEN :start AND :end' : '1=1', dateRange || {})
-      .groupBy('lead.status')
-      .getRawMany();
+    // Build where clause
+    const leadWhere: any = {};
+    const dealWhere: any = {};
 
-    // Opportunity pipeline
-    const opportunitiesByStage = await this.opportunityRepository
-      .createQueryBuilder('opportunity')
-      .select('opportunity.stage', 'stage')
-      .addSelect('COUNT(*)', 'count')
-      .addSelect('SUM(opportunity.value)', 'totalValue')
-      .where(assignedTo ? 'opportunity.assignedTo = :assignedTo' : '1=1', { assignedTo })
-      .andWhere(brokerId ? 'opportunity.brokerId = :brokerId' : '1=1', { brokerId })
-      .andWhere(dateRange ? 'opportunity.createdAt BETWEEN :start AND :end' : '1=1', dateRange || {})
-      .groupBy('opportunity.stage')
-      .getRawMany();
+    if (assignedTo) {
+      leadWhere.assignedTo = assignedTo;
+      dealWhere.assignedTo = assignedTo;
+    }
+    if (brokerId) {
+      leadWhere.brokerId = brokerId;
+      dealWhere.brokerId = brokerId;
+    }
+    if (dateRange) {
+      leadWhere.createdAt = { gte: dateRange.start, lte: dateRange.end };
+      dealWhere.createdAt = { gte: dateRange.start, lte: dateRange.end };
+    }
+
+    // Lead metrics using Prisma groupBy
+    const leadsByStatus = await this.prisma.clientRecord.groupBy({
+      by: ['status'],
+      where: leadWhere,
+      _count: true
+    });
+
+    // Opportunity (BrokerDeal) pipeline metrics using Prisma groupBy
+    const dealsByStage = await this.prisma.brokerDeal.groupBy({
+      by: ['stage'],
+      where: dealWhere,
+      _count: true,
+      _sum: { value: true }
+    });
 
     // Conversion rates
     const conversionMetrics = await this.calculateConversionRates(dateRange, assignedTo, brokerId);
@@ -72,19 +66,26 @@ export class CrmService {
 
     const dashboard = {
       leads: {
-        byStatus: leadsByStatus,
-        total: leadsByStatus.reduce((sum, item) => sum + parseInt(item.count), 0),
-        qualified: leadsByStatus.find(item => item.status === LeadStatus.QUALIFIED)?.count || 0,
+        byStatus: leadsByStatus.map(item => ({
+          status: item.status,
+          count: item._count
+        })),
+        total: leadsByStatus.reduce((sum, item) => sum + item._count, 0),
+        qualified: leadsByStatus.find(item => item.status === 'QUALIFIED')?._count || 0
       },
       opportunities: {
-        byStage: opportunitiesByStage,
-        totalValue: opportunitiesByStage.reduce((sum, item) => sum + parseFloat(item.totalValue || 0), 0),
-        pipelineValue: opportunitiesByStage
-          .filter(item => item.stage !== OpportunityStage.CLOSED_WON && item.stage !== OpportunityStage.CLOSED_LOST)
-          .reduce((sum, item) => sum + parseFloat(item.totalValue || 0), 0),
+        byStage: dealsByStage.map(item => ({
+          stage: item.stage,
+          count: item._count,
+          totalValue: item._sum.value || 0
+        })),
+        totalValue: dealsByStage.reduce((sum, item) => sum + (item._sum.value || 0), 0),
+        pipelineValue: dealsByStage
+          .filter(item => item.stage !== 'CLOSED_WON' && item.stage !== 'CLOSED_LOST')
+          .reduce((sum, item) => sum + (item._sum.value || 0), 0)
       },
       conversion: conversionMetrics,
-      forecast: revenueForecast,
+      forecast: revenueForecast
     };
 
     await this.redisService.setex(cacheKey, 300, JSON.stringify(dashboard)); // 5 minutes TTL
@@ -92,8 +93,8 @@ export class CrmService {
   }
 
   async assignLeadToManager(leadId: string, managerId: string) {
-    const manager = await this.relationshipManagerRepository.findOne({
-      where: { id: managerId, isActive: true },
+    const manager = await this.prisma.relationshipManager.findFirst({
+      where: { id: managerId, isActive: true }
     });
 
     if (!manager) {
@@ -104,22 +105,14 @@ export class CrmService {
       throw new Error('Relationship manager has reached maximum lead capacity');
     }
 
-    await this.leadRepository.update(leadId, {
-      assignedTo: managerId,
+    await this.prisma.clientRecord.update({
+      where: { id: leadId },
+      data: { assignedTo: managerId }
     });
 
-    await this.relationshipManagerRepository.increment(
-      { id: managerId },
-      'currentLeads',
-      1,
-    );
-
-    // Log activity
-    await this.logActivity(ActivityEntityType.LEAD, leadId, {
-      type: ActivityType.ASSIGNMENT,
-      subject: 'Lead assigned to relationship manager',
-      description: `Lead assigned to ${manager.name}`,
-      assignedTo: managerId,
+    await this.prisma.relationshipManager.update({
+      where: { id: managerId },
+      data: { currentLeads: { increment: 1 } }
     });
 
     return { success: true, managerId };
@@ -134,55 +127,45 @@ export class CrmService {
     competitors?: string[];
     notes?: string;
   }) {
-    return await this.leadRepository.manager.transaction(async (transactionManager) => {
-      // Update lead status
-      await transactionManager.update(Lead, leadId, {
-        status: LeadStatus.CONVERTED,
-        convertedAt: new Date(),
-      });
-
-      const lead = await transactionManager.findOne(Lead, {
+    return await this.prisma.$transaction(async (tx) => {
+      // Update lead (ClientRecord) status
+      const lead = await tx.clientRecord.update({
         where: { id: leadId },
-        relations: ['broker'],
+        data: {
+          status: 'CONVERTED',
+          convertedAt: new Date()
+        },
+        include: { broker: true }
       });
 
-      // Create opportunity
-      const opportunity = transactionManager.create(Opportunity, {
-        leadId,
-        brokerId: lead.brokerId,
-        assignedTo: lead.assignedTo,
-        stage: OpportunityStage.PROSPECTING,
-        ...opportunityData,
+      // Create opportunity (BrokerDeal)
+      const opportunity = await tx.brokerDeal.create({
+        data: {
+          leadId,
+          brokerId: lead.brokerId,
+          assignedTo: lead.assignedTo,
+          stage: 'PROSPECTING',
+          name: opportunityData.name,
+          value: opportunityData.value,
+          probability: opportunityData.probability,
+          expectedCloseDate: opportunityData.expectedCloseDate,
+          metadata: {
+            products: opportunityData.products,
+            competitors: opportunityData.competitors,
+            notes: opportunityData.notes
+          }
+        }
       });
-
-      const savedOpportunity = await transactionManager.save(opportunity);
 
       // Update manager metrics
       if (lead.assignedTo) {
-        await transactionManager.decrement(
-          RelationshipManager,
-          { id: lead.assignedTo },
-          'currentLeads',
-          1,
-        );
+        await tx.relationshipManager.update({
+          where: { id: lead.assignedTo },
+          data: { currentLeads: { decrement: 1 } }
+        });
       }
 
-      // Log conversion activity
-      await this.logActivity(ActivityEntityType.LEAD, leadId, {
-        type: ActivityType.CONVERSION,
-        subject: 'Lead converted to opportunity',
-        description: `Converted to opportunity: ${opportunityData.name}`,
-        assignedTo: lead.assignedTo,
-      });
-
-      await this.logActivity(ActivityEntityType.OPPORTUNITY, savedOpportunity.id, {
-        type: ActivityType.CREATION,
-        subject: 'Opportunity created from lead',
-        description: `Created from lead: ${lead.firstName} ${lead.lastName}`,
-        assignedTo: lead.assignedTo,
-      });
-
-      return savedOpportunity;
+      return opportunity;
     });
   }
 
@@ -191,21 +174,21 @@ export class CrmService {
       attempts: 3,
       backoff: {
         type: 'exponential',
-        delay: 2000,
-      },
+        delay: 2000
+      }
     });
   }
 
   async getActivityTimeline(entityType: string, entityId: string) {
-    return await this.activityRepository.find({
+    return await this.prisma.dealActivity.findMany({
       where: {
         entityType: entityType as any,
-        entityId,
+        dealId: entityId
       },
-      order: {
-        createdAt: 'DESC',
+      orderBy: {
+        createdAt: 'DESC'
       },
-      take: 50,
+      take: 50
     });
   }
 
@@ -214,17 +197,22 @@ export class CrmService {
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + periodDays);
 
-    const opportunities = await this.opportunityRepository
-      .createQueryBuilder('opportunity')
-      .leftJoinAndSelect('opportunity.broker', 'broker')
-      .where('opportunity.expectedCloseDate BETWEEN :startDate AND :endDate', {
-        startDate,
-        endDate,
-      })
-      .andWhere('opportunity.stage NOT IN (:...closedStages)', {
-        closedStages: [OpportunityStage.CLOSED_WON, OpportunityStage.CLOSED_LOST],
-      })
-      .getMany();
+    const opportunities = await this.prisma.brokerDeal.findMany({
+      where: {
+        expectedCloseDate: {
+          gte: startDate,
+          lte: endDate
+        },
+        stage: {
+          notIn: ['CLOSED_WON', 'CLOSED_LOST']
+        }
+      },
+      include: {
+        broker: {
+          select: { businessName: true }
+        }
+      }
+    });
 
     const forecast = opportunities.map(opp => ({
       id: opp.id,
@@ -234,7 +222,7 @@ export class CrmService {
       value: opp.value,
       probability: opp.probability,
       weightedValue: opp.value * (opp.probability / 100),
-      stage: opp.stage,
+      stage: opp.stage
     }));
 
     const totalForecast = forecast.reduce((sum, item) => sum + item.weightedValue, 0);
@@ -245,113 +233,53 @@ export class CrmService {
       totalValue: totalForecast,
       averageProbability: forecast.length > 0
         ? forecast.reduce((sum, item) => sum + item.probability, 0) / forecast.length
-        : 0,
+        : 0
     };
   }
 
   private async calculateConversionRates(
     dateRange?: { start: Date; end: Date },
     assignedTo?: string,
-    brokerId?: string,
-  ) {
-    // Lead queries
-    const leadsQueryBuilder = this.leadRepository.createQueryBuilder('lead')
-      .select('COUNT(*)', 'count');
+    brokerId?: string) {
+    // Build where clauses
+    const leadWhere: any = {};
+    const dealWhere: any = {};
 
     if (assignedTo) {
-      leadsQueryBuilder.andWhere('lead.assignedTo = :assignedTo', { assignedTo });
+      leadWhere.assignedTo = assignedTo;
+      dealWhere.assignedTo = assignedTo;
     }
     if (brokerId) {
-      leadsQueryBuilder.andWhere('lead.brokerId = :brokerId', { brokerId });
+      leadWhere.brokerId = brokerId;
+      dealWhere.brokerId = brokerId;
     }
     if (dateRange) {
-      leadsQueryBuilder.andWhere('lead.createdAt BETWEEN :start AND :end', dateRange);
+      leadWhere.createdAt = { gte: dateRange.start, lte: dateRange.end };
+      dealWhere.createdAt = { gte: dateRange.start, lte: dateRange.end };
     }
 
-    const totalLeads = await leadsQueryBuilder.getRawOne();
-
-    const convertedLeadsQueryBuilder = this.leadRepository.createQueryBuilder('lead')
-      .select('COUNT(*)', 'count')
-      .where('lead.status = :status', { status: LeadStatus.CONVERTED });
-
-    if (assignedTo) {
-      convertedLeadsQueryBuilder.andWhere('lead.assignedTo = :assignedTo', { assignedTo });
-    }
-    if (brokerId) {
-      convertedLeadsQueryBuilder.andWhere('lead.brokerId = :brokerId', { brokerId });
-    }
-    if (dateRange) {
-      convertedLeadsQueryBuilder.andWhere('lead.createdAt BETWEEN :start AND :end', dateRange);
-    }
-
-    const convertedLeads = await convertedLeadsQueryBuilder.getRawOne();
-
-    // Opportunity queries
-    const opportunitiesQueryBuilder = this.opportunityRepository.createQueryBuilder('opportunity')
-      .select('COUNT(*)', 'count');
-
-    if (assignedTo) {
-      opportunitiesQueryBuilder.andWhere('opportunity.assignedTo = :assignedTo', { assignedTo });
-    }
-    if (brokerId) {
-      opportunitiesQueryBuilder.andWhere('opportunity.brokerId = :brokerId', { brokerId });
-    }
-    if (dateRange) {
-      opportunitiesQueryBuilder.andWhere('opportunity.createdAt BETWEEN :start AND :end', dateRange);
-    }
-
-    const totalOpportunities = await opportunitiesQueryBuilder.getRawOne();
-
-    const wonOpportunitiesQueryBuilder = this.opportunityRepository.createQueryBuilder('opportunity')
-      .select('COUNT(*)', 'count')
-      .where('opportunity.stage = :stage', { stage: OpportunityStage.CLOSED_WON });
-
-    if (assignedTo) {
-      wonOpportunitiesQueryBuilder.andWhere('opportunity.assignedTo = :assignedTo', { assignedTo });
-    }
-    if (brokerId) {
-      wonOpportunitiesQueryBuilder.andWhere('opportunity.brokerId = :brokerId', { brokerId });
-    }
-    if (dateRange) {
-      wonOpportunitiesQueryBuilder.andWhere('opportunity.createdAt BETWEEN :start AND :end', dateRange);
-    }
-
-    const wonOpportunities = await wonOpportunitiesQueryBuilder.getRawOne();
-
-    return {
-      leadToOpportunity: parseInt(totalLeads?.count || 0) > 0
-        ? (parseInt(convertedLeads?.count || 0) / parseInt(totalLeads?.count || 0)) * 100
-        : 0,
-      opportunityToWin: parseInt(totalOpportunities?.count || 0) > 0
-        ? (parseInt(wonOpportunities?.count || 0) / parseInt(totalOpportunities?.count || 0)) * 100
-        : 0,
-      overallConversion: parseInt(totalLeads?.count || 0) > 0
-        ? (parseInt(wonOpportunities?.count || 0) / parseInt(totalLeads?.count || 0)) * 100
-        : 0,
-    };
-  }
-
-  private async logActivity(
-    entityType: ActivityEntityType,
-    entityId: string,
-    activityData: {
-      type: ActivityType;
-      subject: string;
-      description: string;
-      assignedTo?: string;
-    },
-  ) {
-    const activity = this.activityRepository.create({
-      entityType,
-      entityId,
-      type: activityData.type,
-      subject: activityData.subject,
-      description: activityData.description,
-      status: ActivityStatus.COMPLETED,
-      completedAt: new Date(),
-      assignedTo: activityData.assignedTo,
+    // Count leads
+    const totalLeads = await this.prisma.clientRecord.count({ where: leadWhere });
+    const convertedLeads = await this.prisma.clientRecord.count({
+      where: { ...leadWhere, status: 'CONVERTED' }
     });
 
-    await this.activityRepository.save(activity);
+    // Count deals (opportunities)
+    const totalDeals = await this.prisma.brokerDeal.count({ where: dealWhere });
+    const wonDeals = await this.prisma.brokerDeal.count({
+      where: { ...dealWhere, stage: 'CLOSED_WON' }
+    });
+
+    return {
+      leadToOpportunity: totalLeads > 0
+        ? (convertedLeads / totalLeads) * 100
+        : 0,
+      opportunityToWin: totalDeals > 0
+        ? (wonDeals / totalDeals) * 100
+        : 0,
+      overallConversion: totalLeads > 0
+        ? (wonDeals / totalLeads) * 100
+        : 0
+    };
   }
 }

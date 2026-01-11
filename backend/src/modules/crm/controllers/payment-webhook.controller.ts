@@ -5,7 +5,7 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
-  Logger,
+  Logger
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PaymentWebhookService } from '../services/payment-webhook.service';
@@ -24,15 +24,13 @@ export class PaymentWebhookController {
     private readonly payfastProvider: PayFastProvider,
     private readonly eftProvider: EFTProvider,
     private readonly ozowProvider: OzowProvider,
-    private readonly configService: ConfigService,
-  ) {}
+    private readonly configService: ConfigService) {}
 
   @Post('paystack')
   @HttpCode(HttpStatus.OK)
   async handlePaystackWebhook(
     @Body() body: any,
-    @Headers('x-paystack-signature') signature: string,
-  ) {
+    @Headers('x-paystack-signature') signature: string) {
     try {
       this.logger.log(`Paystack webhook received: ${JSON.stringify({ event: body.event, reference: body.data?.reference })}`);
 
@@ -46,8 +44,7 @@ export class PaymentWebhookController {
       // Verify and process webhook
       const event = await this.paystackProvider.processWebhook(
         JSON.stringify(body),
-        signature,
-      );
+        signature);
 
       await this.webhookService.processPaymentWebhook(event);
 
@@ -66,8 +63,7 @@ export class PaymentWebhookController {
   @HttpCode(HttpStatus.OK)
   async handlePayFastWebhook(
     @Body() body: any,
-    @Headers('x-payfast-signature') signature: string,
-  ) {
+    @Headers('x-payfast-signature') signature: string) {
     try {
       this.logger.log(`PayFast webhook received: ${JSON.stringify({ payment_status: body.payment_status, m_payment_id: body.m_payment_id })}`);
 
@@ -99,8 +95,7 @@ export class PaymentWebhookController {
   @HttpCode(HttpStatus.OK)
   async handleEFTWebhook(
     @Body() body: any,
-    @Headers('x-eft-signature') signature: string,
-  ) {
+    @Headers('x-eft-signature') signature: string) {
     try {
       this.logger.log(`EFT webhook received: ${JSON.stringify({ transaction_status: body.transaction_status, m_payment_id: body.m_payment_id })}`);
 
@@ -113,8 +108,7 @@ export class PaymentWebhookController {
 
       const event = await this.eftProvider.processWebhook(
         JSON.stringify(body),
-        signature,
-      );
+        signature);
 
       await this.webhookService.processPaymentWebhook(event);
 
@@ -133,8 +127,7 @@ export class PaymentWebhookController {
   @HttpCode(HttpStatus.OK)
   async handleOzowWebhook(
     @Body() body: any,
-    @Headers('x-ozow-signature') signature: string,
-  ) {
+    @Headers('x-ozow-signature') signature: string) {
     try {
       this.logger.log(`Ozow webhook received: ${JSON.stringify({ Status: body.Status, TransactionReference: body.TransactionReference })}`);
 
@@ -166,8 +159,7 @@ export class PaymentWebhookController {
   @HttpCode(HttpStatus.OK)
   async handleGenericWebhook(
     @Body() body: any,
-    @Headers() headers: Record<string, string>,
-  ) {
+    @Headers() headers: Record<string, string>) {
     try {
       const provider = headers['x-payment-provider'] || body.provider;
 
@@ -183,28 +175,24 @@ export class PaymentWebhookController {
         case 'paystack':
           event = await this.paystackProvider.processWebhook(
             JSON.stringify(body),
-            headers['x-paystack-signature'],
-          );
+            headers['x-paystack-signature']);
           break;
         case 'payfast':
           const rawBody = new URLSearchParams(body).toString();
           event = await this.payfastProvider.processWebhook(
             rawBody,
-            headers['x-payfast-signature'],
-          );
+            headers['x-payfast-signature']);
           break;
         case 'eft':
           event = await this.eftProvider.processWebhook(
             JSON.stringify(body),
-            headers['x-eft-signature'],
-          );
+            headers['x-eft-signature']);
           break;
         case 'ozow':
           const ozowRawBody = new URLSearchParams(body).toString();
           event = await this.ozowProvider.processWebhook(
             ozowRawBody,
-            headers['x-ozow-signature'],
-          );
+            headers['x-ozow-signature']);
           break;
         default:
           throw new Error(`Unsupported payment provider: ${provider}`);

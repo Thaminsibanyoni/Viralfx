@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Transaction } from '../entities/transaction.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Transaction } from '../entities/transaction.entity';
 
 export class TransactionResponseDto {
   @ApiProperty({ description: 'Transaction ID' })
@@ -92,7 +92,7 @@ export class TransactionResponseDto {
       createdAt: transaction.createdAt,
       updatedAt: transaction.updatedAt,
       completedAt: transaction.completedAt,
-      isCompleted: transaction.isCompleted,
+      isCompleted: transaction.isCompleted
     };
   }
 }

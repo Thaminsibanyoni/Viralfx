@@ -9,8 +9,7 @@ export class ApiKeyGuard implements CanActivate {
   constructor(
     private keysService: KeysService,
     private rateLimitService: RateLimitService,
-    private reflector: Reflector,
-  ) {}
+    private reflector: Reflector) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -28,7 +27,7 @@ export class ApiKeyGuard implements CanActivate {
       throw new ForbiddenException({
         error: 'API key required',
         message: 'Please provide an API key via x-api-key header or api_key query parameter',
-        code: 'API_KEY_REQUIRED',
+        code: 'API_KEY_REQUIRED'
       });
     }
 
@@ -38,7 +37,7 @@ export class ApiKeyGuard implements CanActivate {
       throw new ForbiddenException({
         error: 'Invalid API key',
         message: 'The provided API key is invalid or has been revoked',
-        code: 'INVALID_API_KEY',
+        code: 'INVALID_API_KEY'
       });
     }
 
@@ -47,7 +46,7 @@ export class ApiKeyGuard implements CanActivate {
       throw new ForbiddenException({
         error: 'API key revoked',
         message: 'This API key has been revoked',
-        code: 'API_KEY_REVOKED',
+        code: 'API_KEY_REVOKED'
       });
     }
 
@@ -56,7 +55,7 @@ export class ApiKeyGuard implements CanActivate {
       throw new ForbiddenException({
         error: 'API key expired',
         message: 'This API key has expired',
-        code: 'API_KEY_EXPIRED',
+        code: 'API_KEY_EXPIRED'
       });
     }
 
@@ -69,7 +68,7 @@ export class ApiKeyGuard implements CanActivate {
         throw new ForbiddenException({
           error: 'IP not allowed',
           message: `IP address ${clientIp} is not in the whitelist`,
-          code: 'IP_NOT_ALLOWED',
+          code: 'IP_NOT_ALLOWED'
         });
       }
     }
@@ -82,14 +81,14 @@ export class ApiKeyGuard implements CanActivate {
         'X-RateLimit-Limit': keyData.plan.rateLimit.toString(),
         'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
         'X-RateLimit-Reset': Math.ceil(rateLimitResult.resetAt.getTime() / 1000).toString(),
-        'Retry-After': rateLimitResult.retryAfter?.toString(),
+        'Retry-After': rateLimitResult.retryAfter?.toString()
       });
 
       throw new ForbiddenException({
         error: 'Rate limit exceeded',
         message: `Rate limit of ${keyData.plan.rateLimit} requests per minute exceeded`,
         code: 'RATE_LIMIT_EXCEEDED',
-        retryAfter: rateLimitResult.retryAfter,
+        retryAfter: rateLimitResult.retryAfter
       });
     }
 
@@ -97,7 +96,7 @@ export class ApiKeyGuard implements CanActivate {
     response.set({
       'X-RateLimit-Limit': keyData.plan.rateLimit.toString(),
       'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-      'X-RateLimit-Reset': Math.ceil(rateLimitResult.resetAt.getTime() / 1000).toString(),
+      'X-RateLimit-Reset': Math.ceil(rateLimitResult.resetAt.getTime() / 1000).toString()
     });
 
     // Attach API key data to request for use in other guards/handlers
@@ -108,7 +107,7 @@ export class ApiKeyGuard implements CanActivate {
     // Store API key info for usage tracking
     request[API_USAGE_TAG] = {
       apiKeyId: keyData.id,
-      productId: keyData.plan.product.id,
+      productId: keyData.plan.product.id
     };
 
     return true;

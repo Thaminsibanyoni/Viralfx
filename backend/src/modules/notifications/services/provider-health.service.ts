@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
+import { RedisService } from "../../redis/redis.service";
 
 export interface ProviderHealthCheck {
   providerId: string;
@@ -53,8 +53,7 @@ export class ProviderHealthService implements OnModuleInit {
   constructor(
     private readonly configService: ConfigService,
     private readonly prismaService: PrismaService,
-    private readonly redisService: RedisService,
-  ) {}
+    private readonly redisService: RedisService) {}
 
   async onModuleInit() {
     await this.initializeProviderSLAs();
@@ -75,7 +74,7 @@ export class ProviderHealthService implements OnModuleInit {
         maxConsecutiveFailures: 3,
         circuitBreakerTimeout: 300000, // 5 minutes
         healthCheckInterval: 60000, // 1 minute
-        gracePeriod: 300000, // 5 minutes
+        gracePeriod: 300000 // 5 minutes
       },
       {
         providerId: 'sendgrid',
@@ -86,7 +85,7 @@ export class ProviderHealthService implements OnModuleInit {
         maxConsecutiveFailures: 3,
         circuitBreakerTimeout: 300000,
         healthCheckInterval: 60000,
-        gracePeriod: 120000, // 2 minutes
+        gracePeriod: 120000 // 2 minutes
       },
       {
         providerId: 'mailgun',
@@ -97,7 +96,7 @@ export class ProviderHealthService implements OnModuleInit {
         maxConsecutiveFailures: 3,
         circuitBreakerTimeout: 300000,
         healthCheckInterval: 60000,
-        gracePeriod: 120000,
+        gracePeriod: 120000
       },
       {
         providerId: 'ses',
@@ -108,7 +107,7 @@ export class ProviderHealthService implements OnModuleInit {
         maxConsecutiveFailures: 3,
         circuitBreakerTimeout: 300000,
         healthCheckInterval: 60000,
-        gracePeriod: 120000,
+        gracePeriod: 120000
       },
       // SMS providers
       {
@@ -120,7 +119,7 @@ export class ProviderHealthService implements OnModuleInit {
         maxConsecutiveFailures: 3,
         circuitBreakerTimeout: 300000,
         healthCheckInterval: 60000,
-        gracePeriod: 120000,
+        gracePeriod: 120000
       },
       {
         providerId: 'africastalking',
@@ -131,7 +130,7 @@ export class ProviderHealthService implements OnModuleInit {
         maxConsecutiveFailures: 3,
         circuitBreakerTimeout: 300000,
         healthCheckInterval: 60000,
-        gracePeriod: 180000,
+        gracePeriod: 180000
       },
       {
         providerId: 'termii',
@@ -142,7 +141,7 @@ export class ProviderHealthService implements OnModuleInit {
         maxConsecutiveFailures: 3,
         circuitBreakerTimeout: 300000,
         healthCheckInterval: 60000,
-        gracePeriod: 180000,
+        gracePeriod: 180000
       },
       {
         providerId: 'clickatell',
@@ -153,7 +152,7 @@ export class ProviderHealthService implements OnModuleInit {
         maxConsecutiveFailures: 3,
         circuitBreakerTimeout: 300000,
         healthCheckInterval: 60000,
-        gracePeriod: 180000,
+        gracePeriod: 180000
       },
       // Push providers
       {
@@ -165,7 +164,7 @@ export class ProviderHealthService implements OnModuleInit {
         maxConsecutiveFailures: 3,
         circuitBreakerTimeout: 300000,
         healthCheckInterval: 60000,
-        gracePeriod: 120000,
+        gracePeriod: 120000
       },
       {
         providerId: 'apns',
@@ -176,7 +175,7 @@ export class ProviderHealthService implements OnModuleInit {
         maxConsecutiveFailures: 3,
         circuitBreakerTimeout: 300000,
         healthCheckInterval: 60000,
-        gracePeriod: 120000,
+        gracePeriod: 120000
       },
       {
         providerId: 'onesignal',
@@ -187,7 +186,7 @@ export class ProviderHealthService implements OnModuleInit {
         maxConsecutiveFailures: 3,
         circuitBreakerTimeout: 300000,
         healthCheckInterval: 60000,
-        gracePeriod: 120000,
+        gracePeriod: 120000
       },
     ];
 
@@ -202,10 +201,10 @@ export class ProviderHealthService implements OnModuleInit {
       const recentHealthData = await this.prismaService.providerHealth.findMany({
         where: {
           lastChecked: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
-          },
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+          }
         },
-        orderBy: { lastChecked: 'desc' },
+        orderBy: { lastChecked: 'desc' }
       });
 
       for (const data of recentHealthData) {
@@ -221,7 +220,7 @@ export class ProviderHealthService implements OnModuleInit {
           uptime: data.uptime,
           consecutiveFailures: data.consecutiveFailures,
           circuitBreakerState: data.circuitBreakerState as any,
-          metrics: data.metrics as any,
+          metrics: data.metrics as any
         };
 
         this.healthCache.set(data.providerId, healthCheck);
@@ -281,7 +280,7 @@ export class ProviderHealthService implements OnModuleInit {
         uptime: this.calculateUptime(providerId),
         consecutiveFailures: result.success ? 0 : (existingHealth?.consecutiveFailures || 0) + 1,
         circuitBreakerState: this.updateCircuitBreakerState(existingHealth?.circuitBreakerState, result.success, sla),
-        metrics: await this.updateProviderMetrics(providerId, result, responseTime),
+        metrics: await this.updateProviderMetrics(providerId, result, responseTime)
       };
 
       // Cache and persist
@@ -311,7 +310,7 @@ export class ProviderHealthService implements OnModuleInit {
         uptime: this.calculateUptime(providerId),
         consecutiveFailures: (existingHealth?.consecutiveFailures || 0) + 1,
         circuitBreakerState: this.updateCircuitBreakerState(existingHealth?.circuitBreakerState, false, sla),
-        metrics: await this.updateProviderMetrics(providerId, { success: false, responseTime }, responseTime),
+        metrics: await this.updateProviderMetrics(providerId, { success: false, responseTime }, responseTime)
       };
 
       this.healthCache.set(providerId, healthCheck);
@@ -534,7 +533,7 @@ export class ProviderHealthService implements OnModuleInit {
       failedRequests: 5,
       avgResponseTime: responseTime,
       p95ResponseTime: responseTime * 1.5,
-      p99ResponseTime: responseTime * 2,
+      p99ResponseTime: responseTime * 2
     };
   }
 
@@ -552,7 +551,7 @@ export class ProviderHealthService implements OnModuleInit {
           uptime: healthCheck.uptime,
           consecutiveFailures: healthCheck.consecutiveFailures,
           circuitBreakerState: healthCheck.circuitBreakerState,
-          metrics: healthCheck.metrics,
+          metrics: healthCheck.metrics
         },
         create: {
           providerId: healthCheck.providerId,
@@ -566,8 +565,8 @@ export class ProviderHealthService implements OnModuleInit {
           uptime: healthCheck.uptime,
           consecutiveFailures: healthCheck.consecutiveFailures,
           circuitBreakerState: healthCheck.circuitBreakerState,
-          metrics: healthCheck.metrics,
-        },
+          metrics: healthCheck.metrics
+        }
       });
     } catch (error) {
       this.logger.error('Failed to persist health check:', error);
@@ -634,7 +633,7 @@ export class ProviderHealthService implements OnModuleInit {
           success,
           responseTime,
           error,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString()
         })
       );
 

@@ -5,7 +5,7 @@
  */
 
 import { createHash } from 'crypto';
-import { logger } from './logger';
+import { logger } from "./logger";
 
 // Region codes (ISO-3166 2-letter + special codes)
 export enum RegionCode {
@@ -27,7 +27,7 @@ export enum RegionCode {
   ITALY = 'IT',
   SOUTH_KOREA = 'KR',
   NETHERLANDS = 'NL',
-  SINGAPORE = 'SG',
+  SINGAPORE = 'SG'
   // Add more as needed for global expansion
 }
 
@@ -49,7 +49,7 @@ export enum CategoryCode {
   TRAVEL = 'TRV',
   FOOD = 'FOD',
   ENVIRONMENT = 'ENV',
-  CRIME = 'CRM', // High verification required
+  CRIME = 'CRM' // High verification required
 }
 
 export interface VTSSymbol {
@@ -113,7 +113,7 @@ export class VTSSymbolGenerator {
         riskLevel: metadata.riskLevel || 'LOW',
         languages: metadata.languages || ['en'],
         firstSeenPlatform: metadata.firstSeenPlatform || 'unknown',
-        consensusScore: metadata.consensusScore || 0,
+        consensusScore: metadata.consensusScore || 0
       }
     };
   }
@@ -199,7 +199,7 @@ export class VTSSymbolGenerator {
       symbol,
       region: region as RegionCode,
       category: category as CategoryCode,
-      topicId,
+      topicId
     };
   }
 
@@ -232,7 +232,7 @@ export class VTSSymbolGenerator {
       [CategoryCode.TRAVEL]: 'Travel',
       [CategoryCode.FOOD]: 'Food',
       [CategoryCode.ENVIRONMENT]: 'Environment',
-      [CategoryCode.CRIME]: 'Crime',
+      [CategoryCode.CRIME]: 'Crime'
     };
 
     return categoryNames[category] || 'Unknown';
@@ -261,7 +261,7 @@ export class VTSSymbolGenerator {
       [RegionCode.ITALY]: 'Italy',
       [RegionCode.SOUTH_KOREA]: 'South Korea',
       [RegionCode.NETHERLANDS]: 'Netherlands',
-      [RegionCode.SINGAPORE]: 'Singapore',
+      [RegionCode.SINGAPORE]: 'Singapore'
     };
 
     return regionNames[region] || 'Unknown';
@@ -307,7 +307,7 @@ export class VTSSymbolGenerator {
       [CategoryCode.TRAVEL]: '#0891b2', // cyan-600
       [CategoryCode.FOOD]: '#b91c1c', // red-700
       [CategoryCode.ENVIRONMENT]: '#166534', // green-700
-      [CategoryCode.CRIME]: '#7f1d1d', // red-900
+      [CategoryCode.CRIME]: '#7f1d1d' // red-900
     };
 
     return colors[category] || '#6b7280';

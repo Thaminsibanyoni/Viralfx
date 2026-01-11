@@ -1,15 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { ConfigService } from '@nestjs/config';
-import { BrokerBill } from '../../brokers/entities/broker-bill.entity';
+import { BrokerBill } from "../../brokers/entities/broker-bill.entity";
 
 @Injectable()
 export class InvoiceGeneratorService {
   private readonly logger = new Logger(InvoiceGeneratorService.name);
 
   constructor(
-    private readonly configService: ConfigService,
-  ) {}
+    private readonly configService: ConfigService) {}
 
   async generateInvoice(bill: BrokerBill): Promise<Buffer> {
     try {
@@ -40,7 +39,7 @@ export class InvoiceGeneratorService {
         y: pageHeight - margin,
         size: 24,
         font: boldFont,
-        color: rgb(0.2, 0.2, 0.2),
+        color: rgb(0.2, 0.2, 0.2)
       });
 
       page.drawText(companyAddress, {
@@ -48,7 +47,7 @@ export class InvoiceGeneratorService {
         y: pageHeight - margin - 30,
         size: 10,
         font,
-        color: rgb(0.4, 0.4, 0.4),
+        color: rgb(0.4, 0.4, 0.4)
       });
 
       page.drawText(`Email: ${companyEmail}`, {
@@ -56,7 +55,7 @@ export class InvoiceGeneratorService {
         y: pageHeight - margin - 45,
         size: 10,
         font,
-        color: rgb(0.4, 0.4, 0.4),
+        color: rgb(0.4, 0.4, 0.4)
       });
 
       page.drawText(`Phone: ${companyPhone}`, {
@@ -64,7 +63,7 @@ export class InvoiceGeneratorService {
         y: pageHeight - margin - 60,
         size: 10,
         font,
-        color: rgb(0.4, 0.4, 0.4),
+        color: rgb(0.4, 0.4, 0.4)
       });
 
       // Invoice details (right side)
@@ -77,7 +76,7 @@ export class InvoiceGeneratorService {
         y: pageHeight - margin - 20,
         size: 28,
         font: boldFont,
-        color: rgb(0.1, 0.1, 0.1),
+        color: rgb(0.1, 0.1, 0.1)
       });
 
       page.drawText(`Invoice #: ${invoiceNumber}`, {
@@ -85,7 +84,7 @@ export class InvoiceGeneratorService {
         y: pageHeight - margin - 55,
         size: 12,
         font,
-        color: rgb(0.3, 0.3, 0.3),
+        color: rgb(0.3, 0.3, 0.3)
       });
 
       page.drawText(`Date: ${invoiceDate}`, {
@@ -93,7 +92,7 @@ export class InvoiceGeneratorService {
         y: pageHeight - margin - 70,
         size: 12,
         font,
-        color: rgb(0.3, 0.3, 0.3),
+        color: rgb(0.3, 0.3, 0.3)
       });
 
       page.drawText(`Due Date: ${dueDate}`, {
@@ -101,7 +100,7 @@ export class InvoiceGeneratorService {
         y: pageHeight - margin - 85,
         size: 12,
         font,
-        color: rgb(0.3, 0.3, 0.3),
+        color: rgb(0.3, 0.3, 0.3)
       });
 
       // Bill To section
@@ -111,7 +110,7 @@ export class InvoiceGeneratorService {
         y: currentY,
         size: 14,
         font: boldFont,
-        color: rgb(0.2, 0.2, 0.2),
+        color: rgb(0.2, 0.2, 0.2)
       });
 
       currentY -= 20;
@@ -120,7 +119,7 @@ export class InvoiceGeneratorService {
         y: currentY,
         size: 12,
         font: boldFont,
-        color: rgb(0.3, 0.3, 0.3),
+        color: rgb(0.3, 0.3, 0.3)
       });
 
       currentY -= 15;
@@ -129,7 +128,7 @@ export class InvoiceGeneratorService {
         y: currentY,
         size: 10,
         font,
-        color: rgb(0.4, 0.4, 0.4),
+        color: rgb(0.4, 0.4, 0.4)
       });
 
       if (bill.broker.phone) {
@@ -139,7 +138,7 @@ export class InvoiceGeneratorService {
           y: currentY,
           size: 10,
           font,
-          color: rgb(0.4, 0.4, 0.4),
+          color: rgb(0.4, 0.4, 0.4)
         });
       }
 
@@ -150,7 +149,7 @@ export class InvoiceGeneratorService {
           y: currentY,
           size: 10,
           font,
-          color: rgb(0.4, 0.4, 0.4),
+          color: rgb(0.4, 0.4, 0.4)
         });
       }
 
@@ -167,7 +166,7 @@ export class InvoiceGeneratorService {
         y: currentY - 5,
         width: pageWidth - 2 * margin,
         height: 25,
-        color: rgb(0.95, 0.95, 0.95),
+        color: rgb(0.95, 0.95, 0.95)
       });
 
       // Draw table headers
@@ -177,7 +176,7 @@ export class InvoiceGeneratorService {
           y: currentY + 5,
           size: 10,
           font: boldFont,
-          color: rgb(0.2, 0.2, 0.2),
+          color: rgb(0.2, 0.2, 0.2)
         });
         currentX += columnWidths[index];
       });
@@ -188,7 +187,7 @@ export class InvoiceGeneratorService {
         start: { x: margin, y: currentY },
         end: { x: pageWidth - margin, y: currentY },
         thickness: 1,
-        color: rgb(0.8, 0.8, 0.8),
+        color: rgb(0.8, 0.8, 0.8)
       });
 
       // Table rows
@@ -197,25 +196,25 @@ export class InvoiceGeneratorService {
           description: `Monthly Subscription Fee (${bill.broker.tier || 'STARTER'} Tier)`,
           quantity: 1,
           unitPrice: bill.baseFee,
-          amount: bill.baseFee,
+          amount: bill.baseFee
         },
         ...(bill.transactionFees > 0 ? [{
           description: 'Transaction Processing Fees',
           quantity: 1,
           unitPrice: bill.transactionFees,
-          amount: bill.transactionFees,
+          amount: bill.transactionFees
         }] : []),
         ...(bill.additionalServices > 0 ? [{
           description: 'Additional Services',
           quantity: 1,
           unitPrice: bill.additionalServices,
-          amount: bill.additionalServices,
+          amount: bill.additionalServices
         }] : []),
         ...(bill.volumeDiscount > 0 ? [{
           description: 'Volume Discount',
           quantity: 1,
           unitPrice: -bill.volumeDiscount,
-          amount: -bill.volumeDiscount,
+          amount: -bill.volumeDiscount
         }] : []),
       ];
 
@@ -243,7 +242,7 @@ export class InvoiceGeneratorService {
                   y: yOffset,
                   size: 9,
                   font,
-                  color: rgb(0.3, 0.3, 0.3),
+                  color: rgb(0.3, 0.3, 0.3)
                 });
                 line = word + ' ';
                 yOffset -= 12;
@@ -258,7 +257,7 @@ export class InvoiceGeneratorService {
                 y: yOffset,
                 size: 9,
                 font,
-                color: rgb(0.3, 0.3, 0.3),
+                color: rgb(0.3, 0.3, 0.3)
               });
             }
           } else {
@@ -267,7 +266,7 @@ export class InvoiceGeneratorService {
               y: currentY,
               size: 10,
               font,
-              color: rgb(0.3, 0.3, 0.3),
+              color: rgb(0.3, 0.3, 0.3)
             });
           }
           currentX += columnWidths[index];
@@ -281,7 +280,7 @@ export class InvoiceGeneratorService {
         start: { x: margin, y: currentY },
         end: { x: pageWidth - margin, y: currentY },
         thickness: 1,
-        color: rgb(0.8, 0.8, 0.8),
+        color: rgb(0.8, 0.8, 0.8)
       });
 
       // Calculate totals
@@ -304,7 +303,7 @@ export class InvoiceGeneratorService {
           y: currentY,
           size: item.bold ? 12 : 10,
           font: item.bold ? boldFont : font,
-          color: rgb(0.3, 0.3, 0.3),
+          color: rgb(0.3, 0.3, 0.3)
         });
 
         page.drawText(item.value, {
@@ -312,7 +311,7 @@ export class InvoiceGeneratorService {
           y: currentY,
           size: item.bold ? 12 : 10,
           font: item.bold ? boldFont : font,
-          color: rgb(0.3, 0.3, 0.3),
+          color: rgb(0.3, 0.3, 0.3)
         });
 
         currentY -= 20;
@@ -325,7 +324,7 @@ export class InvoiceGeneratorService {
         y: currentY,
         size: 12,
         font: boldFont,
-        color: rgb(0.2, 0.2, 0.2),
+        color: rgb(0.2, 0.2, 0.2)
       });
 
       currentY -= 20;
@@ -344,7 +343,7 @@ export class InvoiceGeneratorService {
           y: currentY,
           size: 9,
           font,
-          color: rgb(0.4, 0.4, 0.4),
+          color: rgb(0.4, 0.4, 0.4)
         });
         currentY -= 15;
       });
@@ -355,7 +354,7 @@ export class InvoiceGeneratorService {
         start: { x: margin, y: footerY },
         end: { x: pageWidth - margin, y: footerY },
         thickness: 1,
-        color: rgb(0.8, 0.8, 0.8),
+        color: rgb(0.8, 0.8, 0.8)
       });
 
       page.drawText('Thank you for your business!', {
@@ -363,7 +362,7 @@ export class InvoiceGeneratorService {
         y: footerY - 20,
         size: 10,
         font,
-        color: rgb(0.4, 0.4, 0.4),
+        color: rgb(0.4, 0.4, 0.4)
       });
 
       page.drawText('This is a computer-generated invoice and requires no signature.', {
@@ -371,7 +370,7 @@ export class InvoiceGeneratorService {
         y: footerY - 35,
         size: 8,
         font,
-        color: rgb(0.5, 0.5, 0.5),
+        color: rgb(0.5, 0.5, 0.5)
       });
 
       // Serialize the PDFDocument to bytes

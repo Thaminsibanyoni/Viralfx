@@ -6,7 +6,7 @@ import {
   Min,
   IsOptional,
   IsInt,
-  ValidateNested,
+  ValidateNested
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { API_CURRENCY_CONFIG } from '../interfaces/api-marketplace.interface';
@@ -14,7 +14,7 @@ import { API_CURRENCY_CONFIG } from '../interfaces/api-marketplace.interface';
 export class CreatePlanDto {
   @ApiProperty({
     description: 'Plan name',
-    example: 'Starter',
+    example: 'Starter'
   })
   @IsString()
   @IsNotEmpty()
@@ -22,7 +22,7 @@ export class CreatePlanDto {
 
   @ApiProperty({
     description: 'Unique plan code',
-    example: 'starter',
+    example: 'starter'
   })
   @IsString()
   @IsNotEmpty()
@@ -30,7 +30,7 @@ export class CreatePlanDto {
 
   @ApiProperty({
     description: 'Monthly fee in ZAR',
-    example: 890,
+    example: 890
   })
   @IsNumber()
   @Min(0)
@@ -39,7 +39,7 @@ export class CreatePlanDto {
   @ApiProperty({
     description: 'Per-call fee in ZAR (for pay-per-call pricing)',
     example: 0.05,
-    required: false,
+    required: false
   })
   @IsNumber()
   @Min(0)
@@ -48,7 +48,7 @@ export class CreatePlanDto {
 
   @ApiProperty({
     description: 'Rate limit (requests per minute)',
-    example: 100,
+    example: 100
   })
   @IsInt()
   @Min(1)
@@ -57,7 +57,7 @@ export class CreatePlanDto {
   @ApiProperty({
     description: 'Burst limit (short-term spike allowance)',
     example: 150,
-    required: false,
+    required: false
   })
   @IsInt()
   @Min(1)
@@ -67,7 +67,7 @@ export class CreatePlanDto {
   @ApiProperty({
     description: 'Monthly quota (number of calls included)',
     example: 10000,
-    required: false,
+    required: false
   })
   @IsInt()
   @Min(1)
@@ -77,7 +77,7 @@ export class CreatePlanDto {
   @ApiProperty({
     description: 'Plan description',
     example: 'Perfect for developers getting started with our API',
-    required: false,
+    required: false
   })
   @IsString()
   @IsOptional()
@@ -88,7 +88,7 @@ export class UpdatePlanDto {
   @ApiProperty({
     description: 'Plan name',
     example: 'Starter Plus',
-    required: false,
+    required: false
   })
   @IsString()
   @IsOptional()
@@ -97,7 +97,7 @@ export class UpdatePlanDto {
   @ApiProperty({
     description: 'Monthly fee in ZAR',
     example: 1290,
-    required: false,
+    required: false
   })
   @IsNumber()
   @Min(0)
@@ -107,7 +107,7 @@ export class UpdatePlanDto {
   @ApiProperty({
     description: 'Per-call fee in ZAR',
     example: 0.04,
-    required: false,
+    required: false
   })
   @IsNumber()
   @Min(0)
@@ -117,7 +117,7 @@ export class UpdatePlanDto {
   @ApiProperty({
     description: 'Rate limit (requests per minute)',
     example: 200,
-    required: false,
+    required: false
   })
   @IsInt()
   @Min(1)
@@ -127,7 +127,7 @@ export class UpdatePlanDto {
   @ApiProperty({
     description: 'Burst limit',
     example: 300,
-    required: false,
+    required: false
   })
   @IsInt()
   @Min(1)
@@ -137,7 +137,7 @@ export class UpdatePlanDto {
   @ApiProperty({
     description: 'Monthly quota',
     example: 20000,
-    required: false,
+    required: false
   })
   @IsInt()
   @Min(1)
@@ -147,7 +147,7 @@ export class UpdatePlanDto {
   @ApiProperty({
     description: 'Plan description',
     example: 'Enhanced starter plan with double the quota',
-    required: false,
+    required: false
   })
   @IsString()
   @IsOptional()

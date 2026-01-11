@@ -1,17 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { AdminUser, AdminRole } from '../entities/admin-user.entity';
-import { AdminPermission } from '../entities/admin-permission.entity';
+import { AdminRole } from '../enums/admin.enum';
 
 @Injectable()
 export class AdminRbacService {
   constructor(
-    @InjectRepository(AdminUser)
-    private adminRepository: Repository<AdminUser>,
-    @InjectRepository(AdminPermission)
-    private permissionRepository: Repository<AdminPermission>,
-  ) {}
+        ) {}
 
   // Predefined permissions for different roles and departments
   private readonly ROLE_PERMISSIONS: Record<AdminRole, string[]> = {
@@ -64,11 +57,10 @@ export class AdminRbacService {
     adminId: string,
     resource: string,
     action: string,
-    conditions?: Record<string, any>,
-  ): Promise<boolean> {
-    const admin = await this.adminRepository.findOne({
+    conditions?: Record<string, any>): Promise<boolean> {
+    const admin = await this.prisma.adminrepository.findFirst({
       where: { id: adminId },
-      relations: ['permissions'],
+      relations: ['permissions']
     });
 
     if (!admin) {
@@ -86,8 +78,7 @@ export class AdminRbacService {
       rolePermissions,
       resource,
       action,
-      conditions,
-    );
+      conditions);
 
     if (hasRolePermission) {
       return true;
@@ -101,19 +92,18 @@ export class AdminRbacService {
   async grantPermission(
     adminId: string,
     permissionId: string,
-    grantedBy: string,
-  ): Promise<void> {
-    const admin = await this.adminRepository.findOne({
+    grantedBy: string): Promise<void> {
+    const admin = await this.prisma.adminrepository.findFirst({
       where: { id: adminId },
-      relations: ['permissions'],
+      relations: ['permissions']
     });
 
     if (!admin) {
       throw new Error('Admin not found');
     }
 
-    const permission = await this.permissionRepository.findOne({
-      where: { id: permissionId },
+    const permission = await this.prisma.permissionrepository.findFirst({
+      where: { id: permissionId }
     });
 
     if (!permission) {
@@ -127,17 +117,16 @@ export class AdminRbacService {
     }
 
     admin.permissions.push(permission);
-    await this.adminRepository.save(admin);
+    await this.prisma.adminrepository.upsert(admin);
   }
 
   async revokePermission(
     adminId: string,
     permissionId: string,
-    revokedBy: string,
-  ): Promise<void> {
-    const admin = await this.adminRepository.findOne({
+    revokedBy: string): Promise<void> {
+    const admin = await this.prisma.adminrepository.findFirst({
       where: { id: adminId },
-      relations: ['permissions'],
+      relations: ['permissions']
     });
 
     if (!admin) {
@@ -145,13 +134,13 @@ export class AdminRbacService {
     }
 
     admin.permissions = admin.permissions.filter((p) => p.id !== permissionId);
-    await this.adminRepository.save(admin);
+    await this.prisma.adminrepository.upsert(admin);
   }
 
   async getAdminPermissions(adminId: string): Promise<AdminPermission[]> {
-    const admin = await this.adminRepository.findOne({
+    const admin = await this.prisma.adminrepository.findFirst({
       where: { id: adminId },
-      relations: ['permissions'],
+      relations: ['permissions']
     });
 
     if (!admin) {
@@ -167,30 +156,29 @@ export class AdminRbacService {
     resource: string,
     action: string,
     category: string,
-    conditions?: Record<string, any>[],
-  ): Promise<AdminPermission> {
-    const permission = this.permissionRepository.create({
+    conditions?: Record<string, any>[]): Promise<AdminPermission> {
+    const permission = this.prisma.permissionrepository.create({
       name,
       description,
       resource,
       action,
       category,
-      conditions: conditions || [],
+      conditions: conditions || []
     });
 
-    return await this.permissionRepository.save(permission);
+    return await this.prisma.permissionrepository.upsert(permission);
   }
 
   async getAllPermissions(): Promise<AdminPermission[]> {
-    return await this.permissionRepository.find({
-      order: { category: 'ASC', name: 'ASC' },
+    return await this.prisma.permissionrepository.findMany({
+      order: { category: 'ASC', name: 'ASC' }
     });
   }
 
   async getPermissionsByCategory(category: string): Promise<AdminPermission[]> {
-    return await this.permissionRepository.find({
+    return await this.prisma.permissionrepository.findMany({
       where: { category },
-      order: { name: 'ASC' },
+      order: { name: 'ASC' }
     });
   }
 
@@ -198,8 +186,7 @@ export class AdminRbacService {
     permissions: string[],
     resource: string,
     action: string,
-    conditions?: Record<string, any>,
-  ): boolean {
+    conditions?: Record<string, any>): boolean {
     // Check for exact match
     const exactPermission = `${resource}:${action}`;
     if (permissions.includes(exactPermission)) {
@@ -219,8 +206,7 @@ export class AdminRbacService {
 
     // Check for resource-specific conditions
     const resourcePermissions = permissions.filter((p) =>
-      p.startsWith(`${resource}:`),
-    );
+      p.startsWith(`${resource}:`));
 
     for (const permission of resourcePermissions) {
       if (this.evaluateConditions(permission, conditions)) {
@@ -233,8 +219,7 @@ export class AdminRbacService {
 
   private evaluateConditions(
     permission: string,
-    conditions?: Record<string, any>,
-  ): boolean {
+    conditions?: Record<string, any>): boolean {
     // This would evaluate complex permission conditions
     // For now, return false as conditions are not implemented
     return false;
@@ -259,10 +244,9 @@ export class AdminRbacService {
   // Validate department access
   async validateDepartmentAccess(
     adminId: string,
-    department: string,
-  ): Promise<boolean> {
-    const admin = await this.adminRepository.findOne({
-      where: { id: adminId },
+    department: string): Promise<boolean> {
+    const admin = await this.prisma.adminrepository.findFirst({
+      where: { id: adminId }
     });
 
     if (!admin) {
@@ -295,7 +279,7 @@ export class AdminRbacService {
       [AdminRole.BROKER_OPS]: ['Brokers'],
       [AdminRole.TREND_OPS]: ['Trends', 'VTS'],
       [AdminRole.CONTENT_OPS]: ['Content', 'VTS'],
-      [AdminRole.DEPARTMENT_HEAD]: ['*'],
+      [AdminRole.DEPARTMENT_HEAD]: ['*']
     };
 
     const allowedDepartments = crossDepartmentAccess[admin.role] || [];

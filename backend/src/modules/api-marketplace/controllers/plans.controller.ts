@@ -12,15 +12,15 @@ import {
   HttpStatus,
   ParseUUIDPipe,
   ValidationPipe,
-  Request,
+  Request
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { PlansService } from '../services/plans.service';
 import { CreatePlanDto, UpdatePlanDto } from '../dto/create-plan.dto';
 import { ApiPlan } from '../interfaces/api-marketplace.interface';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { AdminAuthGuard } from '../../admin/guards/admin-auth.guard';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { AdminAuthGuard } from "../../admin/guards/admin-auth.guard";
 import { ProductsService } from '../services/products.service';
 
 @ApiTags('API Marketplace - Plans')
@@ -28,8 +28,7 @@ import { ProductsService } from '../services/products.service';
 export class PlansController {
   constructor(
     private readonly plansService: PlansService,
-    private readonly productsService: ProductsService,
-  ) {}
+    private readonly productsService: ProductsService) {}
 
   @Get()
   @HttpCode(HttpStatus.OK)
@@ -37,8 +36,7 @@ export class PlansController {
   @ApiOperation({ summary: 'List available API plans' })
   @ApiResponse({ status: 200, description: 'Plans retrieved successfully' })
   async listPlans(
-    @Query('productId') productId?: string,
-  ): Promise<ApiPlan[]> {
+    @Query('productId') productId?: string): Promise<ApiPlan[]> {
     return this.plansService.listPlans(productId);
   }
 
@@ -60,8 +58,7 @@ export class PlansController {
   @ApiResponse({ status: 201, description: 'Plan created successfully' })
   async createPlan(
     @Body(ValidationPipe) dto: CreatePlanDto,
-    @Query('productId') productId: string,
-  ): Promise<ApiPlan> {
+    @Query('productId') productId: string): Promise<ApiPlan> {
     return this.plansService.createPlan(productId, dto);
   }
 
@@ -74,8 +71,7 @@ export class PlansController {
   @ApiResponse({ status: 404, description: 'Plan not found' })
   async updatePlan(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body(ValidationPipe) dto: UpdatePlanDto,
-  ): Promise<ApiPlan> {
+    @Body(ValidationPipe) dto: UpdatePlanDto): Promise<ApiPlan> {
     return this.plansService.updatePlan(id, dto);
   }
 
@@ -100,13 +96,12 @@ export class PlansController {
   async getPlanRevenue(
     @Param('id', ParseUUIDPipe) id: string,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ): Promise<any> {
+    @Query('endDate') endDate?: string): Promise<any> {
     let dateRange;
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
 
@@ -122,13 +117,12 @@ export class PlansController {
   async getPlanUsage(
     @Param('id', ParseUUIDPipe) id: string,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ): Promise<any> {
+    @Query('endDate') endDate?: string): Promise<any> {
     let dateRange;
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
 
@@ -142,8 +136,7 @@ export class PlansController {
   @ApiResponse({ status: 200, description: 'Usage limits validated successfully' })
   async validatePlanLimits(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body('currentUsage') currentUsage: number,
-  ): Promise<any> {
+    @Body('currentUsage') currentUsage: number): Promise<any> {
     return this.plansService.validatePlanLimits(id, currentUsage);
   }
 
@@ -154,8 +147,7 @@ export class PlansController {
   @ApiResponse({ status: 200, description: 'Overage fees calculated successfully' })
   async calculateOverageFees(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body('overageCalls') overageCalls: number,
-  ): Promise<{ fees: number }> {
+    @Body('overageCalls') overageCalls: number): Promise<{ fees: number }> {
     const fees = await this.plansService.calculateOverageFees(id, overageCalls);
     return { fees };
   }

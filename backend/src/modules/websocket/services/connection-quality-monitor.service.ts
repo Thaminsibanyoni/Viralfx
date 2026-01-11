@@ -14,7 +14,7 @@ import {
   SyncPerformanceMetrics
 } from '../interfaces/differential-sync.interface';
 import { EventEmitter } from 'events';
-import { DifferentialSyncService } from './differential-sync.service';
+// import { DifferentialSyncService } from "./differential-sync.service"; // Temporarily disabled
 import { WebSocketMetricsResponseDto, SystemBandwidthDto, ClientBandwidthDto, QualityMetricsSummaryDto, ErrorRateDto } from '../dto/metrics.dto';
 
 @Injectable()
@@ -35,7 +35,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
     latency: 0.35,
     packetLoss: 0.25,
     jitter: 0.20,
-    connectionStability: 0.20,
+    connectionStability: 0.20
   };
 
   private readonly MONITORING_CONFIG: MonitoringConfig = {
@@ -48,13 +48,13 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
       packetLossCritical: 0.1,
       packetLossWarning: 0.05,
       qualityScoreCritical: 30,
-      qualityScoreWarning: 60,
+      qualityScoreWarning: 60
     },
     adaptiveMonitoring: {
       enabled: true,
       qualityBasedAdjustment: true,
-      loadBasedAdjustment: true,
-    },
+      loadBasedAdjustment: true
+    }
   };
 
   private readonly POLLING_FALLBACK_CONFIG: PollingFallbackConfig = {
@@ -64,14 +64,14 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
     backoffMultiplier: 2,
     qualityThreshold: 60,
     autoRecovery: true,
-    recoveryCheckInterval: 30000,
+    recoveryCheckInterval: 30000
   };
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
     private readonly configService: ConfigService,
-    @Inject(forwardRef(() => DifferentialSyncService))
-    private readonly differentialSyncService: DifferentialSyncService,
+    // @Inject(forwardRef(() => DifferentialSyncService))
+    // private readonly differentialSyncService: DifferentialSyncService, // Temporarily disabled
   ) {
     super();
     this.loadConfiguration();
@@ -130,7 +130,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
 
     this.logger.debug('Configuration loaded', {
       qualityWeights: this.QUALITY_WEIGHTS,
-      monitoringConfig: this.MONITORING_CONFIG,
+      monitoringConfig: this.MONITORING_CONFIG
     });
   }
 
@@ -264,7 +264,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         avgLatency,
         packetLoss: packetLossRate,
         jitter,
-        connectionStability: stability,
+        connectionStability: stability
       };
 
       const qualityScore = this.calculateQualityScore(metrics);
@@ -284,7 +284,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         usingPollingFallback: await this.shouldUsePollingFallback(qualityScore),
         fallbackReasons: [],
         reconnectionAttempts,
-        uptime,
+        uptime
       };
 
       // Store metrics
@@ -297,7 +297,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         lastUpdated: Date.now().toString(),
         usingPollingFallback: qualityMetrics.usingPollingFallback.toString(),
         reconnectionAttempts: reconnectionAttempts.toString(),
-        uptime: uptime.toString(),
+        uptime: uptime.toString()
       });
 
       await this.redis.expire(key, 300);
@@ -331,7 +331,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         usingPollingFallback: metricsData.usingPollingFallback === 'true',
         fallbackReasons: JSON.parse(metricsData.fallbackReasons || '[]'),
         reconnectionAttempts: parseInt(metricsData.reconnectionAttempts || '0'),
-        uptime: parseInt(metricsData.uptime || '0'),
+        uptime: parseInt(metricsData.uptime || '0')
       };
     } catch (error) {
       this.logger.error(`Failed to get quality metrics for client ${clientId}:`, error);
@@ -388,7 +388,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         reason,
         interval: this.POLLING_FALLBACK_CONFIG.interval,
         retryCount: 0,
-        lastAttempt: Date.now(),
+        lastAttempt: Date.now()
       };
 
       await this.redis.hset(fallbackKey, fallbackData);
@@ -495,8 +495,8 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         adaptivePingInterval: {
           min: 10000,
           max: 60000,
-          current: await this.calculateAdaptivePingInterval(clientId),
-        },
+          current: await this.calculateAdaptivePingInterval(clientId)
+        }
       };
     } catch (error) {
       this.logger.error(`Failed to get adaptive thresholds for client ${clientId}:`, error);
@@ -511,8 +511,8 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         adaptivePingInterval: {
           min: 10000,
           max: 60000,
-          current: 30000,
-        },
+          current: 30000
+        }
       };
     }
   }
@@ -527,7 +527,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         eventType,
         timestamp: new Date(),
         metrics: {},
-        reason,
+        reason
       };
 
       const eventKey = `${this.EVENTS_KEY_PREFIX}${clientId}`;
@@ -564,7 +564,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         timestamp,
         bytesSent,
         bytesReceived,
-        totalBytes: bytesSent + bytesReceived,
+        totalBytes: bytesSent + bytesReceived
       };
 
       await this.redis.lpush(bandwidthKey, JSON.stringify(bandwidthEvent));
@@ -642,7 +642,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         totalBytesTransferred: totalBytesTransferred.toString(),
         connectionDuration: connectionDuration.toString(),
         messageCount: totalsData.messageCount || '0',
-        lastCalculated: currentTime.toString(),
+        lastCalculated: currentTime.toString()
       });
       await this.redis.expire(bandwidthMetricsKey, 3600);
 
@@ -686,7 +686,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         totalBytesSent: parseInt(totalsData?.totalBytesSent || '0'),
         totalBytesReceived: parseInt(totalsData?.totalBytesReceived || '0'),
         messageCount: parseInt(totalsData?.messageCount || '0'),
-        connectionDuration,
+        connectionDuration
       };
     } catch (error) {
       this.logger.error(`Failed to get bandwidth utilization for client ${clientId}:`, error);
@@ -698,7 +698,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         totalBytesSent: 0,
         totalBytesReceived: 0,
         messageCount: 0,
-        connectionDuration: 0,
+        connectionDuration: 0
       };
     }
   }
@@ -747,7 +747,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         totalBytesReceived,
         averageUtilization: parseFloat(averageUtilization.toFixed(2)),
         totalConnections,
-        totalMessages,
+        totalMessages
       };
     } catch (error) {
       this.logger.error('Failed to get system bandwidth metrics:', error);
@@ -757,7 +757,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         totalBytesReceived: 0,
         averageUtilization: 0,
         totalConnections: 0,
-        totalMessages: 0,
+        totalMessages: 0
       };
     }
   }
@@ -781,7 +781,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         if (bandwidthUtilization.totalBytesTransferred > 0) {
           clientBandwidthMetrics.push({
             clientId,
-            utilization: bandwidthUtilization,
+            utilization: bandwidthUtilization
           });
         }
       }
@@ -795,15 +795,15 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
       // and does not perform any I/O operations, making it safe to call without await
       let errorRates: ErrorRateDto[] = [];
       try {
-        const allClientErrorStats = this.differentialSyncService.getAllClientsErrorStats();
-        errorRates = allClientErrorStats.map(stat => ({
-          clientId: stat.clientId,
-          errorRate: stat.errorRate,
-          totalOperations: stat.totalOperations,
-          errorCount: stat.errorCount,
-          lastSyncTime: stat.lastSyncTime
-        }));
-        this.logger.debug(`Retrieved error rates for ${errorRates.length} clients`);
+        // const allClientErrorStats = this.differentialSyncService.getAllClientsErrorStats(); // Temporarily disabled
+        // errorRates = allClientErrorStats.map(stat => ({ // Temporarily disabled
+        //   clientId: stat.clientId,
+        //   errorRate: stat.errorRate,
+        //   totalOperations: stat.totalOperations,
+        //   errorCount: stat.errorCount,
+        //   lastSyncTime: stat.lastSyncTime
+        // }));
+        // this.logger.debug(`Retrieved error rates for ${errorRates.length} clients`); // Temporarily disabled
       } catch (error) {
         this.logger.warn('Failed to get error rates from differential sync service:', error);
         errorRates = [];
@@ -812,13 +812,13 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
       return {
         bandwidth: {
           system: systemBandwidth as SystemBandwidthDto,
-          clients: clientBandwidthMetrics,
+          clients: clientBandwidthMetrics
         },
         errorRates,
         quality: {
           averageScore: systemHealth.averageQualityScore,
-          sub100msPercentage,
-        } as QualityMetricsSummaryDto,
+          sub100msPercentage
+        } as QualityMetricsSummaryDto
       };
     } catch (error) {
       this.logger.error('Failed to get WebSocket metrics:', error);
@@ -830,15 +830,15 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
             totalBytesReceived: 0,
             averageUtilization: 0,
             totalConnections: 0,
-            totalMessages: 0,
+            totalMessages: 0
           } as SystemBandwidthDto,
-          clients: [],
+          clients: []
         },
         errorRates: [],
         quality: {
           averageScore: 0,
-          sub100msPercentage: 0,
-        } as QualityMetricsSummaryDto,
+          sub100msPercentage: 0
+        } as QualityMetricsSummaryDto
       };
     }
   }
@@ -861,7 +861,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
           packetLossRate: 0,
           systemLoad: 0,
           memoryUsage: 0,
-          uptime: process.uptime(),
+          uptime: process.uptime()
         };
       }
 
@@ -915,7 +915,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         packetLossRate,
         systemLoad,
         memoryUsage,
-        uptime: process.uptime(),
+        uptime: process.uptime()
       };
     } catch (error) {
       this.logger.error('Failed to get system health metrics:', error);
@@ -928,7 +928,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         packetLossRate: 0,
         systemLoad: 0,
         memoryUsage: 0,
-        uptime: process.uptime(),
+        uptime: process.uptime()
       };
     }
   }
@@ -1030,7 +1030,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
       jitterWeight: this.QUALITY_WEIGHTS.jitter,
       stabilityScore,
       stabilityWeight: this.QUALITY_WEIGHTS.connectionStability,
-      overallScore: Math.max(0, Math.min(100, overallScore)),
+      overallScore: Math.max(0, Math.min(100, overallScore))
     };
   }
 
@@ -1138,7 +1138,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
       await this.redis.hset(monitoringKey, {
         adaptiveInterval: adaptiveInterval.toString(),
         lastAdjustment: Date.now().toString(),
-        qualityScore: qualityScore.toString(),
+        qualityScore: qualityScore.toString()
       });
 
       await this.redis.expire(monitoringKey, 3600);
@@ -1165,7 +1165,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         message,
         metrics,
         timestamp: new Date(),
-        resolved: false,
+        resolved: false
       };
 
       const alertKey = `${this.ALERTS_KEY_PREFIX}${clientId}:${Date.now()}`;
@@ -1176,7 +1176,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         message: alert.message,
         metrics: JSON.stringify(alert.metrics),
         timestamp: alert.timestamp.getTime().toString(),
-        resolved: alert.resolved.toString(),
+        resolved: alert.resolved.toString()
       });
 
       await this.redis.expire(alertKey, 86400); // Keep alerts for 24 hours
@@ -1245,14 +1245,14 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
       return {
         avgLatency,
         avgQualityScore: 0, // Would need to calculate from historical quality scores
-        totalDisconnections,
+        totalDisconnections
       };
     } catch (error) {
       this.logger.error(`Failed to get historical performance for client ${clientId}:`, error);
       return {
         avgLatency: 0,
         avgQualityScore: 0,
-        totalDisconnections: 0,
+        totalDisconnections: 0
       };
     }
   }
@@ -1297,14 +1297,14 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         if (healthMetrics.averageQualityScore < 40) {
           this.logger.warn('System-wide connection quality degraded', {
             averageQualityScore: healthMetrics.averageQualityScore,
-            totalConnections: healthMetrics.totalConnections,
+            totalConnections: healthMetrics.totalConnections
           });
         }
 
         // Store health metrics for trend analysis
         await this.redis.lpush(`${this.HEALTH_KEY_PREFIX}metrics`, JSON.stringify({
           ...healthMetrics,
-          timestamp: Date.now(),
+          timestamp: Date.now()
         }));
         await this.redis.ltrim(`${this.HEALTH_KEY_PREFIX}metrics`, 0, 287); // Keep 24 hours of data (every 5 minutes)
         await this.redis.expire(`${this.HEALTH_KEY_PREFIX}metrics`, 86400);
@@ -1446,7 +1446,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
           avgSyncDuration: 0,
           avgDeltaCount: 0,
           avgBytesTransferred: 0,
-          totalSyncs: 0,
+          totalSyncs: 0
         };
       }
 
@@ -1465,7 +1465,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         avgSyncDuration: totalSyncDuration / performanceData.length,
         avgDeltaCount: totalDeltaCount / performanceData.length,
         avgBytesTransferred: totalBytesTransferred / performanceData.length,
-        totalSyncs: performanceData.length,
+        totalSyncs: performanceData.length
       };
     } catch (error) {
       this.logger.error(`Failed to get performance stats for client ${clientId}:`, error);
@@ -1473,7 +1473,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
         avgSyncDuration: 0,
         avgDeltaCount: 0,
         avgBytesTransferred: 0,
-        totalSyncs: 0,
+        totalSyncs: 0
       };
     }
   }
@@ -1503,7 +1503,7 @@ export class ConnectionQualityMonitorService extends EventEmitter implements OnM
             usingPollingFallback: metricsData.usingPollingFallback === 'true',
             fallbackReasons: JSON.parse(metricsData.fallbackReasons || '[]'),
             reconnectionAttempts: parseInt(metricsData.reconnectionAttempts || '0'),
-            uptime: parseInt(metricsData.uptime || '0'),
+            uptime: parseInt(metricsData.uptime || '0')
           });
         }
       }

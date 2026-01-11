@@ -1,12 +1,11 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
-import { BetStatus } from '../entities/bet.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BetStatus } from '../entities/bet.entity';
 
 export class BetStatusTransitionError extends HttpException {
   constructor(
     fromStatus: BetStatus,
     toStatus: BetStatus,
-    betId?: string,
-  ) {
+    betId?: string) {
     const message = betId
       ? `Invalid bet status transition from ${fromStatus} to ${toStatus} for bet ${betId}`
       : `Invalid bet status transition from ${fromStatus} to ${toStatus}`;
@@ -18,9 +17,8 @@ export class BetStatusTransitionError extends HttpException {
         error: 'BetStatusTransitionError',
         fromStatus,
         toStatus,
-        betId,
+        betId
       },
-      HttpStatus.BAD_REQUEST,
-    );
+      HttpStatus.BAD_REQUEST);
   }
 }

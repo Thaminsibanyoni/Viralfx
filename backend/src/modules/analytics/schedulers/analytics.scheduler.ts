@@ -1,13 +1,13 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 import { MarketDataAggregationService } from '../services/market-data-aggregation.service';
 import { PerformanceService } from '../services/performance.service';
 import { StrategyService } from '../services/strategy.service';
 import { ReportService } from '../services/report.service';
-import { DataInterval } from '../../../database/entities/market-data.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { DataInterval } from "../../../database/entities/market-data.entity";
 
 @Injectable()
 export class AnalyticsScheduler implements OnModuleInit {
@@ -19,8 +19,7 @@ export class AnalyticsScheduler implements OnModuleInit {
     private readonly marketDataAggregationService: MarketDataAggregationService,
     private readonly performanceService: PerformanceService,
     private readonly strategyService: StrategyService,
-    private readonly reportService: ReportService,
-  ) {}
+    private readonly reportService: ReportService) {}
 
   onModuleInit() {
     this.logger.log('Analytics scheduler initialized');
@@ -40,11 +39,11 @@ export class AnalyticsScheduler implements OnModuleInit {
       for (const interval of intervals) {
         await this.analyticsQueue.add('aggregate-all-topics', {
           interval,
-          timeRangeHours: 1, // Last hour of data
+          timeRangeHours: 1 // Last hour of data
         }, {
           priority: 5, // Medium priority
           removeOnComplete: 10,
-          removeOnFail: 5,
+          removeOnFail: 5
         });
       }
 
@@ -64,11 +63,11 @@ export class AnalyticsScheduler implements OnModuleInit {
 
       await this.analyticsQueue.add('aggregate-all-topics', {
         interval: DataInterval.ONE_HOUR,
-        timeRangeHours: 24, // Last 24 hours
+        timeRangeHours: 24 // Last 24 hours
       }, {
         priority: 7, // Higher priority for hourly data
         removeOnComplete: 5,
-        removeOnFail: 3,
+        removeOnFail: 3
       });
 
       this.logger.debug('Queued hourly data aggregation job');
@@ -94,11 +93,11 @@ export class AnalyticsScheduler implements OnModuleInit {
           await this.analyticsQueue.add('calculate-performance', {
             entityType,
             period,
-            forceRecalculate: true,
+            forceRecalculate: true
           }, {
             priority: 6, // Medium-high priority
             removeOnComplete: 3,
-            removeOnFail: 2,
+            removeOnFail: 2
           });
         }
       }
@@ -120,11 +119,11 @@ export class AnalyticsScheduler implements OnModuleInit {
       await this.analyticsQueue.add('update-leaderboard', {
         metricTypes: ['TOTAL_RETURN', 'SHARPE_RATIO', 'WIN_RATE', 'PROFIT_FACTOR', 'VOLATILITY'],
         periods: ['1D', '7D', '30D', '90D', '1Y', 'ALL_TIME'],
-        entityTypes: ['STRATEGY', 'USER'],
+        entityTypes: ['STRATEGY', 'USER']
       }, {
         priority: 8, // High priority
         removeOnComplete: 3,
-        removeOnFail: 2,
+        removeOnFail: 2
       });
 
       this.logger.log('Queued leaderboard update job');
@@ -143,11 +142,11 @@ export class AnalyticsScheduler implements OnModuleInit {
 
       await this.analyticsQueue.add('cleanup-old-data', {
         daysToKeep: 90, // Keep 90 days of minute/hourly data
-        dryRun: false,
+        dryRun: false
       }, {
         priority: 3, // Low priority
         removeOnComplete: 1,
-        removeOnFail: 1,
+        removeOnFail: 1
       });
 
       this.logger.log('Queued data cleanup job');
@@ -183,14 +182,14 @@ export class AnalyticsScheduler implements OnModuleInit {
             format: 'json',
             options: {
               includeCharts: true,
-              includeTrades: true,
-            },
+              includeTrades: true
+            }
           },
-          timestamp: new Date(),
+          timestamp: new Date()
         }, {
           priority: 4, // Low-medium priority
           removeOnComplete: 5,
-          removeOnFail: 3,
+          removeOnFail: 3
         });
       }
 
@@ -215,11 +214,11 @@ export class AnalyticsScheduler implements OnModuleInit {
       if (activeSymbols.length > 0) {
         await this.analyticsQueue.add('batch-realtime-metrics', {
           symbols: activeSymbols,
-          batchSize: 20,
+          batchSize: 20
         }, {
           priority: 9, // Very high priority for real-time data
           removeOnComplete: 20,
-          removeOnFail: 10,
+          removeOnFail: 10
         });
 
         this.logger.debug(`Queued real-time metrics calculation for ${activeSymbols.length} symbols`);
@@ -245,11 +244,11 @@ export class AnalyticsScheduler implements OnModuleInit {
           topicId: trend.id,
           interval: DataInterval.ONE_HOUR,
           startTime: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
-          endTime: new Date(),
+          endTime: new Date()
         }, {
           priority: 2, // Low priority
           removeOnComplete: 3,
-          removeOnFail: 2,
+          removeOnFail: 2
         });
       }
 
@@ -271,11 +270,11 @@ export class AnalyticsScheduler implements OnModuleInit {
 
       await this.reportQueue.add('cleanup-expired-reports', {
         hoursToKeep: 168, // 7 days
-        dryRun: false,
+        dryRun: false
       }, {
         priority: 1, // Lowest priority
         removeOnComplete: 1,
-        removeOnFail: 1,
+        removeOnFail: 1
       });
 
       this.logger.log('Queued expired reports cleanup job');
@@ -318,14 +317,14 @@ export class AnalyticsScheduler implements OnModuleInit {
           format: 'json',
           options: {
             includeCharts: true,
-            customMetrics: ['user_growth', 'strategy_adoption', 'platform_usage'],
-          },
+            customMetrics: ['user_growth', 'strategy_adoption', 'platform_usage']
+          }
         },
-        timestamp: new Date(),
+        timestamp: new Date()
       }, {
         priority: 5,
         removeOnComplete: 3,
-        removeOnFail: 2,
+        removeOnFail: 2
       });
 
       this.logger.log('Queued monthly analytics summary generation');

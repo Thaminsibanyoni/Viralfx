@@ -1,10 +1,10 @@
 import { Controller, Get, Post, Param, Query, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { CrmService } from '../services/crm.service';
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from "../../../common/enums/user-role.enum";
 
 @ApiTags('crm')
 @ApiBearerAuth()
@@ -26,18 +26,18 @@ export class CrmController {
       ...(query.startDate && query.endDate && {
         dateRange: {
           start: new Date(query.startDate),
-          end: new Date(query.endDate),
-        },
+          end: new Date(query.endDate)
+        }
       }),
       ...(query.assignedTo && { assignedTo: query.assignedTo }),
-      ...(query.brokerId && { brokerId: query.brokerId }),
+      ...(query.brokerId && { brokerId: query.brokerId })
     };
 
     const dashboard = await this.crmService.getDashboard(filters);
 
     return {
       success: true,
-      data: dashboard,
+      data: dashboard
     };
   }
 
@@ -48,14 +48,13 @@ export class CrmController {
   @ApiResponse({ status: 200, description: 'Lead assigned successfully' })
   async assignLeadToManager(
     @Param('id') id: string,
-    @Query('managerId') managerId: string,
-  ) {
+    @Query('managerId') managerId: string) {
     const result = await this.crmService.assignLeadToManager(id, managerId);
 
     return {
       success: true,
       message: 'Lead assigned successfully',
-      data: result,
+      data: result
     };
   }
 
@@ -66,14 +65,13 @@ export class CrmController {
   @ApiResponse({ status: 200, description: 'Lead converted to opportunity successfully' })
   async convertLeadToOpportunity(
     @Param('id') id: string,
-    @Body() opportunityData: any,
-  ) {
+    @Body() opportunityData: any) {
     const opportunity = await this.crmService.convertLeadToOpportunity(id, opportunityData);
 
     return {
       success: true,
       message: 'Lead converted to opportunity successfully',
-      data: opportunity,
+      data: opportunity
     };
   }
 
@@ -87,7 +85,7 @@ export class CrmController {
 
     return {
       success: true,
-      data: forecast,
+      data: forecast
     };
   }
 
@@ -97,13 +95,12 @@ export class CrmController {
   @ApiResponse({ status: 200, description: 'Activity timeline retrieved successfully' })
   async getActivityTimeline(
     @Param('entityType') entityType: string,
-    @Param('entityId') entityId: string,
-  ) {
+    @Param('entityId') entityId: string) {
     const activities = await this.crmService.getActivityTimeline(entityType, entityId);
 
     return {
       success: true,
-      data: activities,
+      data: activities
     };
   }
 
@@ -117,7 +114,7 @@ export class CrmController {
 
     return {
       success: true,
-      message: 'Lead scoring initiated successfully',
+      message: 'Lead scoring initiated successfully'
     };
   }
 }

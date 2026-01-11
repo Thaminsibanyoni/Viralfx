@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Post,
@@ -10,15 +10,15 @@ import {
   UseGuards,
   Request,
   Logger,
-  ParseUUIDPipe,
-} from '@nestjs/common';
+  ParseUUIDPipe, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { AdminAuthGuard } from '../guards/admin-auth.guard';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { Permissions } from '../decorators/permissions.decorator';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationManagementService } from '../services/notification-management.service';
-import { AdminAuditLog, AuditAction, AuditSeverity } from '../entities/admin-audit-log.entity';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { PrismaService } from '../../../prisma/prisma.service';
 
 @ApiTags('Notification Management')
 @Controller('admin/notifications')
@@ -29,9 +29,7 @@ export class NotificationManagementController {
 
   constructor(
     private readonly notificationManagementService: NotificationManagementService,
-    @InjectRepository(AdminAuditLog)
-    private readonly auditLogRepository: Repository<AdminAuditLog>,
-  ) {}
+        private prisma: PrismaService) {}
 
   @Post('broadcast')
   @Permissions('notifications:send')
@@ -39,15 +37,13 @@ export class NotificationManagementController {
   @ApiResponse({ status: 201, description: 'Broadcast notification sent successfully' })
   async broadcastNotification(
     @Body() notificationData: any,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.notificationManagementService.broadcastNotification(
       notificationData,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.HIGH,
@@ -56,9 +52,9 @@ export class NotificationManagementController {
       metadata: {
         type: 'broadcast',
         recipientCount: result.recipientCount,
-        channels: notificationData.channels,
+        channels: notificationData.channels
       },
-      description: `Sent broadcast notification to ${result.recipientCount} users`,
+      description: `Sent broadcast notification to ${result.recipientCount} users`
     });
 
     this.logger.log(`Broadcast notification sent by admin ${req.admin.id}: ${result.id}`);
@@ -75,16 +71,14 @@ export class NotificationManagementController {
       segment: any;
       notification: any;
     },
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.notificationManagementService.sendToSegment(
       data.segment,
       data.notification,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.HIGH,
@@ -94,9 +88,9 @@ export class NotificationManagementController {
         type: 'segment',
         segment: data.segment,
         recipientCount: result.recipientCount,
-        channels: data.notification.channels,
+        channels: data.notification.channels
       },
-      description: `Sent notification to segment: ${JSON.stringify(data.segment)}`,
+      description: `Sent notification to segment: ${JSON.stringify(data.segment)}`
     });
 
     this.logger.log(`Segment notification sent by admin ${req.admin.id}: ${result.id}`);
@@ -112,16 +106,14 @@ export class NotificationManagementController {
   async sendToUser(
     @Param('userId', ParseUUIDPipe) userId: string,
     @Body() notificationData: any,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.notificationManagementService.sendToUser(
       userId,
       notificationData,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.MEDIUM,
@@ -130,9 +122,9 @@ export class NotificationManagementController {
       metadata: {
         type: 'user',
         userId,
-        channels: notificationData.channels,
+        channels: notificationData.channels
       },
-      description: `Sent notification to user: ${userId}`,
+      description: `Sent notification to user: ${userId}`
     });
 
     this.logger.log(`User notification sent by admin ${req.admin.id}: ${result.id} to user ${userId}`);
@@ -148,13 +140,12 @@ export class NotificationManagementController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '50',
     @Query('category') category?: string,
-    @Query('search') search?: string,
-  ) {
+    @Query('search') search?: string) {
     return await this.notificationManagementService.getTemplates({
       page: parseInt(page),
       limit: parseInt(limit),
       category,
-      search,
+      search
     });
   }
 
@@ -164,22 +155,20 @@ export class NotificationManagementController {
   @ApiResponse({ status: 201, description: 'Notification template created successfully' })
   async createTemplate(
     @Body() templateData: any,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.notificationManagementService.createTemplate(
       templateData,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.LOW,
       targetType: 'NotificationTemplate',
       targetId: result.id,
       metadata: { templateName: templateData.name },
-      description: `Created notification template: ${templateData.name}`,
+      description: `Created notification template: ${templateData.name}`
     });
 
     this.logger.log(`Notification template created by admin ${req.admin.id}: ${templateData.name}`);
@@ -195,23 +184,21 @@ export class NotificationManagementController {
   async updateTemplate(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() templateData: any,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.notificationManagementService.updateTemplate(
       id,
       templateData,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.LOW,
       targetType: 'NotificationTemplate',
       targetId: id,
       metadata: { templateName: templateData.name },
-      description: `Updated notification template: ${templateData.name}`,
+      description: `Updated notification template: ${templateData.name}`
     });
 
     this.logger.log(`Notification template updated by admin ${req.admin.id}: ${id}`);
@@ -226,21 +213,20 @@ export class NotificationManagementController {
   @ApiResponse({ status: 200, description: 'Notification template deleted successfully' })
   async deleteTemplate(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const template = await this.notificationManagementService.getTemplateById(id);
 
     await this.notificationManagementService.deleteTemplate(id, req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.LOW,
       targetType: 'NotificationTemplate',
       targetId: id,
       metadata: { templateName: template.name },
-      description: `Deleted notification template: ${template.name}`,
+      description: `Deleted notification template: ${template.name}`
     });
 
     this.logger.log(`Notification template deleted by admin ${req.admin.id}: ${id}`);
@@ -254,8 +240,7 @@ export class NotificationManagementController {
   @ApiParam({ name: 'id', description: 'Template ID' })
   @ApiResponse({ status: 200, description: 'Notification template retrieved successfully' })
   async getTemplateById(
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+    @Param('id', ParseUUIDPipe) id: string) {
     return await this.notificationManagementService.getTemplateById(id);
   }
 
@@ -267,16 +252,14 @@ export class NotificationManagementController {
   async duplicateTemplate(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('name') name: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.notificationManagementService.duplicateTemplate(
       id,
       name,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.LOW,
@@ -284,9 +267,9 @@ export class NotificationManagementController {
       targetId: result.id,
       metadata: {
         originalTemplateId: id,
-        templateName: name,
+        templateName: name
       },
-      description: `Duplicated notification template: ${name}`,
+      description: `Duplicated notification template: ${name}`
     });
 
     this.logger.log(`Notification template duplicated by admin ${req.admin.id}: ${name}`);
@@ -305,8 +288,7 @@ export class NotificationManagementController {
     @Query('channel') channel?: string,
     @Query('type') type?: string,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ) {
+    @Query('endDate') endDate?: string) {
     return await this.notificationManagementService.getNotificationHistory({
       page: parseInt(page),
       limit: parseInt(limit),
@@ -314,7 +296,7 @@ export class NotificationManagementController {
       channel,
       type,
       startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined
     });
   }
 
@@ -324,8 +306,7 @@ export class NotificationManagementController {
   @ApiParam({ name: 'id', description: 'Notification ID' })
   @ApiResponse({ status: 200, description: 'Notification details retrieved successfully' })
   async getNotificationById(
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+    @Param('id', ParseUUIDPipe) id: string) {
     return await this.notificationManagementService.getNotificationById(id);
   }
 
@@ -336,12 +317,11 @@ export class NotificationManagementController {
   async getNotificationAnalytics(
     @Query('timeframe') timeframe: string = '30d',
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ) {
+    @Query('endDate') endDate?: string) {
     return await this.notificationManagementService.getAnalytics({
       timeframe,
       startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined
     });
   }
 
@@ -356,15 +336,13 @@ export class NotificationManagementController {
       customMessage?: string;
       recipientEmail?: string;
     },
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.notificationManagementService.sendTestNotification(
       testData,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.LOW,
@@ -373,9 +351,9 @@ export class NotificationManagementController {
       metadata: {
         type: 'test',
         channels: testData.channels,
-        templateId: testData.templateId,
+        templateId: testData.templateId
       },
-      description: `Sent test notification`,
+      description: `Sent test notification`
     });
 
     this.logger.log(`Test notification sent by admin ${req.admin.id}: ${result.id}`);
@@ -398,8 +376,7 @@ export class NotificationManagementController {
   @ApiResponse({ status: 200, description: 'Segment user count retrieved successfully' })
   async getSegmentUserCount(
     @Param('id') id: string,
-    @Query() segmentFilters: any,
-  ) {
+    @Query() segmentFilters: any) {
     return await this.notificationManagementService.getSegmentUserCount(id, segmentFilters);
   }
 
@@ -413,8 +390,7 @@ export class NotificationManagementController {
       customMessage?: string;
       variables?: Record<string, any>;
       channels: string[];
-    },
-  ) {
+    }) {
     return await this.notificationManagementService.previewNotification(previewData);
   }
 
@@ -426,13 +402,11 @@ export class NotificationManagementController {
   async getDeliveryStatus(
     @Param('notificationId', ParseUUIDPipe) notificationId: string,
     @Query('page') page: string = '1',
-    @Query('limit') limit: string = '50',
-  ) {
+    @Query('limit') limit: string = '50') {
     return await this.notificationManagementService.getDeliveryStatus(
       notificationId,
       parseInt(page),
-      parseInt(limit),
-    );
+      parseInt(limit));
   }
 
   @Post('resend/:notificationId')
@@ -442,15 +416,13 @@ export class NotificationManagementController {
   @ApiResponse({ status: 200, description: 'Notification resend initiated successfully' })
   async resendFailedNotifications(
     @Param('notificationId', ParseUUIDPipe) notificationId: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.notificationManagementService.resendFailedNotifications(
       notificationId,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.MEDIUM,
@@ -458,9 +430,9 @@ export class NotificationManagementController {
       targetId: notificationId,
       metadata: {
         type: 'resend',
-        resentCount: result.resentCount,
+        resentCount: result.resentCount
       },
-      description: `Resent ${result.resentCount} failed notifications`,
+      description: `Resent ${result.resentCount} failed notifications`
     });
 
     this.logger.log(`Failed notifications resent by admin ${req.admin.id}: ${notificationId}`);
@@ -473,8 +445,7 @@ export class NotificationManagementController {
   @ApiOperation({ summary: 'Get notification statistics' })
   @ApiResponse({ status: 200, description: 'Notification statistics retrieved successfully' })
   async getNotificationStats(
-    @Query('timeframe') timeframe: string = '30d',
-  ) {
+    @Query('timeframe') timeframe: string = '30d') {
     return await this.notificationManagementService.getNotificationStats(timeframe);
   }
 
@@ -490,15 +461,13 @@ export class NotificationManagementController {
       segment?: any;
       userId?: string;
     },
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.notificationManagementService.scheduleNotification(
       scheduleData,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.MEDIUM,
@@ -507,9 +476,9 @@ export class NotificationManagementController {
       metadata: {
         type: 'scheduled',
         scheduledFor: scheduleData.scheduledFor,
-        timezone: scheduleData.timezone,
+        timezone: scheduleData.timezone
       },
-      description: `Scheduled notification for ${scheduleData.scheduledFor}`,
+      description: `Scheduled notification for ${scheduleData.scheduledFor}`
     });
 
     this.logger.log(`Notification scheduled by admin ${req.admin.id}: ${result.id}`);
@@ -524,12 +493,11 @@ export class NotificationManagementController {
   async getScheduledNotifications(
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '50',
-    @Query('status') status?: string,
-  ) {
+    @Query('status') status?: string) {
     return await this.notificationManagementService.getScheduledNotifications({
       page: parseInt(page),
       limit: parseInt(limit),
-      status,
+      status
     });
   }
 
@@ -540,22 +508,20 @@ export class NotificationManagementController {
   @ApiResponse({ status: 200, description: 'Scheduled notification cancelled successfully' })
   async cancelScheduledNotification(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.notificationManagementService.cancelScheduledNotification(
       id,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.MEDIUM,
       targetType: 'Notification',
       targetId: id,
       metadata: { type: 'cancelled' },
-      description: `Cancelled scheduled notification: ${id}`,
+      description: `Cancelled scheduled notification: ${id}`
     });
 
     this.logger.log(`Scheduled notification cancelled by admin ${req.admin.id}: ${id}`);

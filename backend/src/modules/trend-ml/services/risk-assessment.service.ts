@@ -66,31 +66,31 @@ export class RiskAssessmentService {
       metric: 'priceVolatility',
       warningThreshold: 30,
       criticalThreshold: 50,
-      timeframe: '24h',
+      timeframe: '24h'
     },
     {
       metric: 'volumeSpike',
       warningThreshold: 500,
       criticalThreshold: 1000,
-      timeframe: '1h',
+      timeframe: '1h'
     },
     {
       metric: 'sentimentDrop',
       warningThreshold: -0.3,
       criticalThreshold: -0.5,
-      timeframe: '6h',
+      timeframe: '6h'
     },
     {
       metric: 'liquidityRatio',
       warningThreshold: 0.1,
       criticalThreshold: 0.05,
-      timeframe: 'realtime',
+      timeframe: 'realtime'
     },
     {
       metric: 'contentRiskScore',
       warningThreshold: 70,
       criticalThreshold: 85,
-      timeframe: 'realtime',
+      timeframe: 'realtime'
     },
   ];
 
@@ -170,7 +170,7 @@ export class RiskAssessmentService {
         liquidityMetrics,
         correlationAnalysis,
         recommendations,
-        monitoringAlerts,
+        monitoringAlerts
       };
 
       // Cache the risk assessment
@@ -218,7 +218,7 @@ export class RiskAssessmentService {
         currentRisk,
         riskTrend,
         activeAlerts,
-        keyMetrics,
+        keyMetrics
       };
 
     } catch (error) {
@@ -312,7 +312,7 @@ export class RiskAssessmentService {
         concentrationRisk,
         correlationRisk,
         systemicRisk,
-        recommendations,
+        recommendations
       };
 
     } catch (error) {
@@ -359,7 +359,7 @@ export class RiskAssessmentService {
       score: Math.min(score, 100),
       weight: 0.3,
       description: issues.join('; ') || 'Market conditions are normal',
-      mitigation: mitigations.length > 0 ? mitigations : ['Standard monitoring sufficient'],
+      mitigation: mitigations.length > 0 ? mitigations : ['Standard monitoring sufficient']
     };
   }
 
@@ -396,7 +396,7 @@ export class RiskAssessmentService {
       score: Math.min(score, 100),
       weight: 0.25,
       description: issues.join('; ') || 'Social media metrics are normal',
-      mitigation: mitigations.length > 0 ? mitigations : ['Continue standard social monitoring'],
+      mitigation: mitigations.length > 0 ? mitigations : ['Continue standard social monitoring']
     };
   }
 
@@ -440,7 +440,7 @@ export class RiskAssessmentService {
       score: Math.min(score, 100),
       weight: 0.2,
       description: issues.join('; ') || 'Content analysis shows normal risk',
-      mitigation: mitigations.length > 0 ? mitigations : ['Standard content monitoring'],
+      mitigation: mitigations.length > 0 ? mitigations : ['Standard content monitoring']
     };
   }
 
@@ -483,7 +483,7 @@ export class RiskAssessmentService {
       score: Math.min(score, 100),
       weight: 0.15,
       description: issues.join('; ') || 'No regulatory concerns identified',
-      mitigation: mitigations.length > 0 ? mitigations : ['Standard regulatory compliance monitoring'],
+      mitigation: mitigations.length > 0 ? mitigations : ['Standard regulatory compliance monitoring']
     };
   }
 
@@ -520,7 +520,7 @@ export class RiskAssessmentService {
       score: Math.min(score, 100),
       weight: 0.1,
       description: issues.join('; ') || 'Technical analysis shows normal patterns',
-      mitigation: mitigations.length > 0 ? mitigations : ['Standard technical monitoring'],
+      mitigation: mitigations.length > 0 ? mitigations : ['Standard technical monitoring']
     };
   }
 
@@ -562,7 +562,7 @@ export class RiskAssessmentService {
       score: Math.min(score, 100),
       weight: 0.2,
       description: issues.join('; ') || 'Liquidity conditions are normal',
-      mitigation: mitigations.length > 0 ? mitigations : ['Standard liquidity monitoring'],
+      mitigation: mitigations.length > 0 ? mitigations : ['Standard liquidity monitoring']
     };
   }
 
@@ -607,8 +607,8 @@ export class RiskAssessmentService {
       prediction: {
         expectedMove: priceVolatility * 0.1, // Expected move as percentage
         confidence: 0.7,
-        timeframe: '24h',
-      },
+        timeframe: '24h'
+      }
     };
   }
 
@@ -623,7 +623,7 @@ export class RiskAssessmentService {
       depth,
       spread: spreadPercentage,
       volume,
-      marketImpact,
+      marketImpact
     };
   }
 
@@ -636,7 +636,7 @@ export class RiskAssessmentService {
     return {
       withMarket,
       withPeers,
-      systemicRisk,
+      systemicRisk
     };
   }
 
@@ -678,14 +678,14 @@ export class RiskAssessmentService {
           metric: threshold.metric,
           threshold: threshold.criticalThreshold,
           currentValue,
-          trend: 'DETERIORATING',
+          trend: 'DETERIORATING'
         });
       } else if (currentValue >= threshold.warningThreshold) {
         alerts.push({
           metric: threshold.metric,
           threshold: threshold.warningThreshold,
           currentValue,
-          trend: 'STABLE',
+          trend: 'STABLE'
         });
       }
     }
@@ -762,7 +762,7 @@ export class RiskAssessmentService {
     const data = {
       overallRisk: assessment.overallRisk,
       riskLevel: assessment.riskLevel,
-      timestamp,
+      timestamp
     };
 
     await this.redis.zadd(
@@ -818,7 +818,7 @@ export class RiskAssessmentService {
       priceVolatility: Math.random() * 50,
       volumeRisk: Math.random() * 100,
       sentimentRisk: Math.random() * 100,
-      liquidityRisk: Math.random() * 100,
+      liquidityRisk: Math.random() * 100
     };
   }
 

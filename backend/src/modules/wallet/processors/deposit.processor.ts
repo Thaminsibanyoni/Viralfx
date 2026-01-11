@@ -1,10 +1,9 @@
-import { Processor, Process, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import {Processor, WorkerHost } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 
 import { DepositService } from '../services/deposit.service';
-import { WebSocketGateway } from '../../websocket/gateways/websocket.gateway';
-import { NotificationService } from '../../notification/services/notification.service';
+import { NotificationService } from "../../notifications/services/notification.service";
 
 interface ConfirmDepositJob {
   transactionId: string;
@@ -20,17 +19,34 @@ interface CheckPendingDepositsJob {
 }
 
 @Processor('wallet-deposit')
-export class DepositProcessor {
+export class DepositProcessor extends WorkerHost {
   private readonly logger = new Logger(DepositProcessor.name);
 
   constructor(
     private readonly depositService: DepositService,
-    private readonly webSocketGateway: WebSocketGateway,
-    private readonly notificationService: NotificationService,
-  ) {}
+    private readonly notificationService: NotificationService) {
+    super();
+}
 
-  @Process('confirm-deposit')
-  async confirmDeposit(job: Job<ConfirmDepositJob>): Promise<void> {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'confirm-deposit':
+        return this.confirmDeposit(job);
+      case 'check-pending-deposits':
+        return this.checkPendingDeposits(job);
+      case 'send-deposit-reminders':
+        return this.sendDepositReminders(job);
+      case 'reconcile-deposits':
+        return this.reconcileDeposits(job);
+      case 'process-deposit-refund':
+        return this.processDepositRefund(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async confirmDeposit(job: Job<ConfirmDepositJob>): Promise<void> {
     try {
       const { transactionId, userId, amount, currency, gateway, webhookData } = job.data;
       this.logger.log(`Confirming deposit ${transactionId} from ${gateway}`);
@@ -45,7 +61,7 @@ export class DepositProcessor {
         amount,
         currency,
         gateway,
-        timestamp: new Date(),
+        timestamp: new Date()
       });
 
       // Send notification
@@ -58,8 +74,8 @@ export class DepositProcessor {
           transactionId,
           amount,
           currency,
-          gateway,
-        },
+          gateway
+        }
       });
 
       // Send email notification for significant deposits
@@ -72,8 +88,8 @@ export class DepositProcessor {
             amount,
             currency,
             gateway,
-            transactionId,
-          },
+            transactionId
+          }
         });
       }
 
@@ -84,8 +100,7 @@ export class DepositProcessor {
     }
   }
 
-  @Process('check-pending-deposits')
-  async checkPendingDeposits(job: Job<CheckPendingDepositsJob>): Promise<void> {
+  private async checkPendingDeposits(job: Job<CheckPendingDepositsJob>): Promise<void> {
     try {
       this.logger.log('Checking pending deposits');
 
@@ -99,8 +114,7 @@ export class DepositProcessor {
     }
   }
 
-  @Process('send-deposit-reminders')
-  async sendDepositReminders(): Promise<void> {
+  private async sendDepositReminders(): Promise<void> {
     try {
       this.logger.log('Sending deposit reminders');
 
@@ -114,8 +128,7 @@ export class DepositProcessor {
     }
   }
 
-  @Process('reconcile-deposits')
-  async reconcileDeposits(job: Job<{ dateFrom: Date; dateTo: Date }>): Promise<void> {
+  private async reconcileDeposits(job: Job<{ dateFrom: Date; dateTo: Date }>): Promise<void> {
     try {
       const { dateFrom, dateTo } = job.data;
       this.logger.log(`Reconciling deposits from ${dateFrom} to ${dateTo}`);
@@ -130,8 +143,7 @@ export class DepositProcessor {
     }
   }
 
-  @Process('process-deposit-refund')
-  async processDepositRefund(job: Job<{ transactionId: string; reason: string }>): Promise<void> {
+  private async processDepositRefund(job: Job<{ transactionId: string; reason: string }>): Promise<void> {
     try {
       const { transactionId, reason } = job.data;
       this.logger.log(`Processing refund for deposit ${transactionId}`);
@@ -146,7 +158,7 @@ export class DepositProcessor {
     }
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   async onQueueFailed(job: Job, error: Error): Promise<void> {
     this.logger.error(`Deposit job ${job.id} failed:`, error);
 
@@ -157,7 +169,7 @@ export class DepositProcessor {
         type: 'DEPOSIT_PROCESSING_FAILURE',
         jobId: job.id,
         error: error.message,
-        data: job.data,
+        data: job.data
       });
     }
   }
@@ -180,7 +192,7 @@ export class DepositProcessor {
         title: 'Deposit Processing Failure',
         message: `Critical deposit processing failure: ${notification.error}`,
         metadata: notification,
-        priority: 'high',
+        priority: 'high'
       });
 
       this.logger.warn(`Admin notification sent: ${JSON.stringify(notification)}`);

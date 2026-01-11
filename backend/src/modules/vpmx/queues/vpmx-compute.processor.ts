@@ -1,9 +1,9 @@
-import { Processor, Process } from '@nestjs/bullmq';
+import {Processor, WorkerHost} from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { VPMXCoreService } from '../services/vpmx-core.service';
 import { VPMXAnalyticsService } from '../services/vpmx-analytics.service';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 
 interface VPMXComputeJob {
   vtsSymbol: string;
@@ -13,17 +13,33 @@ interface VPMXComputeJob {
 }
 
 @Processor('vpmx-compute')
-export class VPMXComputeProcessor {
+export class VPMXComputeProcessor extends WorkerHost {
   private readonly logger = new Logger(VPMXComputeProcessor.name);
 
   constructor(
     private readonly vpmxCoreService: VPMXCoreService,
     private readonly vpmxAnalyticsService: VPMXAnalyticsService,
-    private readonly prisma: PrismaService,
-  ) {}
+    private readonly prisma: PrismaService) {
+    super();
+}
 
-  @Process('compute-index')
-  async handleComputeIndex(job: Job<VPMXComputeJob>): Promise<any> {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'compute-index':
+        return this.handleComputeIndex(job);
+      case 'batch-compute':
+        return this.handleBatchCompute(job);
+      case 'recompute-all':
+        return this.handleRecomputeAll(job);
+      case 'cleanup-old-data':
+        return this.handleCleanupOldData(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleComputeIndex(job: Job<VPMXComputeJob>): Promise<any> {
     const { vtsSymbol, timestamp, force = false } = job.data;
 
     try {
@@ -61,7 +77,7 @@ export class VPMXComputeProcessor {
         vtsSymbol,
         value: vpmxResult.value,
         timestamp: vpmxResult.metadata.timestamp || new Date(),
-        computationTime: Date.now() - job.timestamp,
+        computationTime: Date.now() - job.timestamp
       };
     } catch (error) {
       this.logger.error(`Failed to compute VPMX for ${vtsSymbol}`, error);
@@ -73,8 +89,7 @@ export class VPMXComputeProcessor {
     }
   }
 
-  @Process('batch-compute')
-  async handleBatchCompute(job: Job<{ vtsSymbols: string[]; timestamp?: string }>): Promise<any> {
+  private async handleBatchCompute(job: Job<{ vtsSymbols: string[]; timestamp?: string }>): Promise<any> {
     const { vtsSymbols, timestamp } = job.data;
 
     try {
@@ -102,7 +117,7 @@ export class VPMXComputeProcessor {
             results.push({
               symbol: 'unknown',
               success: false,
-              error: result.reason.message,
+              error: result.reason.message
             });
           }
         });
@@ -128,7 +143,7 @@ export class VPMXComputeProcessor {
         successful: successful.length,
         failed: failed.length,
         results,
-        errors: failed.map(f => ({ symbol: f.symbol, error: f.error })),
+        errors: failed.map(f => ({ symbol: f.symbol, error: f.error }))
       };
     } catch (error) {
       this.logger.error('Batch VPMX computation failed', error);
@@ -136,8 +151,7 @@ export class VPMXComputeProcessor {
     }
   }
 
-  @Process('recompute-all')
-  async handleRecomputeAll(job: Job<{ force?: boolean }>): Promise<any> {
+  private async handleRecomputeAll(job: Job<{ force?: boolean }>): Promise<any> {
     const { force = false } = job.data;
 
     try {
@@ -173,7 +187,7 @@ export class VPMXComputeProcessor {
         totalSymbols: activeSymbols.length,
         successful: successful.length,
         failed: activeSymbols.length - successful.length,
-        results,
+        results
       };
     } catch (error) {
       this.logger.error('Recompute all failed', error);
@@ -181,8 +195,7 @@ export class VPMXComputeProcessor {
     }
   }
 
-  @Process('cleanup-old-data')
-  async handleCleanupOldData(job: Job<{ daysToKeep?: number }>): Promise<any> {
+  private async handleCleanupOldData(job: Job<{ daysToKeep?: number }>): Promise<any> {
     const { daysToKeep = 30 } = job.data;
 
     try {
@@ -193,31 +206,31 @@ export class VPMXComputeProcessor {
       // Clean up old VPMX history
       const deletedHistory = await this.prisma.vpmxHistory.deleteMany({
         where: {
-          timestamp: { lt: cutoffDate },
-        },
+          timestamp: { lt: cutoffDate }
+        }
       });
 
       // Clean up old predictions
       const deletedPredictions = await this.prisma.vpmxPrediction.deleteMany({
         where: {
           timestamp: { lt: cutoffDate },
-          status: { in: ['EXPIRED', 'SETTLED'] },
-        },
+          status: { in: ['EXPIRED', 'SETTLED'] }
+        }
       });
 
       // Clean up old anomalies
       const deletedAnomalies = await this.prisma.vpmxAnomaly.deleteMany({
         where: {
           detectedAt: { lt: cutoffDate },
-          status: 'RESOLVED',
-        },
+          status: 'RESOLVED'
+        }
       });
 
       // Clean up old audit logs
       const deletedAudits = await this.prisma.vpmxAudit.deleteMany({
         where: {
-          timestamp: { lt: cutoffDate },
-        },
+          timestamp: { lt: cutoffDate }
+        }
       });
 
       this.logger.log(
@@ -231,9 +244,9 @@ export class VPMXComputeProcessor {
           history: deletedHistory.count,
           predictions: deletedPredictions.count,
           anomalies: deletedAnomalies.count,
-          audits: deletedAudits.count,
+          audits: deletedAudits.count
         },
-        cutoffDate,
+        cutoffDate
       };
     } catch (error) {
       this.logger.error('Data cleanup failed', error);
@@ -252,8 +265,8 @@ export class VPMXComputeProcessor {
         vtsSymbol: true,
         value: true,
         timestamp: true,
-        metadata: true,
-      },
+        metadata: true
+      }
     });
   }
 
@@ -267,14 +280,14 @@ export class VPMXComputeProcessor {
       where: {
         vtsSymbol_timestamp: {
           vtsSymbol: vpmxResult.vtsSymbol,
-          timestamp: vpmxResult.metadata.timestamp || new Date(),
-        },
+          timestamp: vpmxResult.metadata.timestamp || new Date()
+        }
       },
       update: {
         value: vpmxResult.value,
         components: vpmxResult.components,
         metadata: vpmxResult.metadata,
-        processedAt: new Date(),
+        processedAt: new Date()
       },
       create: {
         vtsSymbol: vpmxResult.vtsSymbol,
@@ -282,8 +295,8 @@ export class VPMXComputeProcessor {
         components: vpmxResult.components,
         metadata: vpmxResult.metadata,
         timestamp: vpmxResult.metadata.timestamp || new Date(),
-        processedAt: new Date(),
-      },
+        processedAt: new Date()
+      }
     });
   }
 
@@ -293,7 +306,7 @@ export class VPMXComputeProcessor {
     // Get previous value for change calculations
     const previousEntry = await this.prisma.vpmxHistory.findFirst({
       where: { vtsSymbol: vpmxResult.vtsSymbol },
-      orderBy: { timestamp: 'desc' },
+      orderBy: { timestamp: 'desc' }
     });
 
     const change1h = previousEntry ? this.calculateChange(previousEntry.value, vpmxResult.value, previousEntry.timestamp, timestamp) : null;
@@ -310,8 +323,8 @@ export class VPMXComputeProcessor {
         change1h,
         components: vpmxResult.components,
         metadata: vpmxResult.metadata,
-        timestamp,
-      },
+        timestamp
+      }
     });
   }
 
@@ -329,10 +342,10 @@ export class VPMXComputeProcessor {
       const recentHistory = await this.prisma.vpmxHistory.findMany({
         where: {
           vtsSymbol: vpmxResult.vtsSymbol,
-          timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // Last 24 hours
+          timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } // Last 24 hours
         },
         orderBy: { timestamp: 'desc' },
-        take: 100,
+        take: 100
       });
 
       if (recentHistory.length < 10) return;
@@ -358,9 +371,9 @@ export class VPMXComputeProcessor {
               zScore,
               avgValue,
               stdDev,
-              breakoutProbability: vpmxResult.metadata.breakoutProbability,
-            },
-          },
+              breakoutProbability: vpmxResult.metadata.breakoutProbability
+            }
+          }
         });
 
         this.logger.log(`Breakout detected for ${vpmxResult.vtsSymbol}: ${zScore.toFixed(2)} sigma`);
@@ -393,15 +406,15 @@ export class VPMXComputeProcessor {
         vtsSymbol_region_timestamp: {
           vtsSymbol,
           region,
-          timestamp: vpmxResult.metadata.timestamp || new Date(),
-        },
+          timestamp: vpmxResult.metadata.timestamp || new Date()
+        }
       },
       update: {
         value: vpmxResult.value,
         components: vpmxResult.components,
         contribution: this.calculateRegionalContribution(vpmxResult.value, region),
         confidence: vpmxResult.metadata.confidence,
-        sampleSize: 1000, // Mock sample size
+        sampleSize: 1000 // Mock sample size
       },
       create: {
         vtsSymbol,
@@ -411,8 +424,8 @@ export class VPMXComputeProcessor {
         contribution: this.calculateRegionalContribution(vpmxResult.value, region),
         confidence: vpmxResult.metadata.confidence,
         sampleSize: 1000,
-        timestamp: vpmxResult.metadata.timestamp || new Date(),
-      },
+        timestamp: vpmxResult.metadata.timestamp || new Date()
+      }
     });
   }
 
@@ -429,7 +442,7 @@ export class VPMXComputeProcessor {
       'UK': 0.7,
       'ZA': 0.6,
       'NG': 0.5,
-      'ASIA': 0.8,
+      'ASIA': 0.8
     };
 
     return (value / 1000) * (regionalWeights[region] || 0.5);
@@ -451,8 +464,8 @@ export class VPMXComputeProcessor {
           status: 'ERROR',
           errorMessage: error.message,
           duration: 0, // Would be calculated
-          timestamp: new Date(),
-        },
+          timestamp: new Date()
+        }
       });
     } catch (auditError) {
       this.logger.error('Failed to log computation failure', auditError);
@@ -462,10 +475,10 @@ export class VPMXComputeProcessor {
   private async getActiveSymbols(): Promise<string[]> {
     const activeIndices = await this.prisma.vpmxIndex.findMany({
       where: {
-        timestamp: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }, // Active in last 7 days
+        timestamp: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } // Active in last 7 days
       },
       select: { vtsSymbol: true },
-      distinct: ['vtsSymbol'],
+      distinct: ['vtsSymbol']
     });
 
     return activeIndices.map(index => index.vtsSymbol);

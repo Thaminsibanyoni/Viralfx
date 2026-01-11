@@ -5,14 +5,14 @@ import {
   IsOptional,
   IsArray,
   IsBoolean,
-  IsIn,
+  IsIn
 } from 'class-validator';
 import { API_PRODUCT_CATEGORIES } from '../interfaces/api-marketplace.interface';
 
 export class CreateProductDto {
   @ApiProperty({
     description: 'Product name',
-    example: 'Social Mood Index API',
+    example: 'Social Mood Index API'
   })
   @IsString()
   @IsNotEmpty()
@@ -20,7 +20,7 @@ export class CreateProductDto {
 
   @ApiProperty({
     description: 'Unique slug identifier',
-    example: 'smi-api',
+    example: 'smi-api'
   })
   @IsString()
   @IsNotEmpty()
@@ -29,7 +29,7 @@ export class CreateProductDto {
   @ApiProperty({
     description: 'Product description',
     example: 'Real-time social sentiment scores for financial markets',
-    required: false,
+    required: false
   })
   @IsString()
   @IsOptional()
@@ -38,7 +38,7 @@ export class CreateProductDto {
   @ApiProperty({
     description: 'Public documentation URL or markdown path',
     example: '/docs/smi-api',
-    required: false,
+    required: false
   })
   @IsString()
   @IsOptional()
@@ -47,7 +47,7 @@ export class CreateProductDto {
   @ApiProperty({
     description: 'Product category',
     enum: API_PRODUCT_CATEGORIES,
-    example: 'SMI',
+    example: 'SMI'
   })
   @IsString()
   @IsIn(API_PRODUCT_CATEGORIES)
@@ -56,7 +56,7 @@ export class CreateProductDto {
 
   @ApiProperty({
     description: 'Default plan code',
-    example: 'starter',
+    example: 'starter'
   })
   @IsString()
   @IsNotEmpty()
@@ -65,7 +65,7 @@ export class CreateProductDto {
   @ApiProperty({
     description: 'List of product features',
     example: ['Real-time scores', 'Historical data', 'Webhook support'],
-    required: false,
+    required: false
   })
   @IsArray()
   @IsString({ each: true })
@@ -75,7 +75,7 @@ export class CreateProductDto {
   @ApiProperty({
     description: 'Whether the product is active',
     example: true,
-    required: false,
+    required: false
   })
   @IsBoolean()
   @IsOptional()

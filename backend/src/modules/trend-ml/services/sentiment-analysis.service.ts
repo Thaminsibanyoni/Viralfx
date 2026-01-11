@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
-import { SocialMediaService } from './social-media.service';
+import { SocialMediaService } from "./social-media.service";
 
 export interface SentimentAnalysis {
   overallScore: number; // -1 (very negative) to +1 (very positive)
@@ -49,7 +49,7 @@ export class SentimentAnalysisService {
     fear: ['scared', 'afraid', 'terrified', 'worried', 'anxious', 'nervous', 'concerned'],
     sadness: ['sad', 'depressed', 'disappointed', 'heartbroken', 'devastated', 'miserable'],
     surprise: ['surprised', 'shocked', 'amazed', 'astonished', 'stunned', 'wow'],
-    disgust: ['disgusting', 'gross', 'awful', 'terrible', 'horrible', 'nasty'],
+    disgust: ['disgusting', 'gross', 'awful', 'terrible', 'horrible', 'nasty']
   };
 
   // Positive and negative word lists
@@ -67,8 +67,7 @@ export class SentimentAnalysisService {
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
-    private readonly socialMediaService: SocialMediaService,
-  ) {}
+    private readonly socialMediaService: SocialMediaService) {}
 
   /**
    * Analyze sentiment for a trend
@@ -111,7 +110,7 @@ export class SentimentAnalysisService {
         contentQuality,
         topics,
         language,
-        spamScore,
+        spamScore
       };
 
       // Cache the analysis
@@ -155,7 +154,7 @@ export class SentimentAnalysisService {
           score: data.overallScore,
           volume: data.volume,
           positiveRatio: data.breakdown.positive,
-          negativeRatio: data.breakdown.negative,
+          negativeRatio: data.breakdown.negative
         });
       }
 
@@ -237,7 +236,7 @@ export class SentimentAnalysisService {
             type: 'SPIKE',
             severity: this.calculateAnomalySeverity(sentimentChange),
             description: `Significant positive sentiment spike detected`,
-            sentimentChange,
+            sentimentChange
           });
         }
 
@@ -248,7 +247,7 @@ export class SentimentAnalysisService {
             type: 'DROP',
             severity: this.calculateAnomalySeverity(Math.abs(sentimentChange)),
             description: `Significant negative sentiment drop detected`,
-            sentimentChange,
+            sentimentChange
           });
         }
 
@@ -262,7 +261,7 @@ export class SentimentAnalysisService {
             type: 'REVERSAL',
             severity: 'MEDIUM',
             description: `Sentiment direction reversal detected`,
-            sentimentChange,
+            sentimentChange
           });
         }
       }
@@ -373,8 +372,8 @@ export class SentimentAnalysisService {
       breakdown: {
         positive: positiveCount / total,
         negative: negativeCount / total,
-        neutral: neutralCount / total,
-      },
+        neutral: neutralCount / total
+      }
     };
   }
 
@@ -404,7 +403,7 @@ export class SentimentAnalysisService {
 
     return {
       score: Math.max(-1, Math.min(1, normalizedScore)),
-      confidence,
+      confidence
     };
   }
 
@@ -425,7 +424,7 @@ export class SentimentAnalysisService {
       fear: 0,
       sadness: 0,
       surprise: 0,
-      disgust: 0,
+      disgust: 0
     };
 
     let totalIntensity = 0;
@@ -455,7 +454,7 @@ export class SentimentAnalysisService {
 
     return {
       intensity: contentCount > 0 ? totalIntensity / contentCount : 0,
-      emotions: normalizedEmotions as any,
+      emotions: normalizedEmotions as any
     };
   }
 
@@ -490,7 +489,7 @@ export class SentimentAnalysisService {
       result.push({
         topic,
         sentiment: avgSentiment,
-        confidence,
+        confidence
       });
     }
 
@@ -564,9 +563,9 @@ export class SentimentAnalysisService {
       /guaranteed/i,
       /act now/i,
       /limited time/i,
-      /!!!{3,}/,
-      /\${2,}/,
-      /http[s]?:\/\//g,
+      /!!!{3}/,
+      /\${2}/,
+      /http[s]?:\/\//g
     ];
 
     return spamIndicators.some(indicator => indicator.test(text));
@@ -629,7 +628,7 @@ export class SentimentAnalysisService {
   }
 
   private isDuplicateContent(text: string): boolean {
-    // Simplified duplicate detection - in a real implementation,
+    // Simplified duplicate detection - in a real implementation
     // this would use more sophisticated algorithms
     const key = `content-hash:${this.hashText(text)}`;
     return false; // Would check against database/cache
@@ -653,7 +652,7 @@ export class SentimentAnalysisService {
       breakdown: {
         positive: 0.33,
         negative: 0.33,
-        neutral: 0.34,
+        neutral: 0.34
       },
       emotionalIntensity: 0.5,
       keyEmotions: {
@@ -662,12 +661,12 @@ export class SentimentAnalysisService {
         fear: 0.1,
         sadness: 0.1,
         surprise: 0.1,
-        disgust: 0.1,
+        disgust: 0.1
       },
       contentQuality: 0.5,
       topics: [],
       language: 'en',
-      spamScore: 0,
+      spamScore: 0
     };
   }
 
@@ -684,7 +683,7 @@ export class SentimentAnalysisService {
     const data = {
       overallScore: analysis.overallScore,
       breakdown: analysis.breakdown,
-      volume: 1, // Would be calculated from actual content volume
+      volume: 1 // Would be calculated from actual content volume
     };
 
     await this.redis.zadd(

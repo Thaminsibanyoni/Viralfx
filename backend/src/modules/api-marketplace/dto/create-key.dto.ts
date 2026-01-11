@@ -7,14 +7,14 @@ import {
   IsBoolean,
   IsObject,
   IsIP,
-  ArrayNotEmpty,
+  ArrayNotEmpty
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateKeyDto {
   @ApiProperty({
     description: 'Plan ID to subscribe to',
-    example: 'uuid-of-plan',
+    example: 'uuid-of-plan'
   })
   @IsString()
   @IsNotEmpty()
@@ -23,7 +23,7 @@ export class CreateKeyDto {
   @ApiProperty({
     description: 'Friendly label for the API key',
     example: 'Production API Key',
-    required: false,
+    required: false
   })
   @IsString()
   @IsOptional()
@@ -32,7 +32,7 @@ export class CreateKeyDto {
   @ApiProperty({
     description: 'IP whitelist (CIDR notation)',
     example: ['192.168.1.1/32', '10.0.0.0/8'],
-    required: false,
+    required: false
   })
   @IsArray()
   @IsString({ each: true })
@@ -42,7 +42,7 @@ export class CreateKeyDto {
   @ApiProperty({
     description: 'Whether this is a sandbox key',
     example: false,
-    required: false,
+    required: false
   })
   @IsBoolean()
   @IsOptional()
@@ -51,7 +51,7 @@ export class CreateKeyDto {
   @ApiProperty({
     description: 'Additional metadata',
     example: { department: 'Engineering', project: 'Mobile App' },
-    required: false,
+    required: false
   })
   @IsObject()
   @IsOptional()
@@ -62,7 +62,7 @@ export class UpdateKeyDto {
   @ApiProperty({
     description: 'Friendly label for the API key',
     example: 'Updated Production Key',
-    required: false,
+    required: false
   })
   @IsString()
   @IsOptional()
@@ -71,7 +71,7 @@ export class UpdateKeyDto {
   @ApiProperty({
     description: 'IP whitelist (CIDR notation)',
     example: ['192.168.1.1/32', '10.0.0.0/8', '203.0.113.0/24'],
-    required: false,
+    required: false
   })
   @IsArray()
   @IsString({ each: true })
@@ -81,7 +81,7 @@ export class UpdateKeyDto {
   @ApiProperty({
     description: 'Additional metadata',
     example: { department: 'Product', project: 'Dashboard' },
-    required: false,
+    required: false
   })
   @IsObject()
   @IsOptional()

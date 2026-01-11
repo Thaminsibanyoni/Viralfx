@@ -1,9 +1,9 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { WalletService } from '../../wallet/services/wallet.service';
+import { WalletService } from "../../wallet/services/wallet.service";
 
 interface PlaceBetData {
   userId: string;
@@ -38,8 +38,7 @@ export class BettingService {
     private readonly redis: Redis,
     private readonly walletService: WalletService,
     @InjectQueue('bet-processing')
-    private readonly betProcessingQueue: Queue,
-  ) {}
+    private readonly betProcessingQueue: Queue) {}
 
   async placeBet(placeBetData: PlaceBetData): Promise<BetResult> {
     const { userId, marketId, outcomeId, amount, odds, metadata } = placeBetData;
@@ -48,7 +47,7 @@ export class BettingService {
       // Validate market exists and is active
       const market = await this.prisma.market.findUnique({
         where: { id: marketId },
-        include: { outcomes: true },
+        include: { outcomes: true }
       });
 
       if (!market) {
@@ -90,8 +89,8 @@ export class BettingService {
           userId,
           marketId,
           outcomeId,
-          status: 'PENDING',
-        },
+          status: 'PENDING'
+        }
       });
 
       if (existingBet) {
@@ -118,24 +117,24 @@ export class BettingService {
             potentialPayout,
             status: 'PENDING',
             metadata: metadata || {},
-            createdAt: new Date(),
-          },
+            createdAt: new Date()
+          }
         });
 
         // Update market volume
         await tx.market.update({
           where: { id: marketId },
           data: {
-            totalVolume: { increment: amount },
-          },
+            totalVolume: { increment: amount }
+          }
         });
 
         // Update outcome volume
         await tx.marketOutcome.update({
           where: { id: outcomeId },
           data: {
-            totalVolume: { increment: amount },
-          },
+            totalVolume: { increment: amount }
+          }
         });
 
         // Update market prices (bet patterns affect probabilities)
@@ -150,7 +149,7 @@ export class BettingService {
         marketId,
         outcomeId,
         amount,
-        userId,
+        userId
       });
 
       // Cache bet data
@@ -167,7 +166,7 @@ export class BettingService {
         odds: result.odds,
         potentialPayout: result.potentialPayout,
         status: result.status as 'PENDING' | 'WON' | 'LOST',
-        createdAt: result.createdAt,
+        createdAt: result.createdAt
       };
     } catch (error) {
       this.logger.error(`Failed to place bet for user ${userId}:`, error);
@@ -191,15 +190,15 @@ export class BettingService {
       where: whereClause,
       include: {
         user: {
-          select: { id: true, username: true },
+          select: { id: true, username: true }
         },
         market: {
-          select: { id: true, title: true, status: true },
+          select: { id: true, title: true, status: true }
         },
         outcome: {
-          select: { id: true, title: true, isWinning: true },
-        },
-      },
+          select: { id: true, title: true, isWinning: true }
+        }
+      }
     });
 
     if (!bet) {
@@ -217,7 +216,7 @@ export class BettingService {
       status: bet.status as 'PENDING' | 'WON' | 'LOST',
       createdAt: bet.createdAt,
       settledAt: bet.settledAt || undefined,
-      actualPayout: bet.actualPayout || undefined,
+      actualPayout: bet.actualPayout || undefined
     };
 
     await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(betResult));
@@ -233,8 +232,7 @@ export class BettingService {
     pagination: {
       page: number;
       limit: number;
-    } = { page: 1, limit: 20 },
-  ): Promise<{
+    } = { page: 1, limit: 20 }): Promise<{
     bets: BetResult[];
     pagination: {
       page: number;
@@ -258,15 +256,15 @@ export class BettingService {
         where: whereClause,
         include: {
           market: {
-            select: { id: true, title: true, status: true },
+            select: { id: true, title: true, status: true }
           },
           outcome: {
-            select: { id: true, title: true, isWinning: true },
-          },
+            select: { id: true, title: true, isWinning: true }
+          }
         },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: pagination.limit,
+        take: pagination.limit
       }),
       this.prisma.bet.count({ where: whereClause }),
     ]);
@@ -282,7 +280,7 @@ export class BettingService {
       status: bet.status as 'PENDING' | 'WON' | 'LOST',
       createdAt: bet.createdAt,
       settledAt: bet.settledAt || undefined,
-      actualPayout: bet.actualPayout || undefined,
+      actualPayout: bet.actualPayout || undefined
     }));
 
     return {
@@ -291,8 +289,8 @@ export class BettingService {
         page: pagination.page,
         limit: pagination.limit,
         total,
-        totalPages: Math.ceil(total / pagination.limit),
-      },
+        totalPages: Math.ceil(total / pagination.limit)
+      }
     };
   }
 
@@ -312,9 +310,9 @@ export class BettingService {
       where: { marketId },
       include: {
         outcome: {
-          select: { id: true, title: true },
-        },
-      },
+          select: { id: true, title: true }
+        }
+      }
     });
 
     const totalBets = bets.length;
@@ -329,7 +327,7 @@ export class BettingService {
           outcomeId: bet.outcomeId,
           outcomeTitle: bet.outcome.title,
           betCount: 0,
-          totalAmount: 0,
+          totalAmount: 0
         };
       }
       acc[key].betCount++;
@@ -346,7 +344,7 @@ export class BettingService {
       totalBets,
       totalVolume,
       uniqueBettors,
-      betsByOutcome: Object.values(betsByOutcome),
+      betsByOutcome: Object.values(betsByOutcome)
     };
   }
 
@@ -356,13 +354,13 @@ export class BettingService {
         where: {
           id: betId,
           userId,
-          status: 'PENDING',
+          status: 'PENDING'
         },
         include: {
           market: {
-            select: { status: true, endDate: true },
-          },
-        },
+            select: { status: true, endDate: true }
+          }
+        }
       });
 
       if (!bet) {
@@ -391,25 +389,25 @@ export class BettingService {
             settledAt: new Date(),
             metadata: {
               cancelledAt: new Date().toISOString(),
-              reason: 'User cancellation',
-            },
-          },
+              reason: 'User cancellation'
+            }
+          }
         });
 
         // Update market volume (decrement)
         await tx.market.update({
           where: { id: bet.marketId },
           data: {
-            totalVolume: { decrement: bet.amount },
-          },
+            totalVolume: { decrement: bet.amount }
+          }
         });
 
         // Update outcome volume (decrement)
         await tx.marketOutcome.update({
           where: { id: bet.outcomeId },
           data: {
-            totalVolume: { decrement: bet.amount },
-          },
+            totalVolume: { decrement: bet.amount }
+          }
         });
       });
 
@@ -441,9 +439,9 @@ export class BettingService {
       where: { userId },
       include: {
         market: {
-          select: { category: true },
-        },
-      },
+          select: { category: true }
+        }
+      }
     });
 
     const totalBets = bets.length;
@@ -475,7 +473,7 @@ export class BettingService {
     const favoriteCategories = Object.entries(categoryStats).map(([category, stats]) => ({
       category,
       betCount: stats.betCount,
-      winRate: stats.betCount > 0 ? (stats.wonCount / stats.betCount) * 100 : 0,
+      winRate: stats.betCount > 0 ? (stats.wonCount / stats.betCount) * 100 : 0
     })).sort((a, b) => b.betCount - a.betCount).slice(0, 5);
 
     return {
@@ -486,14 +484,14 @@ export class BettingService {
       totalPayouts,
       winRate: Math.round(winRate * 100) / 100,
       roi: Math.round(roi * 100) / 100,
-      favoriteCategories,
+      favoriteCategories
     };
   }
 
   async updateBetOdds(betId: string, newOdds: number): Promise<void> {
     try {
       const bet = await this.prisma.bet.findUnique({
-        where: { id: betId },
+        where: { id: betId }
       });
 
       if (!bet) {
@@ -519,11 +517,11 @@ export class BettingService {
               {
                 oldOdds: bet.odds,
                 newOdds,
-                timestamp: new Date().toISOString(),
+                timestamp: new Date().toISOString()
               },
-            ],
-          },
-        },
+            ]
+          }
+        }
       });
 
       // Invalidate cache

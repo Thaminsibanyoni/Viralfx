@@ -1,4 +1,5 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bullmq';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { MarketSettlementService } from '../services/market-settlement.service';
@@ -20,15 +21,29 @@ interface MarketSettlementJob {
 }
 
 @Processor('market-settlement')
-export class MarketSettlementProcessor {
+export class MarketSettlementProcessor extends WorkerHost {
   private readonly logger = new Logger(MarketSettlementProcessor.name);
 
   constructor(
-    private readonly settlementService: MarketSettlementService,
-  ) {}
+    private readonly settlementService: MarketSettlementService) {
+    super();
+}
 
-  @Process('process-market-settlement')
-  async handleMarketSettlement(job: Job<MarketSettlementJob>): Promise<any> {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'process-market-settlement':
+        return this.handleMarketSettlement(job);
+      case 'auto-close-market':
+        return this.handleAutoCloseMarket(job);
+      case 'process-new-bet':
+        return this.handleNewBet(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleMarketSettlement(job: Job<MarketSettlementJob>): Promise<any> {
     const { marketId, reason, winningOutcomeId, settlementMethod } = job.data;
 
     this.logger.log(`Processing market settlement for ${marketId}`);
@@ -38,7 +53,7 @@ export class MarketSettlementProcessor {
         marketId,
         reason,
         winningOutcomeId,
-        settlementMethod: settlementMethod || 'AUTOMATIC',
+        settlementMethod: settlementMethod || 'AUTOMATIC'
       });
 
       this.logger.log(`Market settlement completed: ${marketId}`);
@@ -50,8 +65,7 @@ export class MarketSettlementProcessor {
     }
   }
 
-  @Process('auto-close-market')
-  async handleAutoCloseMarket(job: Job<MarketSettlementJob>): Promise<any> {
+  private async handleAutoCloseMarket(job: Job<MarketSettlementJob>): Promise<any> {
     const { marketId, scheduledCloseTime } = job.data;
 
     this.logger.log(`Auto-closing market: ${marketId} (scheduled: ${scheduledCloseTime})`);
@@ -60,7 +74,7 @@ export class MarketSettlementProcessor {
       const result = await this.settlementService.settleMarket({
         marketId,
         reason: 'Auto-closure at scheduled time',
-        settlementMethod: 'AUTOMATIC',
+        settlementMethod: 'AUTOMATIC'
       });
 
       this.logger.log(`Auto-closure completed: ${marketId}`);
@@ -71,17 +85,17 @@ export class MarketSettlementProcessor {
     }
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onJobActive(job: Job) {
     this.logger.debug(`Market settlement job ${job.id} started processing`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onJobCompleted(job: Job, result: any) {
     this.logger.log(`Market settlement job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onJobFailed(job: Job, error: Error) {
     this.logger.error(`Market settlement job ${job.id} failed:`, error.message);
   }
@@ -91,8 +105,7 @@ export class MarketSettlementProcessor {
 export class BetProcessingProcessor {
   private readonly logger = new Logger(BetProcessingProcessor.name);
 
-  @Process('process-new-bet')
-  async handleNewBet(job: Job<MarketSettlementJob>): Promise<void> {
+  private async handleNewBet(job: Job<MarketSettlementJob>): Promise<void> {
     const { betId, marketId, outcomeId, amount, userId } = job.data;
 
     this.logger.log(`Processing new bet: ${betId} - User: ${userId}, Market: ${marketId}`);
@@ -111,17 +124,17 @@ export class BetProcessingProcessor {
     }
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onJobActive(job: Job) {
     this.logger.debug(`Bet processing job ${job.id} started processing`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onJobCompleted(job: Job, result: any) {
     this.logger.log(`Bet processing job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onJobFailed(job: Job, error: Error) {
     this.logger.error(`Bet processing job ${job.id} failed:`, error.message);
   }

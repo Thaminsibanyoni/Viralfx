@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ProviderHealthService, ProviderHealthCheck } from './provider-health.service';
-import { RedisService } from '../../redis/redis.service';
+import { ProviderHealthService, ProviderHealthCheck } from "./provider-health.service";
+import { RedisService } from "../../redis/redis.service";
 
 export interface ProviderConfig {
   id: string;
@@ -55,8 +55,7 @@ export class ProviderRoutingService {
   constructor(
     private readonly configService: ConfigService,
     private readonly providerHealthService: ProviderHealthService,
-    private readonly redisService: RedisService,
-  ) {
+    private readonly redisService: RedisService) {
     this.initializeProviderConfigs();
   }
 
@@ -71,7 +70,7 @@ export class ProviderRoutingService {
         costPerRequest: 0.001, // $0.001 per email
         maxThroughput: 100,
         features: ['templates', 'analytics'],
-        isEnabled: true,
+        isEnabled: true
       },
       {
         id: 'sendgrid',
@@ -81,7 +80,7 @@ export class ProviderRoutingService {
         costPerRequest: 0.01, // $0.01 per email
         maxThroughput: 1000,
         features: ['high_throughput', 'low_latency', 'analytics', 'templates'],
-        isEnabled: true,
+        isEnabled: true
       },
       {
         id: 'mailgun',
@@ -91,7 +90,7 @@ export class ProviderRoutingService {
         costPerRequest: 0.008, // $0.008 per email
         maxThroughput: 800,
         features: ['analytics', 'templates'],
-        isEnabled: true,
+        isEnabled: true
       },
       {
         id: 'ses',
@@ -101,7 +100,7 @@ export class ProviderRoutingService {
         costPerRequest: 0.0001, // $0.0001 per email (very cheap)
         maxThroughput: 2000,
         features: ['high_throughput', 'low_latency', 'analytics'],
-        isEnabled: true,
+        isEnabled: true
       },
       // SMS providers
       {
@@ -113,7 +112,7 @@ export class ProviderRoutingService {
         supportedRegions: ['US', 'CA', 'GB', 'AU'],
         maxThroughput: 500,
         features: ['high_throughput', 'low_latency', 'analytics'],
-        isEnabled: true,
+        isEnabled: true
       },
       {
         id: 'africastalking',
@@ -124,7 +123,7 @@ export class ProviderRoutingService {
         supportedRegions: ['ZA', 'NG', 'KE', 'GH', 'UG', 'TZ', 'RW', 'BW', 'ZW', 'MZ'],
         maxThroughput: 300,
         features: ['analytics'],
-        isEnabled: true,
+        isEnabled: true
       },
       {
         id: 'termii',
@@ -135,7 +134,7 @@ export class ProviderRoutingService {
         supportedRegions: ['NG', 'GH', 'KE', 'ZA', 'UG'],
         maxThroughput: 250,
         features: ['analytics'],
-        isEnabled: true,
+        isEnabled: true
       },
       {
         id: 'clickatell',
@@ -146,7 +145,7 @@ export class ProviderRoutingService {
         supportedRegions: ['ZA', 'NG', 'KE', 'GH', 'UG', 'TZ', 'RW'],
         maxThroughput: 400,
         features: ['high_throughput', 'analytics'],
-        isEnabled: true,
+        isEnabled: true
       },
       // Push providers
       {
@@ -158,7 +157,7 @@ export class ProviderRoutingService {
         supportedPlatforms: ['android', 'web'],
         maxThroughput: 5000,
         features: ['high_throughput', 'low_latency', 'analytics'],
-        isEnabled: true,
+        isEnabled: true
       },
       {
         id: 'apns',
@@ -169,7 +168,7 @@ export class ProviderRoutingService {
         supportedPlatforms: ['ios'],
         maxThroughput: 5000,
         features: ['high_throughput', 'low_latency'],
-        isEnabled: true,
+        isEnabled: true
       },
       {
         id: 'onesignal',
@@ -180,7 +179,7 @@ export class ProviderRoutingService {
         supportedPlatforms: ['ios', 'android', 'web'],
         maxThroughput: 2000,
         features: ['high_throughput', 'analytics', 'segmentation'],
-        isEnabled: true,
+        isEnabled: true
       },
       // In-app providers
       {
@@ -191,7 +190,7 @@ export class ProviderRoutingService {
         costPerRequest: 0,
         maxThroughput: 10000,
         features: ['high_throughput', 'low_latency', 'real_time'],
-        isEnabled: true,
+        isEnabled: true
       },
     ];
 
@@ -277,8 +276,8 @@ export class ProviderRoutingService {
         performanceScore: scoredProviders[0].score.performance,
         reliabilityScore: scoredProviders[0].score.reliability,
         regionalOptimization: this.isRegionalOptimization(primaryProvider, context),
-        loadBalancing: this.isLoadBalancing(primaryProvider, context),
-      },
+        loadBalancing: this.isLoadBalancing(primaryProvider, context)
+      }
     };
 
     // Cache the decision
@@ -379,7 +378,7 @@ export class ProviderRoutingService {
       performance: context.requiresLowLatency ? 0.35 : 0.25,
       reliability: 0.30,
       regionalFit: context.geographicRouting ? 0.20 : 0.10,
-      featureFit: 0.10,
+      featureFit: 0.10
     };
 
     const overall =
@@ -395,7 +394,7 @@ export class ProviderRoutingService {
       performance: performanceScore,
       reliability: reliabilityScore,
       regionalFit: regionalFitScore,
-      featureFit: featureFitScore,
+      featureFit: featureFitScore
     };
   }
 
@@ -469,7 +468,7 @@ export class ProviderRoutingService {
   async updateProviderLoad(providerId: string, currentLoad: number): Promise<void> {
     this.loadBalancingState.set(providerId, {
       currentLoad,
-      lastUpdate: new Date(),
+      lastUpdate: new Date()
     });
 
     // Update Redis for distributed load tracking

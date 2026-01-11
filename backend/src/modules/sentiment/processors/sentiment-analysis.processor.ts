@@ -1,9 +1,10 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bullmq';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { SentimentService } from '../services/sentiment.service';
 import { SentimentAggregationService } from '../services/sentiment-aggregation.service';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 
 interface SentimentAnalysisJob {
   type: 'single' | 'batch' | 'aggregate';
@@ -25,17 +26,31 @@ interface SentimentResult {
 }
 
 @Processor('sentiment-analysis')
-export class SentimentAnalysisProcessor {
+export class SentimentAnalysisProcessor extends WorkerHost {
   private readonly logger = new Logger(SentimentAnalysisProcessor.name);
 
   constructor(
     private readonly sentimentService: SentimentService,
     private readonly aggregationService: SentimentAggregationService,
-    private readonly prisma: PrismaService,
-  ) {}
+    private readonly prisma: PrismaService) {
+    super();
+}
 
-  @Process('analyze-content')
-  async handleSentimentAnalysis(job: Job<SentimentAnalysisJob>): Promise<SentimentResult | SentimentResult[]> {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'analyze-content':
+        return this.handleSentimentAnalysis(job);
+      case 'update-aggregations':
+        return this.handleAggregationUpdate(job);
+      case 'cleanup-old-data':
+        return this.handleDataCleanup(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleSentimentAnalysis(job: Job<SentimentAnalysisJob>): Promise<SentimentResult | SentimentResult[]> {
     const { type, data } = job.data;
 
     this.logger.log(`Processing sentiment analysis job ${job.id} of type: ${type}`);
@@ -57,8 +72,7 @@ export class SentimentAnalysisProcessor {
     }
   }
 
-  @Process('update-aggregations')
-  async handleAggregationUpdate(job: Job): Promise<void> {
+  private async handleAggregationUpdate(job: Job): Promise<void> {
     this.logger.log(`Updating sentiment aggregations for job ${job.id}`);
 
     try {
@@ -66,13 +80,13 @@ export class SentimentAnalysisProcessor {
       const activeTopics = await this.prisma.sentimentEntry.findMany({
         where: {
           timestamp: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
-          },
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+          }
         },
         select: {
-          topicId: true,
+          topicId: true
         },
-        distinct: ['topicId'],
+        distinct: ['topicId']
       });
 
       if (activeTopics.length === 0) {
@@ -103,8 +117,7 @@ export class SentimentAnalysisProcessor {
     }
   }
 
-  @Process('cleanup-old-data')
-  async handleDataCleanup(job: Job): Promise<void> {
+  private async handleDataCleanup(job: Job): Promise<void> {
     const { olderThanDays = 30, keepAggregated = true } = job.data;
 
     this.logger.log(`Starting sentiment data cleanup for data older than ${olderThanDays} days`);
@@ -116,9 +129,9 @@ export class SentimentAnalysisProcessor {
       const deletedEntries = await this.prisma.sentimentEntry.deleteMany({
         where: {
           timestamp: {
-            lt: cutoffDate,
-          },
-        },
+            lt: cutoffDate
+          }
+        }
       });
 
       this.logger.log(`Deleted ${deletedEntries.count} old sentiment entries`);
@@ -151,8 +164,8 @@ export class SentimentAnalysisProcessor {
           source: source || 'manual',
           content: content.substring(0, 1000), // Store truncated content
           metadata: metadata || {},
-          timestamp: new Date(),
-        },
+          timestamp: new Date()
+        }
       });
 
       // Invalidate cache for this topic
@@ -190,8 +203,8 @@ export class SentimentAnalysisProcessor {
                 source: content.source || 'batch',
                 content: content.text.substring(0, 1000),
                 metadata: content.metadata || {},
-                timestamp: new Date(content.timestamp || Date.now()),
-              },
+                timestamp: new Date(content.timestamp || Date.now())
+              }
             });
 
             results.push(analysisResult);
@@ -264,8 +277,8 @@ export class SentimentAnalysisProcessor {
       metadata: {
         wordCount: words.length,
         positiveWords: positiveCount,
-        negativeWords: negativeCount,
-      },
+        negativeWords: negativeCount
+      }
     };
   }
 
@@ -295,17 +308,17 @@ export class SentimentAnalysisProcessor {
     );
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onJobActive(job: Job) {
     this.logger.debug(`Sentiment analysis job ${job.id} started processing`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onJobCompleted(job: Job, result: any) {
     this.logger.log(`Sentiment analysis job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onJobFailed(job: Job, error: Error) {
     this.logger.error(`Sentiment analysis job ${job.id} failed:`, error.message);
   }

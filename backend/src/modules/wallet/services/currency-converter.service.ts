@@ -43,7 +43,7 @@ export class CurrencyConverterService {
     'ZAR_EUR': { rate: 0.050, rateUpdatedAt: new Date(), source: 'default' },
     'ZAR_GBP': { rate: 0.042, rateUpdatedAt: new Date(), source: 'default' },
     'ZAR_BTC': { rate: 0.00000222, rateUpdatedAt: new Date(), source: 'default' },
-    'ZAR_ETH': { rate: 0.00004, rateUpdatedAt: new Date(), source: 'default' },
+    'ZAR_ETH': { rate: 0.00004, rateUpdatedAt: new Date(), source: 'default' }
   };
 
   // Supported currencies
@@ -148,8 +148,7 @@ export class CurrencyConverterService {
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
-    private readonly configService: ConfigService,
-  ) {
+    private readonly configService: ConfigService) {
     this.initializeExchangeRates();
   }
 

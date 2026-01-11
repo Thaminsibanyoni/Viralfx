@@ -1,25 +1,25 @@
-import { IsOptional, IsString, IsEnum, IsInt, Min, Max, Length } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsInt, Min, Max, Length, IsDateString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 
 export enum UserStatus {
   ACTIVE = 'ACTIVE',
   SUSPENDED = 'SUSPENDED',
-  INACTIVE = 'INACTIVE',
+  INACTIVE = 'INACTIVE'
 }
 
 export enum KYCStatus {
   NOT_SUBMITTED = 'NOT_SUBMITTED',
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED',
+  REJECTED = 'REJECTED'
 }
 
 export enum UserRole {
   USER = 'USER',
   ADMIN = 'ADMIN',
   KYC_REVIEWER = 'KYC_REVIEWER',
-  SUPPORT = 'SUPPORT',
+  SUPPORT = 'SUPPORT'
 }
 
 export enum SortByField {
@@ -28,12 +28,12 @@ export enum SortByField {
   USERNAME = 'username',
   EMAIL = 'email',
   KYC_STATUS = 'kycStatus',
-  IS_ACTIVE = 'isActive',
+  IS_ACTIVE = 'isActive'
 }
 
 export enum SortOrder {
   ASC = 'ASC',
-  DESC = 'DESC',
+  DESC = 'DESC'
 }
 
 export class UserQueryDto {
@@ -41,7 +41,7 @@ export class UserQueryDto {
     description: 'Page number for pagination',
     example: 1,
     minimum: 1,
-    default: 1,
+    default: 1
   })
   @IsOptional()
   @Type(() => Number)
@@ -54,7 +54,7 @@ export class UserQueryDto {
     example: 20,
     minimum: 1,
     maximum: 100,
-    default: 20,
+    default: 20
   })
   @IsOptional()
   @Type(() => Number)
@@ -65,7 +65,7 @@ export class UserQueryDto {
 
   @ApiPropertyOptional({
     description: 'Search query to filter users by username or email',
-    example: 'john',
+    example: 'john'
   })
   @IsOptional()
   @IsString()
@@ -75,7 +75,7 @@ export class UserQueryDto {
   @ApiPropertyOptional({
     description: 'Filter by user status',
     enum: UserStatus,
-    example: UserStatus.ACTIVE,
+    example: UserStatus.ACTIVE
   })
   @IsOptional()
   @IsEnum(UserStatus)
@@ -84,7 +84,7 @@ export class UserQueryDto {
   @ApiPropertyOptional({
     description: 'Filter by KYC status',
     enum: KYCStatus,
-    example: KYCStatus.APPROVED,
+    example: KYCStatus.APPROVED
   })
   @IsOptional()
   @IsEnum(KYCStatus)
@@ -93,7 +93,7 @@ export class UserQueryDto {
   @ApiPropertyOptional({
     description: 'Filter by user role',
     enum: UserRole,
-    example: UserRole.USER,
+    example: UserRole.USER
   })
   @IsOptional()
   @IsEnum(UserRole)
@@ -103,7 +103,7 @@ export class UserQueryDto {
     description: 'Field to sort by',
     enum: SortByField,
     example: SortByField.CREATED_AT,
-    default: SortByField.CREATED_AT,
+    default: SortByField.CREATED_AT
   })
   @IsOptional()
   @IsEnum(SortByField)
@@ -113,7 +113,7 @@ export class UserQueryDto {
     description: 'Sort order',
     enum: SortOrder,
     example: SortOrder.DESC,
-    default: SortOrder.DESC,
+    default: SortOrder.DESC
   })
   @IsOptional()
   @IsEnum(SortOrder)
@@ -121,7 +121,7 @@ export class UserQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filter by country code',
-    example: 'ZA',
+    example: 'ZA'
   })
   @IsOptional()
   @IsString()
@@ -131,7 +131,7 @@ export class UserQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filter users created after this date',
-    example: '2024-01-01',
+    example: '2024-01-01'
   })
   @IsOptional()
   @IsDateString()
@@ -139,7 +139,7 @@ export class UserQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filter users created before this date',
-    example: '2024-12-31',
+    example: '2024-12-31'
   })
   @IsOptional()
   @IsDateString()
@@ -147,7 +147,7 @@ export class UserQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filter users who logged in after this date',
-    example: '2024-01-01',
+    example: '2024-01-01'
   })
   @IsOptional()
   @IsDateString()
@@ -155,7 +155,7 @@ export class UserQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filter users who logged in before this date',
-    example: '2024-12-31',
+    example: '2024-12-31'
   })
   @IsOptional()
   @IsDateString()
@@ -163,7 +163,7 @@ export class UserQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filter verified/unverified users',
-    example: true,
+    example: true
   })
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
@@ -171,7 +171,7 @@ export class UserQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filter active/inactive users',
-    example: true,
+    example: true
   })
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)

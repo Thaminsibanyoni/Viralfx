@@ -1,8 +1,9 @@
 import { Injectable, Logger, BadRequestException, NotFoundException, InternalServerErrorException, Inject } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 import { Cache } from 'cache-manager';
 import { ConfigService } from '@nestjs/config';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { v4 as uuidv4 } from 'uuid';
 import {
   ReferralCodeDto,
@@ -12,14 +13,14 @@ import {
   RewardDto,
   ClaimRewardDto,
   ReferralQueryDto,
-  RewardClaimDto,
+  RewardClaimDto
 } from '../dto/referral.dto';
 import {
   ReferralStatus,
   RewardStatus,
   RewardType,
   RewardTier,
-  ReferralEventType,
+  ReferralEventType
 } from '../types/referral.types';
 
 @Injectable()
@@ -31,9 +32,8 @@ export class ReferralService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
-    private readonly cacheManager: Cache,
-    private readonly configService: ConfigService,
-  ) {}
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    private readonly configService: ConfigService) {}
 
   /**
    * Create a referral code for a user
@@ -50,8 +50,8 @@ export class ReferralService {
         where: {
           userId,
           isActive: true,
-          expiresAt: { gt: new Date() },
-        },
+          expiresAt: { gt: new Date() }
+        }
       });
 
       if (existingCode && !createData.allowMultiple) {
@@ -70,8 +70,8 @@ export class ReferralService {
           expiresAt: createData.expiresAt || this.getDefaultExpiryDate(),
           rewardMultiplier: createData.rewardMultiplier || 1.0,
           isActive: true,
-          metadata: createData.metadata || {},
-        },
+          metadata: createData.metadata || {}
+        }
       });
 
       // Cache the referral code
@@ -124,12 +124,12 @@ export class ReferralService {
                 select: {
                   firstName: true,
                   lastName: true,
-                  avatar: true,
-                },
-              },
-            },
-          },
-        },
+                  avatar: true
+                }
+              }
+            }
+          }
+        }
       }),
       this.prisma.referralCode.count({ where: whereClause }),
     ]);
@@ -138,7 +138,7 @@ export class ReferralService {
       codes: codes.map(code => this.formatReferralCode(code)),
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit)
     };
   }
 
@@ -172,12 +172,12 @@ export class ReferralService {
                 profile: {
                   select: {
                     firstName: true,
-                    lastName: true,
-                  },
-                },
-              },
-            },
-          },
+                    lastName: true
+                  }
+                }
+              }
+            }
+          }
         });
       }
 
@@ -195,8 +195,8 @@ export class ReferralService {
       const existingReferral = await this.prisma.referral.findFirst({
         where: {
           referralCodeId: referralCode.id,
-          referredUserId: newUserId,
-        },
+          referredUserId: newUserId
+        }
       });
 
       if (existingReferral) {
@@ -210,8 +210,8 @@ export class ReferralService {
           where: { id: referralCode.id },
           data: {
             usedCount: { increment: 1 },
-            lastUsedAt: new Date(),
-          },
+            lastUsedAt: new Date()
+          }
         });
 
         // Create referral record
@@ -224,9 +224,9 @@ export class ReferralService {
             metadata: {
               ...metadata,
               ipAddress: metadata?.ipAddress,
-              userAgent: metadata?.userAgent,
-            },
-          },
+              userAgent: metadata?.userAgent
+            }
+          }
         });
       });
 
@@ -235,7 +235,7 @@ export class ReferralService {
         referralId: referral.id,
         eventType: ReferralEventType.CODE_USED,
         userId: newUserId,
-        metadata: { referralCode: code },
+        metadata: { referralCode: code }
       });
 
       // Invalidate cache
@@ -246,7 +246,7 @@ export class ReferralService {
       return {
         success: true,
         referralCode: this.formatReferralCode(referralCode),
-        message: 'Referral code applied successfully!',
+        message: 'Referral code applied successfully!'
       };
     } catch (error) {
       this.logger.error('Failed to use referral code:', error);
@@ -274,16 +274,16 @@ export class ReferralService {
           referrer: {
             select: {
               id: true,
-              username: true,
-            },
+              username: true
+            }
           },
           referredUser: {
             select: {
               id: true,
-              username: true,
-            },
-          },
-        },
+              username: true
+            }
+          }
+        }
       });
 
       if (!referral) {
@@ -324,9 +324,9 @@ export class ReferralService {
               ...updateData,
               metadata: {
                 ...referral.metadata,
-                ...confirmData.metadata,
-              },
-            },
+                ...confirmData.metadata
+              }
+            }
           });
 
           // Track the event
@@ -334,7 +334,7 @@ export class ReferralService {
             referralId,
             eventType: confirmData.eventType,
             userId: referral.referredUserId,
-            metadata: confirmData.metadata,
+            metadata: confirmData.metadata
           });
         });
 
@@ -367,7 +367,7 @@ export class ReferralService {
 
     try {
       const dateFilter = timeWindow ? {
-        createdAt: { gte: new Date(Date.now() - this.parseTimeWindow(timeWindow)) },
+        createdAt: { gte: new Date(Date.now() - this.parseTimeWindow(timeWindow)) }
       } : {};
 
       const [
@@ -379,21 +379,21 @@ export class ReferralService {
         recentReferrals,
       ] = await Promise.all([
         this.prisma.referral.count({
-          where: { referrerId: userId, ...dateFilter },
+          where: { referrerId: userId, ...dateFilter }
         }),
         this.prisma.referral.count({
-          where: { referrerId: userId, status: ReferralStatus.COMPLETED, ...dateFilter },
+          where: { referrerId: userId, status: ReferralStatus.COMPLETED, ...dateFilter }
         }),
         this.prisma.referral.count({
-          where: { referrerId: userId, status: ReferralStatus.PENDING, ...dateFilter },
+          where: { referrerId: userId, status: ReferralStatus.PENDING, ...dateFilter }
         }),
         this.prisma.referral.aggregate({
           where: {
             referrerId: userId,
             status: ReferralStatus.COMPLETED,
-            ...dateFilter,
+            ...dateFilter
           },
-          _sum: { rewardAmount: true },
+          _sum: { rewardAmount: true }
         }),
         this.prisma.referralCode.findMany({
           where: { userId },
@@ -402,8 +402,8 @@ export class ReferralService {
             code: true,
             usedCount: true,
             isActive: true,
-            expiresAt: true,
-          },
+            expiresAt: true
+          }
         }),
         this.prisma.referral.findMany({
           where: { referrerId: userId, ...dateFilter },
@@ -416,12 +416,12 @@ export class ReferralService {
                 profile: {
                   select: {
                     firstName: true,
-                    lastName: true,
-                  },
-                },
-              },
-            },
-          },
+                    lastName: true
+                  }
+                }
+              }
+            }
+          }
         }),
       ]);
 
@@ -435,15 +435,15 @@ export class ReferralService {
           code: code.code,
           usedCount: code.usedCount,
           isActive: code.isActive,
-          expiresAt: code.expiresAt,
+          expiresAt: code.expiresAt
         })),
         recentReferrals: recentReferrals.map(referral => ({
           id: referral.id,
           referredUser: referral.referredUser.username,
           status: referral.status,
           rewardAmount: referral.rewardAmount,
-          createdAt: referral.createdAt,
-        })),
+          createdAt: referral.createdAt
+        }))
       };
 
       // Cache the stats
@@ -473,26 +473,26 @@ export class ReferralService {
 
     try {
       const dateFilter = {
-        createdAt: { gte: new Date(Date.now() - this.parseTimeWindow(timeWindow)) },
+        createdAt: { gte: new Date(Date.now() - this.parseTimeWindow(timeWindow)) }
       };
 
       const leaderboardData = await this.prisma.referral.groupBy({
         by: ['referrerId'],
         where: {
           status: ReferralStatus.COMPLETED,
-          ...dateFilter,
+          ...dateFilter
         },
         _count: {
-          referrerId: true,
+          referrerId: true
         },
         _sum: {
-          rewardAmount: true,
+          rewardAmount: true
         },
         orderBy: {
-          _count: { referrerId: 'desc' },
+          _count: { referrerId: 'desc' }
         },
         take: limit,
-        skip: (page - 1) * limit,
+        skip: (page - 1) * limit
       });
 
       // Get user details for leaderboard entries
@@ -506,10 +506,10 @@ export class ReferralService {
             select: {
               firstName: true,
               lastName: true,
-              avatar: true,
-            },
-          },
-        },
+              avatar: true
+            }
+          }
+        }
       });
 
       const userMap = users.reduce((map, user) => {
@@ -521,7 +521,7 @@ export class ReferralService {
         rank: (page - 1) * limit + index + 1,
         user: userMap[entry.referrerId],
         referralCount: entry._count.referrerId,
-        totalEarnings: entry._sum.rewardAmount || 0,
+        totalEarnings: entry._sum.rewardAmount || 0
       }));
 
       const leaderboard: LeaderboardDto = {
@@ -529,7 +529,7 @@ export class ReferralService {
         timeWindow,
         page,
         totalPages: Math.ceil(leaderboardData.length / limit),
-        generatedAt: new Date(),
+        generatedAt: new Date()
       };
 
       // Cache the leaderboard
@@ -550,7 +550,7 @@ export class ReferralService {
       const whereClause: any = {
         isActive: true,
         startDate: { lte: new Date() },
-        endDate: { gt: new Date() },
+        endDate: { gt: new Date() }
       };
 
       const rewards = await this.prisma.referralReward.findMany({
@@ -559,9 +559,9 @@ export class ReferralService {
         include: {
           claims: userId ? {
             where: { userId },
-            select: { id: true },
-          } : false,
-        },
+            select: { id: true }
+          } : false
+        }
       });
 
       return rewards.map(reward => ({
@@ -578,7 +578,7 @@ export class ReferralService {
         maxClaims: reward.maxClaims,
         currentClaims: reward._count?.claims || 0,
         canClaim: userId ? reward.currentClaims < reward.maxClaims : false,
-        claimedByUser: userId ? reward._count?.claims > 0 : false,
+        claimedByUser: userId ? reward._count?.claims > 0 : false
       }));
     } catch (error) {
       this.logger.error('Failed to get available rewards:', error);
@@ -598,7 +598,7 @@ export class ReferralService {
     try {
       const [reward, userStats] = await Promise.all([
         this.prisma.referralReward.findUnique({
-          where: { id: claimData.rewardId },
+          where: { id: claimData.rewardId }
         }),
         this.getReferralStats(userId),
       ]);
@@ -621,16 +621,16 @@ export class ReferralService {
             userId,
             rewardId: reward.id,
             status: RewardStatus.PENDING,
-            metadata: claimData.metadata || {},
-          },
+            metadata: claimData.metadata || {}
+          }
         });
 
         // Update reward claim count
         await tx.referralReward.update({
           where: { id: reward.id },
           data: {
-            currentClaims: { increment: 1 },
-          },
+            currentClaims: { increment: 1 }
+          }
         });
 
         return newClaim;
@@ -650,7 +650,7 @@ export class ReferralService {
         processedAt: claim.updatedAt,
         value: reward.value,
         type: reward.type,
-        name: reward.name,
+        name: reward.name
       };
     } catch (error) {
       this.logger.error('Failed to claim reward:', error);
@@ -672,8 +672,8 @@ export class ReferralService {
         referralId: eventData.referralId,
         eventType: eventData.eventType,
         userId: eventData.userId,
-        metadata: eventData.metadata || {},
-      },
+        metadata: eventData.metadata || {}
+      }
     });
   }
 
@@ -687,7 +687,7 @@ export class ReferralService {
     while (attempts < maxAttempts) {
       const code = this.generateReferralCode();
       const exists = await this.prisma.referralCode.findUnique({
-        where: { code },
+        where: { code }
       });
 
       if (!exists) {
@@ -734,9 +734,9 @@ export class ReferralService {
       where: {
         referredUserId: userId,
         createdAt: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days
-        },
-      },
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 days
+        }
+      }
     });
 
     if (recentReferral) {
@@ -757,8 +757,8 @@ export class ReferralService {
     await this.prisma.referral.update({
       where: { id: referral.id },
       data: {
-        rewardAmount,
-      },
+        rewardAmount
+      }
     });
 
     // Add to referrer's wallet (would integrate with wallet service)
@@ -766,8 +766,8 @@ export class ReferralService {
 
     // Send notification to referrer
     // await this.notificationService.sendNotification(referral.referrerId, {
-    //   type: 'REFERRAL_REWARD',
-    //   message: `You earned ${rewardAmount} from a successful referral!`,
+    //   type: 'REFERRAL_REWARD'
+    //   message: `You earned ${rewardAmount} from a successful referral!`
     // });
   }
 
@@ -841,8 +841,8 @@ export class ReferralService {
       await this.prisma.referralRewardClaim.update({
         where: { id: claim.id },
         data: {
-          status: RewardStatus.PROCESSED,
-        },
+          status: RewardStatus.PROCESSED
+        }
       });
     } catch (error) {
       // Mark claim as failed
@@ -851,9 +851,9 @@ export class ReferralService {
         data: {
           status: RewardStatus.FAILED,
           metadata: {
-            error: error.message,
-          },
-        },
+            error: error.message
+          }
+        }
       });
 
       throw error;
@@ -865,9 +865,9 @@ export class ReferralService {
 
     // Store discount code
     // await this.discountService.createDiscountCode({
-    //   code,
-    //   userId,
-    //   value: reward.value,
+    //   code
+    //   userId
+    //   value: reward.value
     //   type: 'PERCENTAGE', // or 'FIXED'
     //   expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
     // });
@@ -894,7 +894,7 @@ export class ReferralService {
       d: 24 * 60 * 60 * 1000, // day
       w: 7 * 24 * 60 * 60 * 1000, // week
       m: 30 * 24 * 60 * 60 * 1000, // month
-      y: 365 * 24 * 60 * 60 * 1000, // year
+      y: 365 * 24 * 60 * 60 * 1000 // year
     };
 
     return value * (multipliers[unit as keyof typeof multipliers] || multipliers.d);
@@ -928,7 +928,7 @@ export class ReferralService {
       expiresAt: referralCode.expiresAt,
       createdAt: referralCode.createdAt,
       lastUsedAt: referralCode.lastUsedAt,
-      user: referralCode.user,
+      user: referralCode.user
     };
   }
 }

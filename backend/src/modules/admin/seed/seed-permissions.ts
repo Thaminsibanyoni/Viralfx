@@ -1,20 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { AdminPermission, PermissionCategory } from '../entities/admin-permission.entity';
-import { AdminUser, AdminRole } from '../entities/admin-user.entity';
 import * as bcrypt from 'bcrypt';
+import { AdminRole, PermissionCategory } from '../enums/admin.enum';
 
 @Injectable()
 export class AdminSeeder {
   private readonly logger = new Logger(AdminSeeder.name);
 
   constructor(
-    @InjectRepository(AdminPermission)
-    private permissionRepository: Repository<AdminPermission>,
-    @InjectRepository(AdminUser)
-    private adminRepository: Repository<AdminUser>,
-  ) {}
+        ) {}
 
   async seed() {
     this.logger.log('Starting admin system seeding...');
@@ -172,13 +165,13 @@ export class AdminSeeder {
     ];
 
     for (const permissionData of permissions) {
-      const existingPermission = await this.permissionRepository.findOne({
-        where: { name: permissionData.name },
+      const existingPermission = await this.prisma.permissionrepository.findFirst({
+        where: { name: permissionData.name }
       });
 
       if (!existingPermission) {
-        const permission = this.permissionRepository.create(permissionData);
-        await this.permissionRepository.save(permission);
+        const permission = this.prisma.permissionrepository.create(permissionData);
+        await this.prisma.permissionrepository.upsert(permission);
         this.logger.log(`Created permission: ${permission.name}`);
       }
     }
@@ -190,15 +183,15 @@ export class AdminSeeder {
     const superAdminEmail = 'superadmin@viralfx.com';
     const defaultPassword = 'admin123'; // Change this in production!
 
-    const existingSuperAdmin = await this.adminRepository.findOne({
+    const existingSuperAdmin = await this.prisma.adminrepository.findFirst({
       where: { email: superAdminEmail },
-      relations: ['permissions'],
+      relations: ['permissions']
     });
 
     if (!existingSuperAdmin) {
       const hashedPassword = await bcrypt.hash(defaultPassword, 12);
 
-      const superAdmin = this.adminRepository.create({
+      const superAdmin = this.prisma.adminrepository.create({
         email: superAdminEmail,
         password: hashedPassword,
         firstName: 'Super',
@@ -209,15 +202,15 @@ export class AdminSeeder {
         twoFactorEnabled: false,
         ipWhitelist: [], // Empty whitelist means any IP allowed in development
         jurisdictionClearance: ['*'], // All jurisdictions
-        department: 'Executive',
+        department: 'Executive'
       });
 
-      const savedSuperAdmin = await this.adminRepository.save(superAdmin);
+      const savedSuperAdmin = await this.prisma.adminrepository.upsert(superAdmin);
 
       // Grant all permissions to SuperAdmin
-      const allPermissions = await this.permissionRepository.find();
+      const allPermissions = await this.prisma.permissionrepository.findMany();
       savedSuperAdmin.permissions = allPermissions;
-      await this.adminRepository.save(savedSuperAdmin);
+      await this.prisma.adminrepository.upsert(savedSuperAdmin);
 
       this.logger.log(`Created SuperAdmin: ${superAdminEmail} with password: ${defaultPassword}`);
       this.logger.log('IMPORTANT: Change the default SuperAdmin password in production!');

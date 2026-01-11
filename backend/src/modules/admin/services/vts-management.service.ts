@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { AdminWebSocketService } from './admin-websocket.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { AdminWebSocketService } from "./admin-websocket.service";
 
 @Injectable()
 export class VTSManagementService {
@@ -8,8 +8,7 @@ export class VTSManagementService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly adminWebSocketService: AdminWebSocketService,
-  ) {}
+    private readonly adminWebSocketService: AdminWebSocketService) {}
 
   async getSymbols(filters: {
     page: number;
@@ -54,17 +53,17 @@ export class VTSManagementService {
             select: {
               viralIndex: true,
               sentimentScore: true,
-              timestamp: true,
-            },
+              timestamp: true
+            }
           },
           _count: {
             select: {
               bets: true,
               watchlists: true,
-              marketOrders: true,
-            },
-          },
-        },
+              marketOrders: true
+            }
+          }
+        }
       }),
       this.prisma.topic.count({ where }),
     ]);
@@ -84,15 +83,15 @@ export class VTSManagementService {
         usage: {
           bets: symbol._count.bets,
           watchlists: symbol._count.watchlists,
-          marketOrders: symbol._count.marketOrders,
+          marketOrders: symbol._count.marketOrders
         },
         createdAt: symbol.createdAt,
-        updatedAt: symbol.updatedAt,
+        updatedAt: symbol.updatedAt
       })),
       total,
       page: filters.page,
       limit: filters.limit,
-      totalPages: Math.ceil(total / filters.limit),
+      totalPages: Math.ceil(total / filters.limit)
     };
   }
 
@@ -102,34 +101,34 @@ export class VTSManagementService {
       include: {
         viralIndexSnapshots: {
           orderBy: { timestamp: 'desc' },
-          take: 100, // Get recent history
+          take: 100 // Get recent history
         },
         bets: {
           take: 10,
           orderBy: { createdAt: 'desc' },
           include: {
             user: {
-              select: { id: true, email: true, username: true },
-            },
-          },
+              select: { id: true, email: true, username: true }
+            }
+          }
         },
         watchlists: {
           take: 10,
           include: {
             user: {
-              select: { id: true, email: true, username: true },
-            },
-          },
+              select: { id: true, email: true, username: true }
+            }
+          }
         },
         _count: {
           select: {
             bets: true,
             watchlists: true,
             marketOrders: true,
-            ingestEvents: true,
-          },
-        },
-      },
+            ingestEvents: true
+          }
+        }
+      }
     });
 
     if (!symbol) {
@@ -153,7 +152,7 @@ export class VTSManagementService {
       viralityHistory: symbol.viralIndexSnapshots.map(snapshot => ({
         timestamp: snapshot.timestamp,
         viralityScore: snapshot.viralIndex,
-        sentimentScore: snapshot.sentimentScore,
+        sentimentScore: snapshot.sentimentScore
       })),
       recentActivity: {
         bets: symbol.bets.map(bet => ({
@@ -162,22 +161,22 @@ export class VTSManagementService {
           amount: bet.amount,
           result: bet.result,
           user: bet.user,
-          createdAt: bet.createdAt,
+          createdAt: bet.createdAt
         })),
         watchlists: symbol.watchlists.map(watchlist => ({
           id: watchlist.id,
           user: watchlist.user,
-          createdAt: watchlist.createdAt,
-        })),
+          createdAt: watchlist.createdAt
+        }))
       },
       usage: {
         totalBets: symbol._count.bets,
         totalWatchlists: symbol._count.watchlists,
         totalMarketOrders: symbol._count.marketOrders,
-        totalEvents: symbol._count.ingestEvents,
+        totalEvents: symbol._count.ingestEvents
       },
       createdAt: symbol.createdAt,
-      updatedAt: symbol.updatedAt,
+      updatedAt: symbol.updatedAt
     };
   }
 
@@ -207,10 +206,10 @@ export class VTSManagementService {
               id: true,
               symbol: true,
               title: true,
-              status: true,
-            },
-          },
-        },
+              status: true
+            }
+          }
+        }
       }),
       this.prisma.vtsAlias.count({ where }),
     ]);
@@ -223,12 +222,12 @@ export class VTSManagementService {
         isActive: alias.isActive,
         topic: alias.topic,
         createdAt: alias.createdAt,
-        updatedAt: alias.updatedAt,
+        updatedAt: alias.updatedAt
       })),
       total,
       page: filters.page,
       limit: filters.limit,
-      totalPages: Math.ceil(total / filters.limit),
+      totalPages: Math.ceil(total / filters.limit)
     };
   }
 
@@ -238,8 +237,8 @@ export class VTSManagementService {
       where: {
         alias: alias.toLowerCase(),
         isActive: true,
-        NOT: { id },
-      },
+        NOT: { id }
+      }
     });
 
     if (existingAlias) {
@@ -251,8 +250,8 @@ export class VTSManagementService {
       data: {
         alias: alias.toLowerCase(),
         updatedBy: adminId,
-        updatedAt: new Date(),
-      },
+        updatedAt: new Date()
+      }
     });
 
     // Emit WebSocket event
@@ -260,7 +259,7 @@ export class VTSManagementService {
       id,
       alias,
       updatedBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     return updatedAlias;
@@ -286,28 +285,28 @@ export class VTSManagementService {
       // Update all references from source to target
       await tx.bet.updateMany({
         where: { topicId: sourceId },
-        data: { topicId: targetId },
+        data: { topicId: targetId }
       });
 
       await tx.watchlist.updateMany({
         where: { topicId: sourceId },
-        data: { topicId: targetId },
+        data: { topicId: targetId }
       });
 
       await tx.marketOrder.updateMany({
         where: { topicId: sourceId },
-        data: { topicId: targetId },
+        data: { topicId: targetId }
       });
 
       await tx.ingestEvent.updateMany({
         where: { topicId: sourceId },
-        data: { topicId: targetId },
+        data: { topicId: targetId }
       });
 
       // Update aliases
       await tx.vtsAlias.updateMany({
         where: { symbol: sourceSymbol.symbol },
-        data: { symbol: targetSymbol.symbol },
+        data: { symbol: targetSymbol.symbol }
       });
 
       // Archive the source symbol
@@ -319,16 +318,16 @@ export class VTSManagementService {
             ...sourceSymbol.metadata,
             mergedInto: targetId,
             mergedAt: new Date().toISOString(),
-            mergedBy: adminId,
-          },
-        },
+            mergedBy: adminId
+          }
+        }
       });
 
       return {
         sourceId,
         targetId,
         sourceSymbol: sourceSymbol.symbol,
-        targetSymbol: targetSymbol.symbol,
+        targetSymbol: targetSymbol.symbol
       };
     });
 
@@ -340,16 +339,16 @@ export class VTSManagementService {
         mergedBy: adminId,
         metadata: {
           sourceSymbol: sourceSymbol.symbol,
-          targetSymbol: targetSymbol.symbol,
-        },
-      },
+          targetSymbol: targetSymbol.symbol
+        }
+      }
     });
 
     // Emit WebSocket event
     await this.adminWebSocketService.broadcastToAdmins('vts:symbol:merged', {
       ...result,
       mergedBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`VTS symbols merged: ${sourceSymbol.symbol} -> ${targetSymbol.symbol} by admin ${adminId}`);
@@ -359,7 +358,7 @@ export class VTSManagementService {
 
   async splitSymbol(id: string, newSymbols: any[], adminId: string) {
     const symbol = await this.prisma.topic.findUnique({
-      where: { id },
+      where: { id }
     });
 
     if (!symbol) {
@@ -381,9 +380,9 @@ export class VTSManagementService {
             ...symbol.metadata,
             splitInto: newSymbols.map(s => s.id),
             splitAt: new Date().toISOString(),
-            splitBy: adminId,
-          },
-        },
+            splitBy: adminId
+          }
+        }
       });
 
       // Create new symbols
@@ -401,9 +400,9 @@ export class VTSManagementService {
               metadata: {
                 ...newSymbol.metadata,
                 splitFrom: id,
-                createdAt: new Date().toISOString(),
-              },
-            },
+                createdAt: new Date().toISOString()
+              }
+            }
           });
         })
       );
@@ -416,7 +415,7 @@ export class VTSManagementService {
       originalId: id,
       newSymbols: result,
       splitBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     this.logger.log(`VTS symbol ${id} split into ${result.length} symbols by admin ${adminId}`);
@@ -437,9 +436,9 @@ export class VTSManagementService {
         category,
         metadata: {
           categoryUpdatedBy: adminId,
-          categoryUpdatedAt: new Date().toISOString(),
-        },
-      },
+          categoryUpdatedAt: new Date().toISOString()
+        }
+      }
     });
 
     // Emit WebSocket event
@@ -447,7 +446,7 @@ export class VTSManagementService {
       id,
       category,
       updatedBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     return updatedSymbol;
@@ -461,25 +460,25 @@ export class VTSManagementService {
         metadata: {
           frozenBy: adminId,
           frozenAt: new Date().toISOString(),
-          freezeReason: reason,
-        },
-      },
+          freezeReason: reason
+        }
+      }
     });
 
     // Cancel any active orders for this symbol
     await this.prisma.marketOrder.updateMany({
       where: {
         topicId: id,
-        status: 'ACTIVE',
+        status: 'ACTIVE'
       },
       data: {
         status: 'CANCELLED',
         metadata: {
           cancelledBy: 'system',
           reason: 'Symbol frozen',
-          cancelledAt: new Date().toISOString(),
-        },
-      },
+          cancelledAt: new Date().toISOString()
+        }
+      }
     });
 
     // Emit WebSocket event
@@ -487,7 +486,7 @@ export class VTSManagementService {
       id,
       reason,
       frozenBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     return updatedSymbol;
@@ -500,16 +499,16 @@ export class VTSManagementService {
         status: 'ACTIVE',
         metadata: {
           unfrozenBy: adminId,
-          unfrozenAt: new Date().toISOString(),
-        },
-      },
+          unfrozenAt: new Date().toISOString()
+        }
+      }
     });
 
     // Emit WebSocket event
     await this.adminWebSocketService.broadcastToAdmins('vts:symbol:unfrozen', {
       id,
       unfrozenBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     return updatedSymbol;
@@ -525,7 +524,7 @@ export class VTSManagementService {
 
     // Create backup of current state
     const currentSymbol = await this.prisma.topic.findUnique({
-      where: { id },
+      where: { id }
     });
 
     await this.prisma.vtsVersionHistory.create({
@@ -533,8 +532,8 @@ export class VTSManagementService {
         topicId: id,
         version: versionHistory.length + 1,
         data: currentSymbol,
-        createdBy: adminId,
-      },
+        createdBy: adminId
+      }
     });
 
     // Restore to target version
@@ -546,9 +545,9 @@ export class VTSManagementService {
           ...targetVersion.data.metadata,
           rolledBackFrom: currentSymbol.version,
           rolledBackBy: adminId,
-          rolledBackAt: new Date().toISOString(),
-        },
-      },
+          rolledBackAt: new Date().toISOString()
+        }
+      }
     });
 
     // Emit WebSocket event
@@ -556,7 +555,7 @@ export class VTSManagementService {
       id,
       version,
       rolledBackBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     return updatedSymbol;
@@ -590,17 +589,17 @@ export class VTSManagementService {
               id: true,
               symbol: true,
               title: true,
-              category: true,
-            },
+              category: true
+            }
           },
           reportedBy: {
             select: {
               id: true,
               email: true,
-              username: true,
-            },
-          },
-        },
+              username: true
+            }
+          }
+        }
       }),
       this.prisma.vtsDispute.count({ where }),
     ]);
@@ -618,12 +617,12 @@ export class VTSManagementService {
         resolvedBy: dispute.resolvedBy,
         resolvedAt: dispute.resolvedAt,
         createdAt: dispute.createdAt,
-        updatedAt: dispute.updatedAt,
+        updatedAt: dispute.updatedAt
       })),
       total,
       page: filters.page,
       limit: filters.limit,
-      totalPages: Math.ceil(total / filters.limit),
+      totalPages: Math.ceil(total / filters.limit)
     };
   }
 
@@ -631,8 +630,8 @@ export class VTSManagementService {
     const dispute = await this.prisma.vtsDispute.findUnique({
       where: { id },
       include: {
-        topic: true,
-      },
+        topic: true
+      }
     });
 
     if (!dispute) {
@@ -645,8 +644,8 @@ export class VTSManagementService {
         status: 'RESOLVED',
         resolution,
         resolvedBy: adminId,
-        resolvedAt: new Date(),
-      },
+        resolvedAt: new Date()
+      }
     });
 
     // Apply resolution actions
@@ -673,7 +672,7 @@ export class VTSManagementService {
       id,
       resolution,
       resolvedBy: adminId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
 
     return updatedDispute;
@@ -685,7 +684,7 @@ export class VTSManagementService {
       '7d': 7,
       '30d': 30,
       '90d': 90,
-      '1y': 365,
+      '1y': 365
     };
     const days = timeframes[timeframe] || 30;
     startDate.setDate(startDate.getDate() - days);
@@ -717,11 +716,11 @@ export class VTSManagementService {
       this.prisma.topic.count({ where: { createdAt: { gte: startDate } } }),
       this.prisma.topic.groupBy({
         by: ['category'],
-        _count: true,
+        _count: true
       }),
       this.prisma.topic.groupBy({
         by: ['region'],
-        _count: true,
+        _count: true
       }),
     ]);
 
@@ -731,27 +730,27 @@ export class VTSManagementService {
         activeSymbols,
         frozenSymbols,
         totalAliases,
-        activeAliases,
+        activeAliases
       },
       disputes: {
         totalDisputes,
         resolvedDisputes,
-        resolutionRate: totalDisputes > 0 ? (resolvedDisputes / totalDisputes) * 100 : 0,
+        resolutionRate: totalDisputes > 0 ? (resolvedDisputes / totalDisputes) * 100 : 0
       },
       activity: {
         recentSymbols,
-        timeframe,
+        timeframe
       },
       distribution: {
         categories: symbolCategories.map(cat => ({
           category: cat.category,
-          count: cat._count,
+          count: cat._count
         })),
         regions: symbolRegions.map(region => ({
           region: region.region,
-          count: region._count,
-        })),
-      },
+          count: region._count
+        }))
+      }
     };
   }
 
@@ -759,9 +758,9 @@ export class VTSManagementService {
     const categories = await this.prisma.topic.groupBy({
       by: ['category'],
       where: {
-        category: { not: null },
+        category: { not: null }
       },
-      _count: true,
+      _count: true
     });
 
     return categories.map(cat => cat.category);
@@ -771,9 +770,9 @@ export class VTSManagementService {
     const regions = await this.prisma.topic.groupBy({
       by: ['region'],
       where: {
-        region: { not: null },
+        region: { not: null }
       },
-      _count: true,
+      _count: true
     });
 
     return regions.map(region => region.region);
@@ -792,19 +791,19 @@ export class VTSManagementService {
           'CC: 2-letter country code',
           'CATEGORY: Category name in uppercase',
           'XXX: 3-digit numeric ID',
-        ],
+        ]
       };
     }
 
     // Check if symbol already exists
     const existingSymbol = await this.prisma.topic.findUnique({
-      where: { symbol },
+      where: { symbol }
     });
 
     return {
       valid: true,
       exists: !!existingSymbol,
-      message: existingSymbol ? 'Symbol already exists' : 'Symbol format is valid and available',
+      message: existingSymbol ? 'Symbol already exists' : 'Symbol format is valid and available'
     };
   }
 
@@ -814,7 +813,7 @@ export class VTSManagementService {
       '7d': 7,
       '30d': 30,
       '90d': 90,
-      '1y': 365,
+      '1y': 365
     };
     const days = timeframes[timeframe] || 30;
     startDate.setDate(startDate.getDate() - days);
@@ -830,34 +829,34 @@ export class VTSManagementService {
       this.prisma.bet.count({
         where: {
           topicId: id,
-          createdAt: { gte: startDate },
-        },
+          createdAt: { gte: startDate }
+        }
       }),
       this.prisma.bet.aggregate({
         where: {
           topicId: id,
-          createdAt: { gte: startDate },
+          createdAt: { gte: startDate }
         },
-        _sum: { amount: true },
+        _sum: { amount: true }
       }),
       this.prisma.bet.groupBy({
         by: ['userId'],
         where: {
           topicId: id,
-          createdAt: { gte: startDate },
-        },
+          createdAt: { gte: startDate }
+        }
       }),
       this.prisma.watchlist.count({
         where: {
           topicId: id,
-          createdAt: { gte: startDate },
-        },
+          createdAt: { gte: startDate }
+        }
       }),
       this.prisma.marketOrder.count({
         where: {
           topicId: id,
-          createdAt: { gte: startDate },
-        },
+          createdAt: { gte: startDate }
+        }
       }),
       // Daily usage aggregation
       this.prisma.$queryRaw`
@@ -879,10 +878,10 @@ export class VTSManagementService {
         totalVolume: totalVolume._sum.amount || 0,
         uniqueUsers: uniqueUsers.length,
         watchlistAdds,
-        marketOrders,
+        marketOrders
       },
       dailyUsage,
-      timeframe,
+      timeframe
     };
   }
 
@@ -897,22 +896,22 @@ export class VTSManagementService {
     ] = await Promise.all([
       this.prisma.topic.count(),
       this.prisma.validatorNode.count({
-        where: { status: 'ONLINE' },
+        where: { status: 'ONLINE' }
       }),
       this.prisma.vtsDispute.count({
-        where: { status: 'PENDING' },
+        where: { status: 'PENDING' }
       }),
       this.prisma.topic.count({
-        where: { status: 'FROZEN' },
+        where: { status: 'FROZEN' }
       }),
       this.prisma.systemError.count({
         where: {
           component: 'VTS',
-          resolved: false,
-        },
+          resolved: false
+        }
       }),
       this.prisma.vtsSyncHistory.findFirst({
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: 'desc' }
       }),
     ]);
 
@@ -932,8 +931,8 @@ export class VTSManagementService {
         pendingDisputes,
         frozenSymbols,
         systemErrors,
-        lastSync: lastSync?.createdAt || null,
-      },
+        lastSync: lastSync?.createdAt || null
+      }
     };
   }
 
@@ -941,7 +940,7 @@ export class VTSManagementService {
     return await this.prisma.vtsVersionHistory.findMany({
       where: { topicId: id },
       orderBy: { version: 'desc' },
-      take: 10,
+      take: 10
     });
   }
 }

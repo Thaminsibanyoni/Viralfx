@@ -1,8 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BullModule } from '@nestjs/bull';
+import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule } from '@nestjs/config';
-import { PrismaModule } from '../../../prisma/prisma.module';
-import { WebSocketModule } from '../../../websocket/websocket.module';
+import { WebSocketModule } from "../../../websocket/websocket.module";
 
 // Processors
 import { EmailProcessor } from '../email.processor';
@@ -11,8 +10,8 @@ import { SMSProcessor } from '../sms.processor';
 import { InAppProcessor } from '../in-app.processor';
 
 // Services
-import { NotificationService } from '../../services/notification.service';
-import { WebSocketGateway } from '../../../websocket/gateways/websocket.gateway';
+import { NotificationService } from "../../services/notification.service";
+import { WebSocketGateway } from "../../../websocket/gateways/websocket.gateway";
 
 describe('Notification Processors Integration Tests', () => {
   let module: TestingModule;
@@ -98,9 +97,7 @@ describe('Notification Processors Integration Tests', () => {
           { name: 'notifications:email' },
           { name: 'notifications:push' },
           { name: 'notifications:sms' },
-          { name: 'notifications:in-app' },
-        ),
-        PrismaModule,
+          { name: 'notifications:in-app' }),
       ],
       providers: [
         EmailProcessor,

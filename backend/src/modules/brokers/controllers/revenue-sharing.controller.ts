@@ -11,12 +11,12 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { RevenueSharingService } from '../services/revenue-sharing.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { BrokerGuard } from '../guards/broker.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { GetUser } from '../../auth/decorators/get-user.decorator';
-import { User } from '../../users/entities/user.entity';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { BrokerAuthGuard } from '../guards/broker-auth.guard';
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
+import { CurrentUser } from "../../auth/decorators/current-user.decorator";
+import { User } from "../../../common/enums/user-role.enum";
 import { IsOptional, IsInt, Min, Max, IsDateString } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -48,7 +48,7 @@ class ProcessPayoutsDto extends MonthlyPayoutDto {
 
 @ApiTags('Revenue Sharing')
 @Controller('brokers/revenue-sharing')
-@UseGuards(JwtAuthGuard, BrokerGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, BrokerAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class RevenueSharingController {
   constructor(private readonly revenueSharingService: RevenueSharingService) {}
@@ -63,7 +63,7 @@ export class RevenueSharingController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Commission structure retrieved successfully',
-      data: structure,
+      data: structure
     };
   }
 
@@ -73,7 +73,7 @@ export class RevenueSharingController {
   @ApiResponse({ status: 200, description: 'Payout calculated successfully' })
   async calculatePayout(
     @Body(ValidationPipe) payoutDto: MonthlyPayoutDto,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     // Brokers can only calculate their own payouts
     const brokerId = user.role === 'BROKER' ? user.brokerId : null;
@@ -81,7 +81,7 @@ export class RevenueSharingController {
     if (!brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'Broker ID is required for calculation',
+        message: 'Broker ID is required for calculation'
       };
     }
 
@@ -94,7 +94,7 @@ export class RevenueSharingController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Payout calculated successfully',
-      data: payout,
+      data: payout
     };
   }
 
@@ -103,7 +103,7 @@ export class RevenueSharingController {
   @ApiOperation({ summary: 'Get broker payout history' })
   @ApiResponse({ status: 200, description: 'Payout history retrieved successfully' })
   async getPayoutHistory(
-    @GetUser() user: User,
+    @CurrentUser() user: User,
     @Query('limit') limit?: number
   ) {
     const brokerId = user.role === 'BROKER' ? user.brokerId : null;
@@ -111,7 +111,7 @@ export class RevenueSharingController {
     if (!brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'Broker ID is required',
+        message: 'Broker ID is required'
       };
     }
 
@@ -123,7 +123,7 @@ export class RevenueSharingController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Payout history retrieved successfully',
-      data: history,
+      data: history
     };
   }
 
@@ -142,7 +142,7 @@ export class RevenueSharingController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Revenue report generated successfully',
-      data: report,
+      data: report
     };
   }
 
@@ -165,8 +165,8 @@ export class RevenueSharingController {
         message: 'Dry run completed - no payouts processed',
         data: {
           dryRun: true,
-          ...report,
-        },
+          ...report
+        }
       };
     }
 
@@ -177,7 +177,7 @@ export class RevenueSharingController {
 
     return {
       statusCode: HttpStatus.OK,
-      message: `Monthly payouts for ${processDto.year}-${processDto.month} have been queued for processing`,
+      message: `Monthly payouts for ${processDto.year}-${processDto.month} have been queued for processing`
     };
   }
 
@@ -187,14 +187,14 @@ export class RevenueSharingController {
   @ApiResponse({ status: 200, description: 'Payout validation completed' })
   async validatePayout(
     @Body(ValidationPipe) payoutDto: MonthlyPayoutDto,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     const brokerId = user.role === 'BROKER' ? user.brokerId : null;
 
     if (!brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'Broker ID is required for validation',
+        message: 'Broker ID is required for validation'
       };
     }
 
@@ -211,8 +211,8 @@ export class RevenueSharingController {
       message: 'Payout validation completed',
       data: {
         payout,
-        validation,
-      },
+        validation
+      }
     };
   }
 
@@ -233,7 +233,7 @@ export class RevenueSharingController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Broker payout calculated successfully',
-      data: payout,
+      data: payout
     };
   }
 
@@ -253,7 +253,7 @@ export class RevenueSharingController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Broker payout history retrieved successfully',
-      data: history,
+      data: history
     };
   }
 
@@ -261,11 +261,11 @@ export class RevenueSharingController {
   @Roles('BROKER')
   @ApiOperation({ summary: 'Get current broker\'s commission details' })
   @ApiResponse({ status: 200, description: 'Commission details retrieved successfully' })
-  async getMyCommissionDetails(@GetUser() user: User) {
+  async getMyCommissionDetails(@CurrentUser() user: User) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -278,13 +278,13 @@ export class RevenueSharingController {
       commissionRate: structure.defaultSplit.broker,
       volumeDiscounts: structure.volumeDiscounts,
       performanceBonuses: structure.performanceBonuses,
-      tierMultiplier: structure.tierMultipliers['PROFESSIONAL'],
+      tierMultiplier: structure.tierMultipliers['PROFESSIONAL']
     };
 
     return {
       statusCode: HttpStatus.OK,
       message: 'Commission details retrieved successfully',
-      data: brokerDetails,
+      data: brokerDetails
     };
   }
 
@@ -292,11 +292,11 @@ export class RevenueSharingController {
   @Roles('BROKER')
   @ApiOperation({ summary: 'Get current month payout estimate' })
   @ApiResponse({ status: 200, description: 'Payout estimate retrieved successfully' })
-  async getMyPayoutEstimate(@GetUser() user: User) {
+  async getMyPayoutEstimate(@CurrentUser() user: User) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -317,14 +317,14 @@ export class RevenueSharingController {
       periodProgress: Math.round((now.getDate() / new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()) * 100),
       projectedMonthly: {
         projectedRevenue: payout.totalRevenue / (now.getDate() / 30), // Project to end of month
-        projectedPayout: payout.netPayout / (now.getDate() / 30),
-      },
+        projectedPayout: payout.netPayout / (now.getDate() / 30)
+      }
     };
 
     return {
       statusCode: HttpStatus.OK,
       message: 'Payout estimate retrieved successfully',
-      data: estimate,
+      data: estimate
     };
   }
 
@@ -353,26 +353,26 @@ export class RevenueSharingController {
         totalRevenue: currentMonthReport.totalPlatformRevenue,
         totalPayouts: currentMonthReport.totalBrokerPayouts,
         netRevenue: currentMonthReport.netPlatformRevenue,
-        brokerCount: currentMonthReport.brokerBreakdown.length,
+        brokerCount: currentMonthReport.brokerBreakdown.length
       },
       lastMonth: {
         totalRevenue: lastMonthReport.totalPlatformRevenue,
         totalPayouts: lastMonthReport.totalBrokerPayouts,
         netRevenue: lastMonthReport.netPlatformRevenue,
-        brokerCount: lastMonthReport.brokerBreakdown.length,
+        brokerCount: lastMonthReport.brokerBreakdown.length
       },
       growth: {
         revenue: currentMonthReport.totalPlatformRevenue - lastMonthReport.totalPlatformRevenue,
         payout: currentMonthReport.totalBrokerPayouts - lastMonthReport.totalBrokerPayouts,
-        netRevenue: currentMonthReport.netPlatformRevenue - lastMonthReport.netPlatformRevenue,
+        netRevenue: currentMonthReport.netPlatformRevenue - lastMonthReport.netPlatformRevenue
       },
-      trends: currentMonthReport.trends,
+      trends: currentMonthReport.trends
     };
 
     return {
       statusCode: HttpStatus.OK,
       message: 'Revenue dashboard metrics retrieved successfully',
-      data: metrics,
+      data: metrics
     };
   }
 }

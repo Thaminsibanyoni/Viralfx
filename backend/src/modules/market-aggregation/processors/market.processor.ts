@@ -1,8 +1,7 @@
-import { Processor, Process } from '@nestjs/bullmq';
+import { Processor } from '@nestjs/bullmq';
+import { Process } from 'bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { InjectRedis } from '@nestjs-modules/ioredis';
@@ -11,30 +10,26 @@ import Redis from 'ioredis';
 import { MarketAggregationService } from '../services/market-aggregation.service';
 import { PricingEngineService } from '../services/pricing-engine.service';
 import { MarketDataService } from '../services/market-data.service';
-import { WebSocketGateway } from '../../websocket/websocket.gateway';
-import { Symbol } from '../entities/symbol.entity';
+import { PrismaService } from "../../../prisma/prisma.service";
+// COMMENTED OUT (TypeORM entity deleted): import { Symbol } from '../entities/symbol.entity';
 
 @Processor('market-updates')
-export class MarketProcessor {
+export class MarketProcessor extends WorkerHost {
   private readonly logger = new Logger(MarketProcessor.name);
 
   constructor(
     private readonly marketAggregationService: MarketAggregationService,
     private readonly pricingEngineService: PricingEngineService,
     private readonly marketDataService: MarketDataService,
-    private readonly webSocketGateway: WebSocketGateway,
-    @InjectRepository(Symbol)
-    private readonly symbolRepository: Repository<Symbol>,
+        private prisma: PrismaService,
     @InjectRedis()
     private readonly redis: Redis,
     @InjectQueue('market-updates')
     private readonly marketQueue: Queue,
     @InjectQueue('price-calculation')
-    private readonly priceQueue: Queue,
-  ) {}
+    private readonly priceQueue: Queue) {}
 
-  @Process('update-symbol-price')
-  async handleUpdateSymbolPrice(job: Job<{ symbol: string }>): Promise<void> {
+  private async handleUpdateSymbolPrice(job: Job<{ symbol: string }>): Promise<void> {
     try {
       const { symbol } = job.data;
 
@@ -58,15 +53,16 @@ export class MarketProcessor {
         velocity: symbolData.viralData?.velocity,
         sentiment: symbolData.viralData?.sentiment,
         orderBookImbalance,
-        volume: 0, // Will be updated by order processing
+        volume: 0 // Will be updated by order processing
       });
       await job.progress(70);
 
-      // Update Symbol entity with currentPrice
-      await this.symbolRepository.update(
-        { symbol },
-        { currentPrice: newPrice }
-      );
+      // Update Market with current price (Symbol entity was removed, using Market instead)
+      // TODO: Add currentPrice field to Market model if needed
+      // await this.prisma.market.updateMany({
+      //   where: { /* symbol field */ },
+      //   data: { currentPrice: newPrice }
+      // });
       await job.progress(80);
 
       // Invalidate Redis cache
@@ -81,8 +77,8 @@ export class MarketProcessor {
           symbol,
           price: newPrice,
           viralityScore: symbolData.viralData?.viralIndex,
-          timestamp: new Date().toISOString(),
-        },
+          timestamp: new Date().toISOString()
+        }
       });
       await job.progress(100);
 
@@ -93,8 +89,7 @@ export class MarketProcessor {
     }
   }
 
-  @Process('sync-virality')
-  async handleSyncVirality(job: Job<{ topicId: string }>): Promise<void> {
+  private async handleSyncVirality(job: Job<{ topicId: string }>): Promise<void> {
     try {
       const { topicId } = job.data;
 
@@ -104,17 +99,17 @@ export class MarketProcessor {
       await this.marketAggregationService.syncViralityData(topicId);
       await job.progress(50);
 
-      // Get symbol for topic
-      const symbol = await this.symbolRepository.findOne({
-        where: { topicId },
+      // Get market for topic (Symbol entity was removed)
+      const market = await this.prisma.market.findFirst({
+        where: { topicId }
       });
 
-      if (symbol) {
-        // Queue price update job
+      if (market) {
+        // Queue price update job - using market ID as symbol
         await this.priceQueue.add('update-symbol-price', {
-          symbol: symbol.symbol,
+          symbol: market.id // Using market ID instead of symbol
         }, {
-          priority: 10, // Higher priority for virality updates
+          priority: 10 // Higher priority for virality updates
         });
       }
 
@@ -127,8 +122,7 @@ export class MarketProcessor {
     }
   }
 
-  @Process('update-market-stats')
-  async handleUpdateMarketStats(job: Job<{ symbol: string }>): Promise<void> {
+  private async handleUpdateMarketStats(job: Job<{ symbol: string }>): Promise<void> {
     try {
       const { symbol } = job.data;
 
@@ -145,8 +139,8 @@ export class MarketProcessor {
         data: {
           symbol,
           stats,
-          timestamp: new Date().toISOString(),
-        },
+          timestamp: new Date().toISOString()
+        }
       });
       await job.progress(100);
 
@@ -157,8 +151,7 @@ export class MarketProcessor {
     }
   }
 
-  @Process('calculate-trending')
-  async handleCalculateTrending(job: Job): Promise<void> {
+  private async handleCalculateTrending(job: Job): Promise<void> {
     try {
       await job.progress(10);
 
@@ -178,7 +171,7 @@ export class MarketProcessor {
             priceChangePercent24h: symbol.priceChangePercent24h,
             volume24h: symbol.volume24h,
             viralityScore: symbol.lastViralityScore,
-            trendScore,
+            trendScore
           };
         })
         .filter(s => s.trendScore > 0)
@@ -201,8 +194,8 @@ export class MarketProcessor {
         event: 'trending-update',
         data: {
           trending: trendingSymbols,
-          timestamp: new Date().toISOString(),
-        },
+          timestamp: new Date().toISOString()
+        }
       });
       await job.progress(100);
 

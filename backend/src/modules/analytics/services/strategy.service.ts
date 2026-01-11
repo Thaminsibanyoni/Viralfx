@@ -1,12 +1,12 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Injectable, Logger, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ConfigService } from '@nestjs/config';
 import { Redis } from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 
-import { BacktestingStrategy } from '../../../database/entities/backtesting-strategy.entity';
-import { StrategyCategory, StrategyParameter, StrategyRule } from '../../../database/entities/backtesting-strategy.entity';
+// TypeORM entities removed - using Prisma instead
+// import { BacktestingStrategy } from "../../../database/entities/backtesting-strategy.entity";
+// import { StrategyCategory, StrategyParameter, StrategyRule } from "../../../database/entities/backtesting-strategy.entity";
 import { BacktestStrategy } from '../interfaces/backtesting.interface';
 
 @Injectable()
@@ -14,11 +14,10 @@ export class StrategyService {
   private readonly logger = new Logger(StrategyService.name);
 
   constructor(
-    @InjectRepository(BacktestingStrategy)
-    private readonly strategyRepository: Repository<BacktestingStrategy>,
+    private readonly prisma: PrismaService,
+    // TypeORM repository removed - using Prisma instead
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
-    private configService: ConfigService,
-  ) {}
+    private configService: ConfigService) {}
 
   /**
    * Create a new strategy
@@ -37,24 +36,26 @@ export class StrategyService {
       this.validateStrategyParameters(createDto.parameters);
       this.validateStrategyRules(createDto.rules);
 
-      const strategy = this.strategyRepository.create({
+      const strategyData = {
         id: uuidv4(),
         name: createDto.name,
         description: createDto.description,
         category: createDto.category,
-        parameters: createDto.parameters,
-        rules: createDto.rules,
+        parameters: createDto.parameters as any,
+        rules: createDto.rules as any,
         isPublic: createDto.isPublic || false,
         userId: createDto.userId,
         version: '1.0.0',
         isActive: true,
         metadata: {
           createdAt: new Date(),
-          source: 'user_created',
-        },
-      });
+          source: 'user_created'
+        }
+      };
 
-      const savedStrategy = await this.strategyRepository.save(strategy);
+      const savedStrategy = await this.prisma.backtestingStrategy.create({
+        data: strategyData
+      });
 
       // Clear cache
       await this.invalidateStrategyCache(savedStrategy.id);
@@ -83,10 +84,9 @@ export class StrategyService {
       rules?: StrategyRule[];
       isPublic?: boolean;
       userId?: string; // For authorization
-    },
-  ): Promise<BacktestStrategy> {
+    }): Promise<BacktestStrategy> {
     try {
-      const strategy = await this.strategyRepository.findOne({ where: { id } });
+      const strategy = await this.prisma.backtestingStrategy.findFirst({ where: { id } });
       if (!strategy) {
         throw new NotFoundException(`Strategy not found: ${id}`);
       }
@@ -104,17 +104,22 @@ export class StrategyService {
         this.validateStrategyRules(updateDto.rules);
       }
 
-      // Update strategy
-      const updatedStrategy = await this.strategyRepository.save({
-        ...strategy,
+      // Prepare update data
+      const updateData: any = {
         ...updateDto,
         version: this.incrementVersion(strategy.version),
         updatedAt: new Date(),
         metadata: {
-          ...strategy.metadata,
+          ...(strategy.metadata as any),
           lastModified: new Date(),
-          modifiedBy: updateDto.userId,
-        },
+          modifiedBy: updateDto.userId
+        }
+      };
+
+      // Update strategy
+      const updatedStrategy = await this.prisma.backtestingStrategy.update({
+        where: { id },
+        data: updateData
       });
 
       // Clear cache
@@ -135,7 +140,7 @@ export class StrategyService {
    */
   async deleteStrategy(id: string, userId?: string): Promise<void> {
     try {
-      const strategy = await this.strategyRepository.findOne({ where: { id } });
+      const strategy = await this.prisma.backtestingStrategy.findFirst({ where: { id } });
       if (!strategy) {
         throw new NotFoundException(`Strategy not found: ${id}`);
       }
@@ -146,14 +151,17 @@ export class StrategyService {
       }
 
       // Soft delete by setting isActive to false
-      await this.strategyRepository.update(id, {
-        isActive: false,
-        updatedAt: new Date(),
-        metadata: {
-          ...strategy.metadata,
-          deletedAt: new Date(),
-          deletedBy: userId,
-        },
+      await this.prisma.backtestingStrategy.update({
+        where: { id },
+        data: {
+          isActive: false,
+          updatedAt: new Date(),
+          metadata: {
+            ...(strategy.metadata as any),
+            deletedAt: new Date(),
+            deletedBy: userId
+          }
+        }
       });
 
       // Clear cache
@@ -180,8 +188,8 @@ export class StrategyService {
         return JSON.parse(cachedStrategy);
       }
 
-      const strategy = await this.strategyRepository.findOne({
-        where: { id, isActive: true },
+      const strategy = await this.prisma.backtestingStrategy.findFirst({
+        where: { id, isActive: true }
       });
 
       if (!strategy) {
@@ -235,35 +243,40 @@ export class StrategyService {
         page = 1,
         limit = 20,
         sortBy = 'createdAt',
-        sortOrder = 'DESC',
+        sortOrder = 'DESC'
       } = filters;
 
-      const queryBuilder = this.strategyRepository.createQueryBuilder('strategy')
-        .where('strategy.isActive = :isActive', { isActive: true });
+      // Build where clause for Prisma
+      const where: any = {
+        isActive: true
+      };
 
       if (category) {
-        queryBuilder.andWhere('strategy.category = :category', { category });
+        where.category = category;
       }
 
       if (userId) {
-        queryBuilder.andWhere('strategy.userId = :userId', { userId });
+        where.userId = userId;
       }
 
       if (isPublic !== undefined) {
-        queryBuilder.andWhere('strategy.isPublic = :isPublic', { isPublic });
+        where.isPublic = isPublic;
       }
 
-      // Add sorting
-      queryBuilder.orderBy(`strategy.${sortBy}`, sortOrder);
-
       // Get total count
-      const total = await queryBuilder.getCount();
+      const total = await this.prisma.backtestingStrategy.count({ where });
+
+      // Build orderBy clause
+      const orderBy: any = {};
+      orderBy[sortBy] = sortOrder.toLowerCase();
 
       // Get paginated results
-      const strategies = await queryBuilder
-        .skip((page - 1) * limit)
-        .take(limit)
-        .getMany();
+      const strategies = await this.prisma.backtestingStrategy.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * limit,
+        take: limit
+      });
 
       const backtestStrategies = strategies.map(strategy =>
         this.mapToBacktestStrategy(strategy)
@@ -273,7 +286,7 @@ export class StrategyService {
         strategies: backtestStrategies,
         total,
         page,
-        limit,
+        limit
       };
     } catch (error) {
       this.logger.error('Failed to list strategies:', error);
@@ -286,8 +299,8 @@ export class StrategyService {
    */
   async cloneStrategy(id: string, userId: string): Promise<BacktestStrategy> {
     try {
-      const originalStrategy = await this.strategyRepository.findOne({
-        where: { id, isActive: true },
+      const originalStrategy = await this.prisma.backtestingStrategy.findFirst({
+        where: { id, isActive: true }
       });
 
       if (!originalStrategy) {
@@ -299,7 +312,7 @@ export class StrategyService {
         throw new BadRequestException('You can only clone public strategies or your own strategies');
       }
 
-      const clonedStrategy = this.strategyRepository.create({
+      const clonedStrategyData = {
         id: uuidv4(),
         name: `${originalStrategy.name} (Clone)`,
         description: originalStrategy.description,
@@ -311,14 +324,16 @@ export class StrategyService {
         version: '1.0.0',
         isActive: true,
         metadata: {
-          ...originalStrategy.metadata,
+          ...(originalStrategy.metadata as any),
           clonedFrom: originalStrategy.id,
           clonedAt: new Date(),
-          source: 'user_cloned',
-        },
-      });
+          source: 'user_cloned'
+        }
+      };
 
-      const savedStrategy = await this.strategyRepository.save(clonedStrategy);
+      const savedStrategy = await this.prisma.backtestingStrategy.create({
+        data: clonedStrategyData
+      });
 
       this.logger.log(`Strategy cloned: ${originalStrategy.id} -> ${savedStrategy.id}`);
 
@@ -359,7 +374,7 @@ export class StrategyService {
 
     return {
       isValid: errors.length === 0,
-      errors,
+      errors
     };
   }
 
@@ -389,8 +404,8 @@ export class StrategyService {
    */
   async seedDefaultStrategies(): Promise<void> {
     try {
-      const existingCount = await this.strategyRepository.count({
-        where: { isPublic: true, userId: null },
+      const existingCount = await this.prisma.backtestingStrategy.count({
+        where: { isPublic: true, userId: null }
       });
 
       if (existingCount > 0) {
@@ -401,25 +416,25 @@ export class StrategyService {
       const systemStrategies = await this.getSystemStrategies();
 
       for (const strategyData of systemStrategies) {
-        const strategy = this.strategyRepository.create({
-          id: strategyData.id,
-          name: strategyData.name,
-          description: strategyData.description,
-          category: strategyData.category,
-          parameters: strategyData.parameters,
-          rules: strategyData.rules,
-          isPublic: true,
-          userId: null,
-          version: strategyData.version,
-          isActive: true,
-          metadata: {
-            ...strategyData.metadata,
-            source: 'system_seeded',
-            seededAt: new Date(),
-          },
+        await this.prisma.backtestingStrategy.create({
+          data: {
+            id: strategyData.id,
+            name: strategyData.name,
+            description: strategyData.description,
+            category: strategyData.category,
+            parameters: strategyData.parameters as any,
+            rules: strategyData.rules as any,
+            isPublic: true,
+            userId: null,
+            version: strategyData.version,
+            isActive: true,
+            metadata: {
+              ...strategyData.metadata,
+              source: 'system_seeded',
+              seededAt: new Date()
+            }
+          }
         });
-
-        await this.strategyRepository.save(strategy);
       }
 
       this.logger.log(`Seeded ${systemStrategies.length} system strategies`);
@@ -444,7 +459,7 @@ export class StrategyService {
       version: strategy.version,
       metadata: strategy.metadata,
       createdAt: strategy.createdAt,
-      updatedAt: strategy.updatedAt,
+      updatedAt: strategy.updatedAt
     };
   }
 
@@ -463,7 +478,7 @@ export class StrategyService {
             min: 0,
             max: 100,
             step: 5,
-            description: 'Minimum virality score to trigger buy signal',
+            description: 'Minimum virality score to trigger buy signal'
           },
           {
             name: 'sentimentThreshold',
@@ -472,7 +487,7 @@ export class StrategyService {
             min: -1,
             max: 1,
             step: 0.1,
-            description: 'Sentiment threshold for buy signal',
+            description: 'Sentiment threshold for buy signal'
           },
           {
             name: 'holdPeriod',
@@ -481,7 +496,7 @@ export class StrategyService {
             min: 1,
             max: 168,
             step: 1,
-            description: 'Maximum hold period in hours',
+            description: 'Maximum hold period in hours'
           },
           {
             name: 'stopLoss',
@@ -490,7 +505,7 @@ export class StrategyService {
             min: 0,
             max: 0.5,
             step: 0.01,
-            description: 'Stop loss percentage',
+            description: 'Stop loss percentage'
           },
           {
             name: 'takeProfit',
@@ -499,7 +514,7 @@ export class StrategyService {
             min: 0,
             max: 1,
             step: 0.01,
-            description: 'Take profit percentage',
+            description: 'Take profit percentage'
           },
         ],
         rules: [
@@ -510,7 +525,7 @@ export class StrategyService {
               { field: 'momentum_score', operator: '>', value: '{{minViralityScore}}' },
               { field: 'sentiment_index', operator: '>', value: '{{sentimentThreshold}}' },
               { field: 'volume_24h', operator: '>', value: 10000 },
-            ],
+            ]
           },
           {
             type: 'SELL',
@@ -520,7 +535,7 @@ export class StrategyService {
               { field: 'price_change_percent', operator: '<', value: '-{{stopLoss}}' },
               { field: 'price_change_percent', operator: '>', value: '{{takeProfit}}' },
               { field: 'hold_duration', operator: '>', value: '{{holdPeriod}}' },
-            ],
+            ]
           },
         ],
         isActive: true,
@@ -528,7 +543,7 @@ export class StrategyService {
         version: '1.0.0',
         metadata: { source: 'system_builtin' },
         createdAt: new Date(),
-        updatedAt: new Date(),
+        updatedAt: new Date()
       },
       'sentiment_reversal': {
         id: 'sentiment_reversal',
@@ -543,7 +558,7 @@ export class StrategyService {
             min: -1,
             max: 0,
             step: 0.1,
-            description: 'Oversold sentiment threshold',
+            description: 'Oversold sentiment threshold'
           },
           {
             name: 'sentimentOverbought',
@@ -552,7 +567,7 @@ export class StrategyService {
             min: 0,
             max: 1,
             step: 0.1,
-            description: 'Overbought sentiment threshold',
+            description: 'Overbought sentiment threshold'
           },
           {
             name: 'confirmationPeriod',
@@ -561,7 +576,7 @@ export class StrategyService {
             min: 1,
             max: 24,
             step: 1,
-            description: 'Confirmation period in hours',
+            description: 'Confirmation period in hours'
           },
         ],
         rules: [
@@ -571,7 +586,7 @@ export class StrategyService {
             criteria: [
               { field: 'sentiment_index', operator: '<', value: '{{sentimentOversold}}' },
               { field: 'sentiment_trend', operator: '>', value: 0 },
-            ],
+            ]
           },
           {
             type: 'SELL',
@@ -579,7 +594,7 @@ export class StrategyService {
             criteria: [
               { field: 'sentiment_index', operator: '>', value: '{{sentimentOverbought}}' },
               { field: 'sentiment_trend', operator: '<', value: 0 },
-            ],
+            ]
           },
         ],
         isActive: true,
@@ -587,8 +602,8 @@ export class StrategyService {
         version: '1.0.0',
         metadata: { source: 'system_builtin' },
         createdAt: new Date(),
-        updatedAt: new Date(),
-      },
+        updatedAt: new Date()
+      }
     };
 
     return systemStrategies[strategyId] || null;

@@ -370,11 +370,10 @@ psql -h localhost -U postgres -d viralfx -c "\dt"
 
 ### Core Dependencies
 - `@nestjs/common` - Core NestJS framework
-- `@nestjs/typeorm` - TypeORM integration
-- `@nestjs/bull` - Queue management
+- `@nestjs/bullmq` - Queue management
 - `@nestjs/schedule` - Task scheduling
-- `typeorm` - ORM for database operations
-- `bull` - Queue processing
+- `@prisma/client` - Prisma ORM for database operations
+- `bullmq` - Queue processing
 - `ioredis` - Redis client
 
 ### Optional Dependencies

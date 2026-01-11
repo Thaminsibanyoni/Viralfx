@@ -1,10 +1,10 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { ViralIndexService } from './viral-index.service';
-import { ViralMetricsService } from './viral-metrics.service';
+import { ViralIndexService } from "./viral-index.service";
+import { ViralMetricsService } from "./viral-metrics.service";
 
 interface ViralContent {
   id: string;
@@ -47,16 +47,14 @@ export class ViralService {
     @InjectQueue('viral-index-calculation')
     private readonly viralIndexQueue: Queue,
     @InjectQueue('viral-content-analysis')
-    private readonly viralAnalysisQueue: Queue,
-  ) {}
+    private readonly viralAnalysisQueue: Queue) {}
 
   async analyzeContentVirality(
     content: string,
     topicId: string,
     source?: string,
     authorId?: string,
-    metadata?: any,
-  ): Promise<ViralAnalysis> {
+    metadata?: any): Promise<ViralAnalysis> {
     try {
       const cacheKey = `viral:analysis:${this.generateContentHash(content)}`;
       const cached = await this.redis.get(cacheKey);
@@ -84,10 +82,10 @@ export class ViralService {
           metadata: {
             ...metadata,
             fullContentLength: content.length,
-            analysisVersion: '1.0',
+            analysisVersion: '1.0'
           },
-          createdAt: new Date(),
-        },
+          createdAt: new Date()
+        }
       });
 
       // Cache the analysis
@@ -97,12 +95,11 @@ export class ViralService {
       await this.viralIndexQueue.add('update-viral-index', {
         topicId,
         contentId: content.substring(0, 50), // Use content hash as ID
-        analysis,
+        analysis
       });
 
       this.logger.log(
-        `Virality analysis completed for topic ${topicId}: Score ${analysis.viralScore.toFixed(3)}, Index ${analysis.viralIndex.toFixed(3)}`,
-      );
+        `Virality analysis completed for topic ${topicId}: Score ${analysis.viralScore.toFixed(3)}, Index ${analysis.viralIndex.toFixed(3)}`);
 
       return analysis;
     } catch (error) {
@@ -114,8 +111,7 @@ export class ViralService {
   async getViralContent(
     topicId: string,
     limit: number = 20,
-    minViralScore: number = 0.5,
-  ): Promise<ViralContent[]> {
+    minViralScore: number = 0.5): Promise<ViralContent[]> {
     const cacheKey = `viral:content:${topicId}:${limit}:${minViralScore}`;
     const cached = await this.redis.get(cacheKey);
     if (cached) {
@@ -125,7 +121,7 @@ export class ViralService {
     const viralContent = await this.prisma.viralContent.findMany({
       where: {
         topicId,
-        viralScore: { gte: minViralScore },
+        viralScore: { gte: minViralScore }
       },
       orderBy: { viralScore: 'desc' },
       take: limit,
@@ -136,8 +132,8 @@ export class ViralService {
         source: true,
         authorId: true,
         metadata: true,
-        createdAt: true,
-      },
+        createdAt: true
+      }
     });
 
     await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(viralContent));
@@ -147,8 +143,7 @@ export class ViralService {
 
   async getTrendingViralContent(
     timeWindow: number = 24, // hours
-    limit: number = 10,
-  ): Promise<Array<{
+    limit: number = 10): Promise<Array<{
     id: string;
     topicId: string;
     topicName: string;
@@ -163,15 +158,15 @@ export class ViralService {
     const trending = await this.prisma.viralContent.findMany({
       where: {
         createdAt: { gte: timeAgo },
-        viralScore: { gte: 0.7 },
+        viralScore: { gte: 0.7 }
       },
       include: {
         topic: {
-          select: { name: true },
-        },
+          select: { name: true }
+        }
       },
       orderBy: { momentumScore: 'desc' },
-      take: limit,
+      take: limit
     });
 
     return trending.map(item => ({
@@ -182,7 +177,7 @@ export class ViralService {
       viralIndex: item.viralIndex,
       momentumScore: item.momentumScore,
       engagementRate: item.engagementScore,
-      createdAt: item.createdAt,
+      createdAt: item.createdAt
     }));
   }
 
@@ -218,8 +213,7 @@ export class ViralService {
     const predictiveInsights = await this.generatePredictiveInsights(
       topicId,
       contentMetrics,
-      topicMetrics,
-    );
+      topicMetrics);
 
     return {
       overallVirality,
@@ -229,9 +223,9 @@ export class ViralService {
         totalContent: contentMetrics.total,
         avgVirality: contentMetrics.averageScore,
         peakVirality: contentMetrics.peakScore,
-        growthRate: contentMetrics.growthRate,
+        growthRate: contentMetrics.growthRate
       },
-      predictiveInsights,
+      predictiveInsights
     };
   }
 
@@ -281,10 +275,10 @@ export class ViralService {
         where: {
           topicId,
           createdAt: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
-          },
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+          }
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: 'desc' }
       });
 
       if (recentContent.length === 0) {
@@ -301,8 +295,8 @@ export class ViralService {
           viralIndex: metrics.viralIndex,
           viralScore: metrics.viralScore,
           momentumScore: metrics.momentumScore,
-          lastViralAnalysis: new Date(),
-        },
+          lastViralAnalysis: new Date()
+        }
       });
 
       // Invalidate cache
@@ -356,7 +350,7 @@ export class ViralService {
       reachScore,
       timestamp: Date.now(),
       predictedVirality,
-      viralityFactors,
+      viralityFactors
     };
   }
 
@@ -412,7 +406,7 @@ export class ViralService {
       noveltyScore,
       controversyLevel,
       timelinessScore,
-      platformFit,
+      platformFit
     };
   }
 
@@ -424,7 +418,7 @@ export class ViralService {
       noveltyScore: 0.2,
       controversyLevel: 0.15,
       timelinessScore: 0.1,
-      platformFit: 0.05,
+      platformFit: 0.05
     };
 
     let score = 0;
@@ -476,8 +470,7 @@ export class ViralService {
   private async generatePredictiveInsights(
     topicId: string,
     contentMetrics: any,
-    topicMetrics: any,
-  ): Promise<{
+    topicMetrics: any): Promise<{
     nextHourPrediction: number;
     nextDayPrediction: number;
     viralPotential: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
@@ -518,7 +511,7 @@ export class ViralService {
       nextHourPrediction: Math.min(nextHourPrediction, 1.0),
       nextDayPrediction: Math.min(nextDayPrediction, 1.0),
       viralPotential,
-      recommendations,
+      recommendations
     };
   }
 

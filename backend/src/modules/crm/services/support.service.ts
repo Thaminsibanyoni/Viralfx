@@ -1,15 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
-import { Ticket } from '../entities/ticket.entity';
-import { TicketMessage } from '../entities/ticket-message.entity';
-import { TicketCategory } from '../entities/ticket-category.entity';
-import { TicketPriority } from '../entities/ticket-priority.entity';
-import { TicketAssignment } from '../entities/ticket-assignment.entity';
-import { User } from '../../../database/entities/user.entity';
-import { UserStatus, UserRole } from '../../../database/entities/user.entity';
-import { Broker } from '../../brokers/entities/broker.entity';
-import { NotificationService } from '../../notifications/services/notification.service';
+// COMMENTED OUT (TypeORM entity deleted): import { Ticket } from '../entities/ticket.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { TicketMessage } from '../entities/ticket-message.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { TicketCategory } from '../entities/ticket-category.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { TicketPriority } from '../entities/ticket-priority.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { TicketAssignment } from '../entities/ticket-assignment.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { User } from "../../../database/entities/user.entity";
+// COMMENTED OUT (TypeORM entity deleted): import { UserStatus, UserRole } from "../../../database/entities/user.entity";
+// COMMENTED OUT (cross-module entity import): import { Broker } from "../../brokers/entities/broker.entity";
+import { NotificationService } from "../../notifications/services/notification.service";
 import { CreateTicketDto } from '../dto/create-ticket.dto';
 import { CreateTicketMessageDto } from '../dto/create-ticket-message.dto';
 import { UpdateTicketDto } from '../dto/update-ticket.dto';
@@ -20,35 +18,20 @@ export class SupportService {
   private readonly logger = new Logger(SupportService.name);
 
   constructor(
-    @InjectRepository(Ticket)
-    private ticketRepository: Repository<Ticket>,
-    @InjectRepository(TicketMessage)
-    private ticketMessageRepository: Repository<TicketMessage>,
-    @InjectRepository(TicketCategory)
-    private ticketCategoryRepository: Repository<TicketCategory>,
-    @InjectRepository(TicketPriority)
-    private ticketPriorityRepository: Repository<TicketPriority>,
-    @InjectRepository(TicketAssignment)
-    private ticketAssignmentRepository: Repository<TicketAssignment>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-    private notificationService: NotificationService,
-  ) {}
+        private notificationService: NotificationService) {}
 
   async createTicket(createDto: CreateTicketDto, creatorId?: string): Promise<Ticket> {
     // Validate category and priority
-    const category = await this.ticketCategoryRepository.findOne({
-      where: { id: createDto.categoryId, isActive: true },
+    const category = await this.prisma.ticketCategory.findFirst({
+      where: { id: createDto.categoryId, isActive: true }
     });
 
     if (!category) {
       throw new NotFoundException('Ticket category not found');
     }
 
-    const priority = await this.ticketPriorityRepository.findOne({
-      where: { id: createDto.priorityId, isActive: true },
+    const priority = await this.prisma.ticketPriority.findFirst({
+      where: { id: createDto.priorityId, isActive: true }
     });
 
     if (!priority) {
@@ -57,8 +40,8 @@ export class SupportService {
 
     // Validate user/broker if provided
     if (createDto.userId) {
-      const user = await this.userRepository.findOne({
-        where: { id: createDto.userId },
+      const user = await this.prisma.user.findFirst({
+        where: { id: createDto.userId }
       });
       if (!user) {
         throw new NotFoundException('User not found');
@@ -66,8 +49,8 @@ export class SupportService {
     }
 
     if (createDto.brokerId) {
-      const broker = await this.brokerRepository.findOne({
-        where: { id: createDto.brokerId },
+      const broker = await this.prisma.broker.findFirst({
+        where: { id: createDto.brokerId }
       });
       if (!broker) {
         throw new NotFoundException('Broker not found');
@@ -80,14 +63,14 @@ export class SupportService {
     // Calculate SLA due date
     const slaDueDate = this.calculateSlaDueDate(category, priority);
 
-    const ticket = this.ticketRepository.create({
+    const ticket = this.prisma.ticket.create({
       ...createDto,
       ticketNumber,
       slaDueDate,
-      title: createDto.title || createDto.subject, // Always populate title, fallback to subject
+      title: createDto.title || createDto.subject // Always populate title, fallback to subject
     });
 
-    const savedTicket = await this.ticketRepository.save(ticket);
+    const savedTicket = await this.prisma.ticket.upsert(ticket);
 
     // Auto-assign if there's a default assignee for the category
     await this.autoAssignTicket(savedTicket.id, category.id);
@@ -96,7 +79,7 @@ export class SupportService {
   }
 
   async getTicket(ticketId: string): Promise<Ticket> {
-    const ticket = await this.ticketRepository.findOne({
+    const ticket = await this.prisma.ticket.findFirst({
       where: { id: ticketId },
       relations: [
         'user',
@@ -109,7 +92,7 @@ export class SupportService {
         'assignments',
         'assignments.assignedBy',
         'assignments.assignedTo',
-      ],
+      ]
     });
 
     if (!ticket) {
@@ -137,7 +120,7 @@ export class SupportService {
       userId,
       brokerId,
       page = 1,
-      limit = 20,
+      limit = 20
     } = filters;
 
     const where: any = {};
@@ -148,12 +131,12 @@ export class SupportService {
     if (userId) where.userId = userId;
     if (brokerId) where.brokerId = brokerId;
 
-    const [tickets, total] = await this.ticketRepository.findAndCount({
+    const [tickets, total] = await this.prisma.findAndCount({
       where,
       relations: ['user', 'broker', 'category', 'priority', 'assignedTo'],
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
-      take: limit,
+      take: limit
     });
 
     return { tickets, total };
@@ -167,10 +150,10 @@ export class SupportService {
     // Update SLA if priority or category changed
     if (updateDto.categoryId || updateDto.priorityId) {
       const category = updateDto.categoryId
-        ? await this.ticketCategoryRepository.findOne({ where: { id: updateDto.categoryId } })
+        ? await this.prisma.ticketCategory.findFirst({ where: { id: updateDto.categoryId } })
         : ticket.category;
       const priority = updateDto.priorityId
-        ? await this.ticketPriorityRepository.findOne({ where: { id: updateDto.priorityId } })
+        ? await this.prisma.ticketPriority.findFirst({ where: { id: updateDto.priorityId } })
         : ticket.priority;
 
       if (category && priority) {
@@ -183,13 +166,13 @@ export class SupportService {
       ticket.resolvedAt = new Date();
     }
 
-    return await this.ticketRepository.save(ticket);
+    return await this.prisma.ticket.upsert(ticket);
   }
 
   async performTicketAssignment(ticketId: string, assignDto: AssignTicketDto, assignedById: string): Promise<Ticket> {
     const ticket = await this.getTicket(ticketId);
-    const assignee = await this.userRepository.findOne({
-      where: { id: assignDto.assignedToId },
+    const assignee = await this.prisma.user.findFirst({
+      where: { id: assignDto.assignedToId }
     });
 
     if (!assignee) {
@@ -197,99 +180,97 @@ export class SupportService {
     }
 
     // Mark previous assignments as not current
-    await this.ticketAssignmentRepository.update(
+    await this.prisma.ticketAssignment.update(
       { ticketId, isCurrent: true },
-      { isCurrent: false },
-    );
+      { isCurrent: false });
 
     // Create new assignment
-    const assignment = this.ticketAssignmentRepository.create({
+    const assignment = this.prisma.ticketAssignment.create({
       ticketId,
       assignedById,
       assignedToId: assignDto.assignedToId,
       reason: assignDto.reason,
-      isCurrent: true,
+      isCurrent: true
     });
 
-    await this.ticketAssignmentRepository.save(assignment);
+    await this.prisma.ticketAssignment.upsert(assignment);
 
     // Update ticket
     ticket.assignedToId = assignDto.assignedToId;
-    return await this.ticketRepository.save(ticket);
+    return await this.prisma.ticket.upsert(ticket);
   }
 
   async addTicketMessage(
     ticketId: string,
     createDto: CreateTicketMessageDto,
-    authorId: string,
-  ): Promise<TicketMessage> {
+    authorId: string): Promise<TicketMessage> {
     const ticket = await this.getTicket(ticketId);
 
-    const message = this.ticketMessageRepository.create({
+    const message = this.prisma.ticketMessage.create({
       ...createDto,
       ticketId,
-      authorId,
+      authorId
     });
 
-    const savedMessage = await this.ticketMessageRepository.save(message);
+    const savedMessage = await this.prisma.ticketMessage.upsert(message);
 
     // Update ticket first response time if this is the first staff message
     if (!ticket.firstResponseAt && ticket.assignedToId !== authorId) {
       ticket.firstResponseAt = new Date();
-      await this.ticketRepository.save(ticket);
+      await this.prisma.ticket.upsert(ticket);
     }
 
     return savedMessage;
   }
 
   async getTicketMessages(ticketId: string): Promise<TicketMessage[]> {
-    return await this.ticketMessageRepository.find({
+    return await this.prisma.ticketMessage.findMany({
       where: { ticketId },
       relations: ['author'],
-      order: { createdAt: 'ASC' },
+      order: { createdAt: 'ASC' }
     });
   }
 
   async getTicketCategories(): Promise<TicketCategory[]> {
-    return await this.ticketCategoryRepository.find({
+    return await this.prisma.ticketCategory.findMany({
       where: { isActive: true },
-      order: { name: 'ASC' },
+      order: { name: 'ASC' }
     });
   }
 
   async getTicketPriorities(): Promise<TicketPriority[]> {
-    return await this.ticketPriorityRepository.find({
+    return await this.prisma.ticketPriority.findMany({
       where: { isActive: true },
-      order: { level: 'ASC' },
+      order: { level: 'ASC' }
     });
   }
 
   async getSlaBreaches(): Promise<Ticket[]> {
     const now = new Date();
-    return await this.ticketRepository.find({
+    return await this.prisma.ticket.findMany({
       where: {
         slaDueDate: { $lt: now },
         status: { $nin: ['RESOLVED', 'CLOSED'] },
-        slaBreach: false,
+        slaBreach: false
       },
-      relations: ['assignedTo', 'category', 'priority'],
+      relations: ['assignedTo', 'category', 'priority']
     });
   }
 
   async updateSlaBreaches(): Promise<void> {
     const now = new Date();
-    const overdueTickets = await this.ticketRepository.find({
+    const overdueTickets = await this.prisma.ticket.findMany({
       where: {
         slaDueDate: { $lt: now },
-        status: { $nin: ['RESOLVED', 'CLOSED'] },
+        status: { $nin: ['RESOLVED', 'CLOSED'] }
       },
-      relations: ['assignedTo', 'category', 'priority'],
+      relations: ['assignedTo', 'category', 'priority']
     });
 
     for (const ticket of overdueTickets) {
       if (!ticket.slaBreach) {
         ticket.slaBreach = true;
-        await this.ticketRepository.save(ticket);
+        await this.prisma.ticket.upsert(ticket);
 
         // Send SLA breach notifications
         await this.sendSlaBreachNotifications(ticket);
@@ -320,8 +301,8 @@ export class SupportService {
             ticketPriority: ticket.priority?.name || 'Unknown',
             slaDueDate: ticket.slaDueDate,
             overdueHours,
-            customerName: ticket.user ? `${ticket.user.firstName} ${ticket.user.lastName}` : ticket.broker?.companyName || 'Customer',
-          },
+            customerName: ticket.user ? `${ticket.user.firstName} ${ticket.user.lastName}` : ticket.broker?.companyName || 'Customer'
+          }
         });
 
         this.logger.log(`SLA breach notification sent to agent ${ticket.assignedTo.email} for ticket ${ticket.ticketNumber}`);
@@ -341,11 +322,11 @@ export class SupportService {
   private async sendSlaBreachEscalation(ticket: Ticket, overdueHours: number): Promise<void> {
     try {
       // Find supervisors and managers
-      const supervisors = await this.userRepository.find({
+      const supervisors = await this.prisma.user.findMany({
         where: {
           role: In(['ADMIN', 'SUPERVISOR', 'SUPPORT_LEAD']),
-          status: UserStatus.ACTIVE,
-        },
+          status: UserStatus.ACTIVE
+        }
       });
 
       if (supervisors.length === 0) {
@@ -363,7 +344,7 @@ export class SupportService {
         overdueHours,
         assignedAgent: ticket.assignedTo ? `${ticket.assignedTo.firstName} ${ticket.assignedTo.lastName}` : 'Unassigned',
         customerName: ticket.user ? `${ticket.user.firstName} ${ticket.user.lastName}` : ticket.broker?.companyName || 'Customer',
-        escalationLevel: this.getEscalationLevel(overdueHours),
+        escalationLevel: this.getEscalationLevel(overdueHours)
       };
 
       // Send escalation notifications
@@ -374,8 +355,8 @@ export class SupportService {
           template: 'ticket-sla-escalation',
           data: {
             supervisorName: `${supervisor.firstName} ${supervisor.lastName}`,
-            ...escalationData,
-          },
+            ...escalationData
+          }
         });
       }
 
@@ -408,9 +389,9 @@ export class SupportService {
       resolvedTickets,
       overdueTickets,
     ] = await Promise.all([
-      this.ticketRepository.count(),
-      this.ticketRepository.count({ where: { status: 'OPEN' } }),
-      this.ticketRepository.count({ where: { status: 'RESOLVED' } }),
+      this.prisma.count(),
+      this.prisma.count({ where: { status: 'OPEN' } }),
+      this.prisma.count({ where: { status: 'RESOLVED' } }),
       this.getTicketCountByStatus('OVERDUE'),
     ]);
 
@@ -423,7 +404,7 @@ export class SupportService {
       resolvedTickets,
       overdueTickets,
       averageResponseTime: avgResponseTime,
-      resolutionRate: totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0,
+      resolutionRate: totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0
     };
   }
 
@@ -434,13 +415,13 @@ export class SupportService {
     const month = String(date.getMonth() + 1).padStart(2, '0');
 
     // Get count for this month
-    const count = await this.ticketRepository.count({
+    const count = await this.prisma.count({
       where: {
         createdAt: {
           $gte: new Date(year, date.getMonth(), 1),
-          $lt: new Date(year, date.getMonth() + 1, 1),
-        },
-      },
+          $lt: new Date(year, date.getMonth() + 1, 1)
+        }
+      }
     });
 
     return `${prefix}${year}${month}${String(count + 1).padStart(4, '0')}`;
@@ -455,9 +436,9 @@ export class SupportService {
 
   private async autoAssignTicket(ticketId: string, categoryId: string): Promise<void> {
     try {
-      const category = await this.ticketCategoryRepository.findOne({
+      const category = await this.prisma.ticketCategory.findFirst({
         where: { id: categoryId },
-        relations: ['autoAssignAgent'],
+        relations: ['autoAssignAgent']
       });
 
       // Check if auto-assignment is enabled for this category
@@ -475,7 +456,7 @@ export class SupportService {
         if (category.autoAssignAgent) {
           await this.performTicketAssignment(ticketId, {
             assignedToId: category.autoAssignAgent.id,
-            reason: `Auto-assigned to default agent for category "${category.name}" (no available agents found)`,
+            reason: `Auto-assigned to default agent for category "${category.name}" (no available agents found)`
           }, 'system');
 
           this.logger.log(`Ticket ${ticketId} auto-assigned to default agent ${category.autoAssignAgent.id} (${category.autoAssignAgent.firstName} ${category.autoAssignAgent.lastName})`);
@@ -490,7 +471,7 @@ export class SupportService {
         // Assign the ticket to the selected agent
         await this.performTicketAssignment(ticketId, {
           assignedToId: selectedAgent.id,
-          reason: `Auto-assigned based on category "${category.name}" and workload`,
+          reason: `Auto-assigned based on category "${category.name}" and workload`
         }, 'system');
 
         this.logger.log(`Ticket ${ticketId} auto-assigned to agent ${selectedAgent.id} (${selectedAgent.firstName} ${selectedAgent.lastName})`);
@@ -499,7 +480,7 @@ export class SupportService {
         if (category.autoAssignAgent) {
           await this.performTicketAssignment(ticketId, {
             assignedToId: category.autoAssignAgent.id,
-            reason: `Auto-assigned to default agent for category "${category.name}" (all agents at capacity)`,
+            reason: `Auto-assigned to default agent for category "${category.name}" (all agents at capacity)`
           }, 'system');
 
           this.logger.log(`Ticket ${ticketId} auto-assigned to default agent ${category.autoAssignAgent.id} (${category.autoAssignAgent.firstName} ${category.autoAssignAgent.lastName})`);
@@ -520,10 +501,10 @@ export class SupportService {
       .where('user.role = :role', { role: 'SUPPORT' })
       .andWhere('user.status = :status', { status: UserStatus.ACTIVE })
       .andWhere('(user.agent_categories::jsonb ? :categoryId OR :categoryId = ANY(user.categories))', {
-        categoryId,
+        categoryId
       })
       .andWhere('(assignedTickets.status IS NULL OR assignedTickets.status IN (:openStatuses))', {
-        openStatuses: ['OPEN', 'IN_PROGRESS'],
+        openStatuses: ['OPEN', 'IN_PROGRESS']
       })
       .addSelect('COUNT(assignedTickets.id)', 'ticketCount')
       .groupBy('user.id')
@@ -543,17 +524,17 @@ export class SupportService {
     // Get current ticket counts and performance scores for all agents in parallel
     const agentMetrics = await Promise.all(
       agents.map(async (agent) => {
-        const ticketCount = await this.ticketRepository.count({
+        const ticketCount = await this.prisma.count({
           where: {
             assignedToId: agent.id,
-            status: ['OPEN', 'IN_PROGRESS'],
-          },
+            status: ['OPEN', 'IN_PROGRESS']
+          }
         });
         const performanceScore = await this.getAgentPerformanceScore(agent.id);
         return {
           agent,
           ticketCount,
-          performanceScore,
+          performanceScore
         };
       })
     );
@@ -591,11 +572,11 @@ export class SupportService {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const agentTickets = await this.ticketRepository.find({
+      const agentTickets = await this.prisma.ticket.findMany({
         where: {
           assignedToId: agentId,
-          createdAt: { $gte: thirtyDaysAgo },
-        },
+          createdAt: { $gte: thirtyDaysAgo }
+        }
       });
 
       if (agentTickets.length === 0) {
@@ -636,12 +617,12 @@ export class SupportService {
    */
   private async findEscalationAgent(category: TicketCategory): Promise<User | null> {
     // Try to find a supervisor or team lead for escalation
-    const escalationAgents = await this.userRepository.find({
+    const escalationAgents = await this.prisma.user.findMany({
       where: {
         role: In(['ADMIN', 'SUPPORT_LEAD', 'SUPERVISOR']),
-        status: UserStatus.ACTIVE,
+        status: UserStatus.ACTIVE
       },
-      order: { role: 'ASC' }, // Prefer lower escalation level first
+      order: { role: 'ASC' } // Prefer lower escalation level first
     });
 
     if (escalationAgents.length === 0) {
@@ -652,12 +633,12 @@ export class SupportService {
     const agentLoads = await Promise.all(
       escalationAgents.map(async agent => ({
         agent,
-        load: await this.ticketRepository.count({
+        load: await this.prisma.count({
           where: {
             assignedToId: agent.id,
-            status: ['OPEN', 'IN_PROGRESS'],
-          },
-        }),
+            status: ['OPEN', 'IN_PROGRESS']
+          }
+        })
       }))
     );
 
@@ -666,14 +647,14 @@ export class SupportService {
   }
 
   private async getTicketCountByStatus(status: string): Promise<number> {
-    return await this.ticketRepository.count({ where: { status } });
+    return await this.prisma.count({ where: { status } });
   }
 
   private async getAverageResponseTime(): Promise<number> {
     // Simplified calculation - in production, you'd want a more sophisticated approach
-    const tickets = await this.ticketRepository.find({
+    const tickets = await this.prisma.ticket.findMany({
       where: { firstResponseAt: { $ne: null } },
-      select: ['createdAt', 'firstResponseAt'],
+      select: ['createdAt', 'firstResponseAt']
     });
 
     if (tickets.length === 0) return 0;
@@ -726,7 +707,7 @@ export class SupportService {
     const createDto: CreateTicketMessageDto = {
       content,
       attachment,
-      isInternal,
+      isInternal
     };
 
     return this.addTicketMessage(ticketId, createDto, authorId);
@@ -740,7 +721,7 @@ export class SupportService {
   async assignTicket(ticketId: string, assigneeId: string, notes: string, assignedById: string): Promise<Ticket> {
     const assignDto: AssignTicketDto = {
       assignedToId: assigneeId,
-      reason: notes,
+      reason: notes
     };
 
     return this.performTicketAssignment(ticketId, assignDto, assignedById);
@@ -753,7 +734,7 @@ export class SupportService {
       status: 'CLOSED',
       resolvedAt: new Date(),
       resolutionNotes,
-      satisfactionRating,
+      satisfactionRating
     };
 
     return this.performTicketUpdate(ticketId, updateDto);
@@ -827,8 +808,8 @@ export class SupportService {
       category: ticket.category?.name,
       metrics: {
         responseTarget: ticket.priority?.responseTimeHours,
-        resolutionTarget: ticket.priority?.resolutionTimeHours,
-      },
+        resolutionTarget: ticket.priority?.resolutionTimeHours
+      }
     };
   }
 
@@ -839,30 +820,30 @@ export class SupportService {
       {
         category: 'TECHNICAL',
         assignToRole: 'SUPPORT',
-        maxLoad: 10,
+        maxLoad: 10
       },
       {
         category: 'BILLING',
         assignToRole: 'FINANCE',
-        maxLoad: 5,
+        maxLoad: 5
       },
     ];
   }
 
   async getEscalationUsers(escalationType: string): Promise<any[]> {
     // Get users who can handle escalations
-    return await this.userRepository.find({
+    return await this.prisma.user.findMany({
       where: {
         role: In(['ADMIN', 'SUPPORT']),
-        status: UserStatus.ACTIVE,
-      },
+        status: UserStatus.ACTIVE
+      }
     });
   }
 
   async archiveTicket(ticketId: string): Promise<void> {
-    await this.ticketRepository.update(ticketId, {
+    await this.prisma.ticket.update(ticketId, {
       isArchived: true,
-      archivedAt: new Date(),
+      archivedAt: new Date()
     });
   }
 

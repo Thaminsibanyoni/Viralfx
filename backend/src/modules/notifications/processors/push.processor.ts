@@ -1,9 +1,8 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { WebSocketGateway as WSGateway } from '../../websocket/gateways/websocket.gateway';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { SendTimeOptimizerService } from '../services/send-time-optimizer.service';
 import { ProviderHealthService } from '../services/provider-health.service';
 import { ProviderRoutingService, RoutingContext } from '../services/provider-routing.service';
@@ -22,7 +21,7 @@ export interface PushNotificationJob {
 
 @Injectable()
 @Processor('notifications:push')
-export class PushProcessor {
+export class PushProcessor extends WorkerHost {
   private readonly logger = new Logger(PushProcessor.name);
   private readonly fcmConfig: any;
   private providerClients = new Map<string, any>();
@@ -30,13 +29,41 @@ export class PushProcessor {
   constructor(
     private readonly configService: ConfigService,
     private readonly prismaService: PrismaService,
-    private readonly webSocketGateway: WSGateway,
     private readonly sendTimeOptimizer: SendTimeOptimizerService,
     private readonly providerHealthService: ProviderHealthService,
     private readonly providerRoutingService: ProviderRoutingService,
-    private readonly chaosTestingService: ChaosTestingService,
-  ) {
+    private readonly chaosTestingService: ChaosTestingService) {
+    super();
     this.initializeProviders();
+  }
+
+  async process(job: Job<PushNotificationJob>): Promise<any> {
+    switch (job.name) {
+      case 'send-push':
+        return this.handleSendPush(job);
+      case 'cleanup-tokens':
+        return this.handleCleanupTokens(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+  @OnWorkerEvent('active')
+  onActive(job: Job<PushNotificationJob>) {
+    this.logger.log(`Processing push notification job ${job.id} for user ${job.data.userId}`);
+  }
+
+  @OnWorkerEvent('completed')
+  onCompleted(job: Job<PushNotificationJob>) {
+    this.logger.log(`Completed push notification job ${job.id} for user ${job.data.userId}`);
+  }
+
+  @OnWorkerEvent('failed')
+  onFailed(job: Job<PushNotificationJob> | any, error?: Error) {
+    // The signature can vary, handle both cases
+    const jobId = job.id || (job as any)?.job?.id;
+    const userId = job.data?.userId || (job as any)?.job?.data?.userId;
+    this.logger.error(`Failed push notification job ${jobId} for user ${userId}:`, error);
   }
 
   private initializeProviders() {
@@ -52,13 +79,13 @@ export class PushProcessor {
       authDomain: this.configService.get('FCM_AUTH_DOMAIN'),
       projectId: this.configService.get('FCM_PROJECT_ID'),
       messagingSenderId: this.configService.get('FCM_MESSAGING_SENDER_ID'),
-      appId: this.configService.get('FCM_APP_ID'),
+      appId: this.configService.get('FCM_APP_ID')
     };
 
     if (this.fcmConfig.apiKey) {
       this.providerClients.set('fcm', {
         type: 'fcm',
-        config: this.fcmConfig,
+        config: this.fcmConfig
       });
       this.logger.log('FCM client initialized');
     } else {
@@ -71,13 +98,13 @@ export class PushProcessor {
       keyId: this.configService.get('APNS_KEY_ID'),
       teamId: this.configService.get('APNS_TEAM_ID'),
       bundleId: this.configService.get('APNS_BUNDLE_ID'),
-      privateKey: this.configService.get('APNS_PRIVATE_KEY'),
+      privateKey: this.configService.get('APNS_PRIVATE_KEY')
     };
 
     if (apnsConfig.keyId && apnsConfig.teamId && apnsConfig.privateKey) {
       this.providerClients.set('apns', {
         type: 'apns',
-        config: apnsConfig,
+        config: apnsConfig
       });
       this.logger.log('APNS client initialized');
     } else {
@@ -88,13 +115,13 @@ export class PushProcessor {
   private initializeOneSignal() {
     const oneSignalConfig = {
       appId: this.configService.get('ONESIGNAL_APP_ID'),
-      apiKey: this.configService.get('ONESIGNAL_API_KEY'),
+      apiKey: this.configService.get('ONESIGNAL_API_KEY')
     };
 
     if (oneSignalConfig.appId && oneSignalConfig.apiKey) {
       this.providerClients.set('onesignal', {
         type: 'onesignal',
-        config: oneSignalConfig,
+        config: oneSignalConfig
       });
       this.logger.log('OneSignal client initialized');
     } else {
@@ -102,23 +129,7 @@ export class PushProcessor {
     }
   }
 
-  @OnQueueActive()
-  onActive(job: Job<PushNotificationJob>) {
-    this.logger.log(`Processing push notification job ${job.id} for user ${job.data.userId}`);
-  }
-
-  @OnQueueCompleted()
-  onCompleted(job: Job<PushNotificationJob>) {
-    this.logger.log(`Completed push notification job ${job.id} for user ${job.data.userId}`);
-  }
-
-  @OnQueueFailed()
-  onFailed(job: Job<PushNotificationJob>, error: Error) {
-    this.logger.error(`Failed push notification job ${job.id} for user ${job.data.userId}:`, error);
-  }
-
-  @Process('send-push')
-  async handleSendPush(job: Job<PushNotificationJob>) {
+  private async handleSendPush(job: Job<PushNotificationJob>) {
     const { userId, notificationId, deviceTokens, title, message, data, priority, ttl } = job.data;
 
     this.logger.log(`Processing push notification ${notificationId} for user ${userId}`);
@@ -126,7 +137,7 @@ export class PushProcessor {
     try {
       // Get notification details
       const notification = await this.prismaService.notification.findUnique({
-        where: { id: notificationId },
+        where: { id: notificationId }
       });
 
       if (!notification) {
@@ -139,9 +150,9 @@ export class PushProcessor {
         include: {
           notificationPreferences: true,
           deviceTokens: {
-            where: { isActive: true },
-          },
-        },
+            where: { isActive: true }
+          }
+        }
       });
 
       if (!user) {
@@ -171,7 +182,7 @@ export class PushProcessor {
         priority: priority as 'low' | 'medium' | 'high' | 'critical',
         channel: 'push',
         timezone: user.notificationPreferences?.timezone,
-        metadata: data,
+        metadata: data
       });
 
       if (!timeOptimization.shouldSendNow) {
@@ -181,7 +192,7 @@ export class PushProcessor {
         if (timeOptimization.optimalSendTime) {
           await this.prismaService.notification.update({
             where: { id: notificationId },
-            data: { scheduledFor: timeOptimization.optimalSendTime },
+            data: { scheduledFor: timeOptimization.optimalSendTime }
           });
         }
 
@@ -195,7 +206,7 @@ export class PushProcessor {
           skipped: true,
           reason: timeOptimization.reason,
           optimalSendTime: timeOptimization.optimalSendTime,
-          delayMs: timeOptimization.delayMs,
+          delayMs: timeOptimization.delayMs
         };
       }
 
@@ -219,18 +230,18 @@ export class PushProcessor {
               type: notification.category,
               priority: notification.priority,
               actionUrl: notification.actionUrl,
-              actionText: notification.actionText,
+              actionText: notification.actionText
             },
             priority,
             ttl: ttl || 3600, // Default 1 hour TTL
-            notificationPriority: notification.priority as 'low' | 'medium' | 'high' | 'critical',
+            notificationPriority: notification.priority as 'low' | 'medium' | 'high' | 'critical'
           });
 
           results.push({
             platform,
             sent: platformResult.sent,
             failed: platformResult.failed,
-            invalidTokens: platformResult.invalidTokens || [],
+            invalidTokens: platformResult.invalidTokens || []
           });
 
           totalSent += platformResult.sent;
@@ -247,7 +258,7 @@ export class PushProcessor {
             platform,
             error: error.message,
             sent: 0,
-            failed: tokens.length,
+            failed: tokens.length
           });
           totalFailed += tokens.length;
         }
@@ -268,7 +279,7 @@ export class PushProcessor {
         notificationId,
         totalDevices: activeTokens.length,
         sent: totalSent,
-        failed: totalFailed,
+        failed: totalFailed
       });
 
       this.logger.log(`Push notification ${notificationId} sent: ${totalSent} devices, ${totalFailed} failed`);
@@ -282,7 +293,7 @@ export class PushProcessor {
           priority: priority as 'low' | 'medium' | 'high' | 'critical',
           channel: 'push',
           timezone: user.notificationPreferences?.timezone,
-          metadata: data,
+          metadata: data
         });
       }
 
@@ -296,8 +307,8 @@ export class PushProcessor {
         optimizationStats: {
           qualityScore: timeOptimization.qualityScore,
           frequencyCapRespected: timeOptimization.frequencyCapRespected,
-          quietHoursRespected: timeOptimization.quietHoursRespected,
-        },
+          quietHoursRespected: timeOptimization.quietHoursRespected
+        }
       };
     } catch (error) {
       // Handle special case for optimal time delay
@@ -313,8 +324,7 @@ export class PushProcessor {
     }
   }
 
-  @Process('cleanup-tokens')
-  async handleCleanupTokens(job: Job<{
+  private async handleCleanupTokens(job: Job<{
     olderThanDays?: number;
   }>) {
     const { olderThanDays = 30 } = job.data;
@@ -328,14 +338,14 @@ export class PushProcessor {
       const result = await this.prismaService.deviceToken.updateMany({
         where: {
           lastSeenAt: {
-            lt: cutoffDate,
+            lt: cutoffDate
           },
-          isActive: true,
+          isActive: true
         },
         data: {
           isActive: false,
-          deactivationReason: 'INACTIVE_OLD',
-        },
+          deactivationReason: 'INACTIVE_OLD'
+        }
       });
 
       this.logger.log(`Deactivated ${result.count} inactive device tokens`);
@@ -343,7 +353,7 @@ export class PushProcessor {
       return {
         success: true,
         deactivated: result.count,
-        cutoffDate,
+        cutoffDate
       };
     } catch (error) {
       this.logger.error('Failed to cleanup device tokens:', error);
@@ -377,7 +387,7 @@ export class PushProcessor {
       requiresHighThroughput: tokens.length > 100,
       requiresLowLatency: payload.notificationPriority === 'critical' || payload.notificationPriority === 'high',
       costOptimization: payload.notificationPriority === 'low',
-      geographicRouting: false, // Push is global by platform
+      geographicRouting: false // Push is global by platform
     };
 
     let lastError: Error | null = null;
@@ -434,7 +444,7 @@ export class PushProcessor {
             failed: result.failed,
             invalidTokens: result.invalidTokens,
             provider: providerId,
-            attempts,
+            attempts
           };
 
         } catch (error) {
@@ -446,8 +456,7 @@ export class PushProcessor {
             providerId,
             false,
             Date.now() - Date.now(),
-            error.message,
-          );
+            error.message);
 
           // Continue to next provider if available
           if (attempts < maxAttempts) {
@@ -461,7 +470,7 @@ export class PushProcessor {
       return {
         ...mockResult,
         provider: 'mock-push-service',
-        attempts,
+        attempts
       };
 
     } catch (error) {
@@ -556,7 +565,7 @@ export class PushProcessor {
     return {
       sent: totalSent,
       failed: totalFailed,
-      invalidTokens,
+      invalidTokens
     };
   }
 
@@ -592,7 +601,7 @@ export class PushProcessor {
     return {
       sent: successCount,
       failed: failedCount,
-      invalidTokens,
+      invalidTokens
     };
   }
 
@@ -628,7 +637,7 @@ export class PushProcessor {
     return {
       sent: successCount,
       failed: failedCount,
-      invalidTokens,
+      invalidTokens
     };
   }
 
@@ -673,7 +682,7 @@ export class PushProcessor {
     return {
       sent: successCount,
       failed: failedCount,
-      invalidTokens,
+      invalidTokens
     };
   }
 
@@ -693,26 +702,26 @@ export class PushProcessor {
       notification: {
         title: payload.title,
         body: payload.message,
-        sound: 'default',
+        sound: 'default'
       },
       data: payload.data,
       priority: payload.priority === 'high' ? 'high' : 'normal',
-      time_to_live: payload.ttl,
+      time_to_live: payload.ttl
     };
 
     // Platform-specific configurations
     if (platform === 'ios') {
       fcmPayload.notification = {
         ...fcmPayload.notification,
-        click_action: payload.data?.actionUrl,
+        click_action: payload.data?.actionUrl
       };
       fcmPayload.apns = {
         payload: {
           aps: {
             sound: 'default',
-            category: payload.data?.category,
-          },
-        },
+            category: payload.data?.category
+          }
+        }
       };
     }
 
@@ -723,8 +732,8 @@ export class PushProcessor {
         notification: {
           click_action: payload.data?.actionUrl,
           icon: 'ic_notification',
-          color: '#4B0082',
-        },
+          color: '#4B0082'
+        }
       };
     }
 
@@ -736,9 +745,9 @@ export class PushProcessor {
       method: 'POST',
       headers: {
         'Authorization': `key=${this.fcmConfig.apiKey}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
@@ -760,7 +769,7 @@ export class PushProcessor {
     try {
       await this.prismaService.deviceToken.updateMany({
         where: { token: { in: tokens } },
-        data: { lastSeenAt: new Date() },
+        data: { lastSeenAt: new Date() }
       });
     } catch (error) {
       this.logger.error('Failed to update token usage:', error);
@@ -824,13 +833,13 @@ export class PushProcessor {
     await this.prismaService.deviceToken.updateMany({
       where: {
         token: { in: invalidTokens },
-        isActive: true,
+        isActive: true
       },
       data: {
         isActive: false,
         deactivationReason: 'INVALID_TOKEN',
-        deactivatedAt: new Date(),
-      },
+        deactivatedAt: new Date()
+      }
     });
 
     this.logger.log(`Deactivated ${invalidTokens.length} invalid device tokens`);
@@ -853,9 +862,9 @@ export class PushProcessor {
           totalDevices,
           sent,
           failed,
-          successRate: totalDevices > 0 ? (sent / totalDevices) * 100 : 0,
-        }),
-      },
+          successRate: totalDevices > 0 ? (sent / totalDevices) * 100 : 0
+        })
+      }
     });
   }
 
@@ -867,8 +876,8 @@ export class PushProcessor {
       where: { id: notificationId },
       data: {
         deliveryStatus: status,
-        deliveredAt: status === 'PUSH_SENT' ? new Date() : undefined,
-      },
+        deliveredAt: status === 'PUSH_SENT' ? new Date() : undefined
+      }
     });
   }
 }

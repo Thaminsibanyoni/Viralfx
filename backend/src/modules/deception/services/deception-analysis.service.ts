@@ -49,7 +49,7 @@ export class DeceptionAnalysisService {
         linguisticPatterns,
         sourceAnalysis,
         contentAnalysis,
-        riskAssessment,
+        riskAssessment
       };
     } catch (error) {
       this.logger.error('Advanced deception analysis failed:', error);
@@ -68,7 +68,7 @@ export class DeceptionAnalysisService {
     return {
       verifiedSources: [],
       conflictingSources: [],
-      consensusScore: 0.5,
+      consensusScore: 0.5
     };
   }
 
@@ -85,7 +85,7 @@ export class DeceptionAnalysisService {
       botActivityScore: Math.random() * 0.3,
       coordinatedInauthenticBehavior: Math.random() * 0.2,
       echoChamberEffect: Math.random() * 0.4,
-      viralPotential: Math.random() * 0.6,
+      viralPotential: Math.random() * 0.6
     };
   }
 
@@ -99,7 +99,7 @@ export class DeceptionAnalysisService {
       return {
         isManipulated: false,
         confidence: 0,
-        manipulationType: [],
+        manipulationType: []
       };
     }
 
@@ -109,7 +109,7 @@ export class DeceptionAnalysisService {
     return {
       isManipulated: Math.random() > 0.8,
       confidence: Math.random() * 0.7,
-      manipulationType: [],
+      manipulationType: []
     };
   }
 
@@ -147,7 +147,7 @@ export class DeceptionAnalysisService {
       sensationalism: Math.min(sensationalismScore * 10, 1.0),
       emotionalLanguage: Math.min(emotionalLanguageScore * 8, 1.0),
       clickbaitIndicators: Math.min(clickbaitScore * 15, 1.0),
-      propagandaTechniques: Math.min(propagandaScore * 12, 1.0),
+      propagandaTechniques: Math.min(propagandaScore * 12, 1.0)
     };
   }
 
@@ -164,7 +164,7 @@ export class DeceptionAnalysisService {
       credibilityScore,
       factualityScore,
       biasScore,
-      sourceReliability,
+      sourceReliability
     };
   }
 
@@ -181,15 +181,14 @@ export class DeceptionAnalysisService {
       factualAccuracy,
       logicalFallacies,
       unverifiedClaims,
-      manipulationTactics,
+      manipulationTactics
     };
   }
 
   private assessRisk(
     linguisticPatterns: any,
     sourceAnalysis: any,
-    contentAnalysis: any,
-  ) {
+    contentAnalysis: any) {
     // Calculate overall risk from multiple factors
     const linguisticRisk = (
       linguisticPatterns.sensationalism +
@@ -225,7 +224,7 @@ export class DeceptionAnalysisService {
     return {
       overallRisk,
       riskFactors,
-      recommendedActions,
+      recommendedActions
     };
   }
 
@@ -270,7 +269,7 @@ export class DeceptionAnalysisService {
       'False dichotomy': ['either or', 'only two options', 'no other choice'],
       'Slippery slope': ['will lead to', 'eventually', 'next thing you know'],
       'Appeal to authority': ['experts agree', 'studies show', 'research proves'],
-      'Bandwagon': ['everyone believes', 'most people think', 'popular opinion'],
+      'Bandwagon': ['everyone believes', 'most people think', 'popular opinion']
     };
 
     const detected: string[] = [];
@@ -315,7 +314,7 @@ export class DeceptionAnalysisService {
       'Social proof': ['everyone', 'most people', 'popular', 'trending'],
       'Scarcity': ['limited', 'exclusive', 'rare', 'only few'],
       'Emotional manipulation': ['heartbreaking', 'shocking', 'outrageous', 'unbelievable'],
-      'Authority appeal': ['experts', 'doctors', 'scientists', 'official'],
+      'Authority appeal': ['experts', 'doctors', 'scientists', 'official']
     };
 
     const detected: string[] = [];

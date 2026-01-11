@@ -1,48 +1,41 @@
 import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ConfigService } from '@nestjs/config';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
-import { Broker, BrokerStatus, BrokerTier } from '../entities/broker.entity';
-import { BrokerVerification, VerificationType, VerificationStatus } from '../entities/broker-verification.entity';
-import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
-import { BrokerApiUsage, ApiMethod } from '../entities/broker-api-usage.entity';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { BrokerStatus, BrokerTier } from '../enums/broker.enum';
+// COMMENTED OUT (TypeORM entity deleted): import { Broker, BrokerStatus, BrokerTier } from '../entities/broker.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerVerification, VerificationType, VerificationStatus } from '../entities/broker-verification.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerApiUsage, ApiMethod } from '../entities/broker-api-usage.entity';
 import { CreateBrokerDto } from '../dto/create-broker.dto';
 import { UpdateBrokerDto } from '../dto/update-broker.dto';
 import { FSCAVerificationDto } from '../dto/fsca-verification.dto';
 import { BrokerFilterOptions, BrokerStats } from '../interfaces/broker.interface';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { AnalyticsService } from './analytics.service';
-import { IntegrationService } from './integration.service';
-import { crypto } from '../../../common/utils/crypto';
+import { AnalyticsService } from "./analytics.service";
+import { IntegrationService } from "./integration.service";
+import { crypto } from "../../../common/utils/crypto";
+
+// Type alias for compatibility
+type Broker = any;
 
 @Injectable()
 export class BrokersService {
   private readonly logger = new Logger(BrokersService.name);
 
   constructor(
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-    @InjectRepository(BrokerVerification)
-    private verificationRepository: Repository<BrokerVerification>,
-    @InjectRepository(BrokerBill)
-    private billRepository: Repository<BrokerBill>,
-    @InjectRepository(BrokerApiUsage)
-    private apiUsageRepository: Repository<BrokerApiUsage>,
-    private prismaService: PrismaService,
+        private prismaService: PrismaService,
     private configService: ConfigService,
     private analyticsService: AnalyticsService,
     private integrationService: IntegrationService,
-    @InjectQueue('broker-verification') private verificationQueue: Queue,
-  ) {}
+    @InjectQueue('broker-verification') private verificationQueue: Queue) {}
 
   async createBroker(createBrokerDto: CreateBrokerDto): Promise<Broker> {
     this.logger.log(`Creating new broker: ${createBrokerDto.companyName}`);
 
     // Check if registration number already exists
-    const existingBroker = await this.brokerRepository.findOne({
-      where: { registrationNumber: createBrokerDto.registrationNumber },
+    const existingBroker = await this.prisma.broker.findFirst({
+      where: { registrationNumber: createBrokerDto.registrationNumber }
     });
 
     if (existingBroker) {
@@ -53,7 +46,7 @@ export class BrokersService {
     const apiKey = this.generateApiKey();
     const apiSecret = this.generateApiSecret();
 
-    const broker = this.brokerRepository.create({
+    const broker = this.prisma.broker.create({
       ...createBrokerDto,
       status: BrokerStatus.PENDING,
       tier: BrokerTier.STARTER,
@@ -61,7 +54,7 @@ export class BrokersService {
         apiKey,
         apiSecret,
         rateLimit: 100, // Default rate limit for starter tier
-        allowedIps: [],
+        allowedIps: []
       },
       trustScore: 0,
       isActive: false,
@@ -69,33 +62,33 @@ export class BrokersService {
         fscaVerified: false,
         aum: 0,
         clientCount: 0,
-        insuranceCoverage: 0,
+        insuranceCoverage: 0
       },
       paymentInfo: {
         billingEmail: createBrokerDto.contactEmail,
         paymentMethod: null,
-        billingAddress: createBrokerDto.physicalAddress,
-      },
+        billingAddress: createBrokerDto.physicalAddress
+      }
     });
 
-    const savedBroker = await this.brokerRepository.save(broker);
+    const savedBroker = await this.prisma.broker.upsert(broker);
 
     // Create initial FSCA verification record
-    const verification = this.verificationRepository.create({
+    const verification = this.prisma.verificationrepository.create({
       brokerId: savedBroker.id,
       verificationType: VerificationType.FSCA_LICENSE,
       status: VerificationStatus.PENDING,
-      documents: [],
+      documents: []
     });
 
-    await this.verificationRepository.save(verification);
+    await this.prisma.verificationrepository.upsert(verification);
 
     // Queue FSCA verification if license number provided
     if (createBrokerDto.fscaLicenseNumber) {
       await this.verificationQueue.add('verify-fsca-license', {
         brokerId: savedBroker.id,
         fscaLicenseNumber: createBrokerDto.fscaLicenseNumber,
-        registrationNumber: createBrokerDto.registrationNumber,
+        registrationNumber: createBrokerDto.registrationNumber
       });
     }
 
@@ -109,12 +102,12 @@ export class BrokersService {
         newValues: JSON.stringify({
           companyName: savedBroker.companyName,
           registrationNumber: savedBroker.registrationNumber,
-          status: savedBroker.status,
+          status: savedBroker.status
         }),
         userId: null,
         ipAddress: null,
-        userAgent: null,
-      },
+        userAgent: null
+      }
     });
 
     this.logger.log(`Successfully created broker: ${savedBroker.companyName} (${savedBroker.id})`);
@@ -124,7 +117,7 @@ export class BrokersService {
   async getBrokers(filters: BrokerFilterOptions = {}) {
     const { status, tier, verified, search, sortBy = 'createdAt', sortOrder = 'DESC', page = 1, limit = 10 } = filters;
 
-    const queryBuilder = this.brokerRepository.createQueryBuilder('broker');
+    const queryBuilder = this.prisma.createQueryBuilder('broker');
 
     // Apply filters
     if (status && status.length > 0) {
@@ -161,15 +154,15 @@ export class BrokersService {
         page,
         limit,
         total,
-        pages: Math.ceil(total / limit),
-      },
+        pages: Math.ceil(total / limit)
+      }
     };
   }
 
   async getBrokerById(id: string): Promise<Broker> {
-    const broker = await this.brokerRepository.findOne({
+    const broker = await this.prisma.broker.findFirst({
       where: { id },
-      relations: ['verifications', 'bills', 'integrations', 'reviews', 'apiUsage', 'complianceChecks', 'marketingAnalytics'],
+      relations: ['verifications', 'bills', 'integrations', 'reviews', 'apiUsage', 'complianceChecks', 'marketingAnalytics']
     });
 
     if (!broker) {
@@ -189,21 +182,21 @@ export class BrokersService {
       companyName: broker.companyName,
       status: broker.status,
       tier: broker.tier,
-      contactEmail: broker.contactEmail,
+      contactEmail: broker.contactEmail
     });
 
     // Update broker
     Object.assign(broker, updateBrokerDto);
     broker.updatedAt = new Date();
 
-    const updatedBroker = await this.brokerRepository.save(broker);
+    const updatedBroker = await this.prisma.broker.upsert(broker);
 
     // Store new values for audit
     const newValues = JSON.stringify({
       companyName: updatedBroker.companyName,
       status: updatedBroker.status,
       tier: updatedBroker.tier,
-      contactEmail: updatedBroker.contactEmail,
+      contactEmail: updatedBroker.contactEmail
     });
 
     // Log audit
@@ -216,8 +209,8 @@ export class BrokersService {
         newValues,
         userId: null,
         ipAddress: null,
-        userAgent: null,
-      },
+        userAgent: null
+      }
     });
 
     this.logger.log(`Successfully updated broker: ${id}`);
@@ -234,7 +227,7 @@ export class BrokersService {
     broker.isActive = false;
     broker.updatedAt = new Date();
 
-    await this.brokerRepository.save(broker);
+    await this.prisma.broker.upsert(broker);
 
     // Log audit
     await this.prismaService.auditLog.create({
@@ -244,16 +237,16 @@ export class BrokersService {
         entityId: id,
         oldValues: JSON.stringify({
           companyName: broker.companyName,
-          status: 'ACTIVE',
+          status: 'ACTIVE'
         }),
         newValues: JSON.stringify({
           companyName: broker.companyName,
-          status: BrokerStatus.DELETED,
+          status: BrokerStatus.DELETED
         }),
         userId: null,
         ipAddress: null,
-        userAgent: null,
-      },
+        userAgent: null
+      }
     });
 
     this.logger.log(`Successfully deleted broker: ${id}`);
@@ -268,10 +261,10 @@ export class BrokersService {
     broker.apiConfig = {
       ...broker.apiConfig,
       apiKey,
-      apiSecret,
+      apiSecret
     };
 
-    await this.brokerRepository.save(broker);
+    await this.prisma.broker.upsert(broker);
 
     return { apiKey, apiSecret };
   }
@@ -291,8 +284,8 @@ export class BrokersService {
         newValues: JSON.stringify({ action: 'API_CREDENTIALS_ROTATED' }),
         userId: null,
         ipAddress: null,
-        userAgent: null,
-      },
+        userAgent: null
+      }
     });
 
     this.logger.log(`Successfully rotated API credentials for broker: ${brokerId}`);
@@ -303,23 +296,23 @@ export class BrokersService {
     const broker = await this.getBrokerById(brokerId);
 
     // Get API usage stats
-    const apiUsage = await this.apiUsageRepository.find({
+    const apiUsage = await this.prisma.apiusagerepository.findMany({
       where: { brokerId },
       order: { date: 'DESC' },
-      take: 30,
+      take: 30
     });
 
     // Get recent bills
-    const recentBills = await this.billRepository.find({
+    const recentBills = await this.prisma.billrepository.findMany({
       where: { brokerId },
       order: { createdAt: 'DESC' },
-      take: 6,
+      take: 6
     });
 
     // Get verification status
-    const latestVerification = await this.verificationRepository.findOne({
+    const latestVerification = await this.prisma.verificationrepository.findFirst({
       where: { brokerId },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: 'DESC' }
     });
 
     return {
@@ -328,23 +321,23 @@ export class BrokersService {
         companyName: broker.companyName,
         status: broker.status,
         tier: broker.tier,
-        trustScore: broker.trustScore,
+        trustScore: broker.trustScore
       },
       apiUsage: {
         totalRequestsLast30Days: apiUsage.reduce((sum, usage) => sum + usage.requestCount, 0),
         averageResponseTime: apiUsage.reduce((sum, usage) => sum + usage.responseTimeAvg, 0) / (apiUsage.length || 1),
-        errorRate: apiUsage.reduce((sum, usage) => sum + usage.errorCount, 0) / (apiUsage.reduce((sum, usage) => sum + usage.requestCount, 0) || 1) * 100,
+        errorRate: apiUsage.reduce((sum, usage) => sum + usage.errorCount, 0) / (apiUsage.reduce((sum, usage) => sum + usage.requestCount, 0) || 1) * 100
       },
       billing: {
         totalPending: recentBills.filter(bill => bill.status === BillStatus.PENDING).reduce((sum, bill) => sum + bill.total, 0),
         totalPaid: recentBills.filter(bill => bill.status === BillStatus.PAID).reduce((sum, bill) => sum + bill.total, 0),
-        overdueCount: recentBills.filter(bill => bill.status === BillStatus.OVERDUE).length,
+        overdueCount: recentBills.filter(bill => bill.status === BillStatus.OVERDUE).length
       },
       verification: {
         status: latestVerification?.status || VerificationStatus.PENDING,
         lastCheck: latestVerification?.createdAt,
-        expiresAt: latestVerification?.expiresAt,
-      },
+        expiresAt: latestVerification?.expiresAt
+      }
     };
   }
 
@@ -357,8 +350,8 @@ export class BrokersService {
       brokersByStatus,
       newBrokersThisMonth,
     ] = await Promise.all([
-      this.brokerRepository.count(),
-      this.brokerRepository.count({ where: { isActive: true } }),
+      this.prisma.count(),
+      this.prisma.count({ where: { isActive: true } }),
       this.brokerRepository
         .createQueryBuilder('broker')
         .where('broker.complianceInfo->>\'fscaVerified\' = :verified', { verified: 'true' })
@@ -375,10 +368,10 @@ export class BrokersService {
         .addSelect('COUNT(*)', 'count')
         .groupBy('broker.status')
         .getRawMany(),
-      this.brokerRepository.count({
+      this.prisma.count({
         where: {
-          createdAt: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-        },
+          createdAt: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        }
       }),
     ]);
 
@@ -392,7 +385,7 @@ export class BrokersService {
       brokersByTier: brokersByTier.reduce((acc, item) => ({ ...acc, [item.tier]: parseInt(item.count) }), {}),
       brokersByStatus: brokersByStatus.reduce((acc, item) => ({ ...acc, [item.status]: parseInt(item.count) }), {}),
       newBrokersThisMonth,
-      growthRate: 0.15, // Would calculate based on historical data
+      growthRate: 0.15 // Would calculate based on historical data
     };
   }
 
@@ -436,7 +429,7 @@ export class BrokersService {
       operatingHours: broker.operatingHours,
       createdAt: broker.createdAt,
       updatedAt: broker.updatedAt,
-      stats,
+      stats
     };
   }
 
@@ -456,7 +449,7 @@ export class BrokersService {
       }
     });
 
-    return await this.brokerRepository.save(broker);
+    return await this.prisma.broker.upsert(broker);
   }
 
   async getMyIntegrations(brokerId: string): Promise<any> {
@@ -472,7 +465,7 @@ export class BrokersService {
     totalDealsLost?: number;
     totalRevenue?: number;
   }) {
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     if (!broker) {
       throw new NotFoundException(`Broker with ID ${brokerId} not found`);
     }
@@ -498,7 +491,7 @@ export class BrokersService {
 
     broker.updatedAt = new Date();
 
-    await this.brokerRepository.save(broker);
+    await this.prisma.broker.upsert(broker);
 
     this.logger.log(`Updated metrics for broker ${brokerId}: deals won: ${metrics.totalDealsWon}, deals lost: ${metrics.totalDealsLost}, revenue: ${metrics.totalRevenue}`);
   }

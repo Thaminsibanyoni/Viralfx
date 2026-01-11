@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Post,
@@ -10,25 +10,21 @@ import {
   UseGuards,
   Request,
   HttpCode,
-  HttpStatus,
-} from '@nestjs/common';
+  HttpStatus, Req } from '@nestjs/common';
 import { AdminAuthGuard } from '../guards/admin-auth.guard';
 import { Permissions } from '../decorators/permissions.decorator';
 import { AdminDashboardService } from '../services/admin-dashboard.service';
-import { AdminAuditLog, AuditAction, AuditSeverity } from '../entities/admin-audit-log.entity';
 
 @Controller('admin/dashboard')
 @UseGuards(AdminAuthGuard)
 export class AdminDashboardController {
   constructor(
-    private dashboardService: AdminDashboardService,
-  ) {}
+    private dashboardService: AdminDashboardService) {}
 
   @Get('overview')
   @Permissions('dashboard:read')
   async getOverview(
-    @Query('timeframe') timeframe: '1h' | '24h' | '7d' | '30d' = '24h',
-  ) {
+    @Query('timeframe') timeframe: '1h' | '24h' | '7d' | '30d' = '24h') {
     return await this.dashboardService.getDashboardMetrics(timeframe);
   }
 
@@ -50,13 +46,12 @@ export class AdminDashboardController {
     @Query('severity') severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL',
     @Query('resolved') resolved?: boolean,
     @Query('page') page: string = '1',
-    @Query('limit') limit: string = '50',
-  ) {
+    @Query('limit') limit: string = '50') {
     return await this.dashboardService.getAlerts({
       severity,
       resolved: resolved === undefined ? undefined : resolved === 'true',
       page: parseInt(page),
-      limit: parseInt(limit),
+      limit: parseInt(limit)
     });
   }
 }
@@ -65,8 +60,7 @@ export class AdminDashboardController {
 @UseGuards(AdminAuthGuard)
 export class UserOpsController {
   constructor(
-    private dashboardService: AdminDashboardService,
-  ) {}
+    private dashboardService: AdminDashboardService) {}
 
   @Get()
   @Permissions('users:read')
@@ -75,14 +69,13 @@ export class UserOpsController {
     @Query('limit') limit: string = '50',
     @Query('status') status?: string,
     @Query('kycStatus') kycStatus?: string,
-    @Query('search') search?: string,
-  ) {
+    @Query('search') search?: string) {
     return await this.dashboardService.getUsers({
       page: parseInt(page),
       limit: parseInt(limit),
       status,
       kycStatus,
-      search,
+      search
     });
   }
 
@@ -98,8 +91,7 @@ export class UserOpsController {
   async suspendUser(
     @Param('id') userId: string,
     @Body('reason') reason: string,
-    @Request() req: { admin: any },
-  ) {
+    @Req() req: { admin: any }) {
     await this.dashboardService.suspendUser(userId, reason, req.admin.id);
     return { message: 'User suspended successfully' };
   }
@@ -109,8 +101,7 @@ export class UserOpsController {
   @Permissions('users:unsuspend')
   async unsuspendUser(
     @Param('id') userId: string,
-    @Request() req: { admin: any },
-  ) {
+    @Req() req: { admin: any }) {
     await this.dashboardService.unsuspendUser(userId, req.admin.id);
     return { message: 'User unsuspended successfully' };
   }
@@ -121,8 +112,7 @@ export class UserOpsController {
   async banUser(
     @Param('id') userId: string,
     @Body('reason') reason: string,
-    @Request() req: { admin: any },
-  ) {
+    @Req() req: { admin: any }) {
     await this.dashboardService.banUser(userId, reason, req.admin.id);
     return { message: 'User banned successfully' };
   }
@@ -132,8 +122,7 @@ export class UserOpsController {
   @Permissions('users:unban')
   async unbanUser(
     @Param('id') userId: string,
-    @Request() req: { admin: any },
-  ) {
+    @Req() req: { admin: any }) {
     await this.dashboardService.unbanUser(userId, req.admin.id);
     return { message: 'User unbanned successfully' };
   }
@@ -149,8 +138,7 @@ export class UserOpsController {
   @Permissions('kyc:update')
   async approveKYC(
     @Param('id') userId: string,
-    @Request() req: { admin: any },
-  ) {
+    @Req() req: { admin: any }) {
     await this.dashboardService.approveKYC(userId, req.admin.id);
     return { message: 'KYC approved successfully' };
   }
@@ -161,8 +149,7 @@ export class UserOpsController {
   async rejectKYC(
     @Param('id') userId: string,
     @Body('reason') reason: string,
-    @Request() req: { admin: any },
-  ) {
+    @Req() req: { admin: any }) {
     await this.dashboardService.rejectKYC(userId, reason, req.admin.id);
     return { message: 'KYC rejected successfully' };
   }
@@ -172,8 +159,7 @@ export class UserOpsController {
 @UseGuards(AdminAuthGuard)
 export class BrokerOpsController {
   constructor(
-    private dashboardService: AdminDashboardService,
-  ) {}
+    private dashboardService: AdminDashboardService) {}
 
   @Get()
   @Permissions('brokers:read')
@@ -182,14 +168,13 @@ export class BrokerOpsController {
     @Query('limit') limit: string = '50',
     @Query('status') status?: string,
     @Query('tier') tier?: string,
-    @Query('search') search?: string,
-  ) {
+    @Query('search') search?: string) {
     return await this.dashboardService.getBrokers({
       page: parseInt(page),
       limit: parseInt(limit),
       status,
       tier,
-      search,
+      search
     });
   }
 
@@ -204,8 +189,7 @@ export class BrokerOpsController {
   @Permissions('brokers:approve')
   async approveBroker(
     @Param('id') brokerId: string,
-    @Request() req: { admin: any },
-  ) {
+    @Req() req: { admin: any }) {
     await this.dashboardService.approveBroker(brokerId, req.admin.id);
     return { message: 'Broker approved successfully' };
   }
@@ -216,8 +200,7 @@ export class BrokerOpsController {
   async suspendBroker(
     @Param('id') brokerId: string,
     @Body('reason') reason: string,
-    @Request() req: { admin: any },
-  ) {
+    @Req() req: { admin: any }) {
     await this.dashboardService.suspendBroker(brokerId, reason, req.admin.id);
     return { message: 'Broker suspended successfully' };
   }
@@ -228,8 +211,7 @@ export class BrokerOpsController {
   async verifyBroker(
     @Param('id') brokerId: string,
     @Body('verificationData') verificationData: any,
-    @Request() req: { admin: any },
-  ) {
+    @Req() req: { admin: any }) {
     await this.dashboardService.verifyBroker(brokerId, verificationData, req.admin.id);
     return { message: 'Broker verification completed successfully' };
   }
@@ -239,14 +221,12 @@ export class BrokerOpsController {
 @UseGuards(AdminAuthGuard)
 export class FinanceOpsController {
   constructor(
-    private dashboardService: AdminDashboardService,
-  ) {}
+    private dashboardService: AdminDashboardService) {}
 
   @Get('overview')
   @Permissions('finance:read')
   async getFinanceOverview(
-    @Query('timeframe') timeframe: '24h' | '7d' | '30d' = '30d',
-  ) {
+    @Query('timeframe') timeframe: '24h' | '7d' | '30d' = '30d') {
     return await this.dashboardService.getFinanceOverview(timeframe);
   }
 
@@ -257,14 +237,13 @@ export class FinanceOpsController {
     @Query('limit') limit: string = '50',
     @Query('status') status?: string,
     @Query('type') type?: string,
-    @Query('currency') currency?: string,
-  ) {
+    @Query('currency') currency?: string) {
     return await this.dashboardService.getTransactions({
       page: parseInt(page),
       limit: parseInt(limit),
       status,
       type,
-      currency,
+      currency
     });
   }
 
@@ -274,13 +253,12 @@ export class FinanceOpsController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '50',
     @Query('status') status?: string,
-    @Query('brokerId') brokerId?: string,
-  ) {
+    @Query('brokerId') brokerId?: string) {
     return await this.dashboardService.getInvoices({
       page: parseInt(page),
       limit: parseInt(limit),
       status,
-      brokerId,
+      brokerId
     });
   }
 
@@ -301,8 +279,7 @@ export class FinanceOpsController {
 @UseGuards(AdminAuthGuard)
 export class TrendOpsController {
   constructor(
-    private dashboardService: AdminDashboardService,
-  ) {}
+    private dashboardService: AdminDashboardService) {}
 
   @Get()
   @Permissions('trends:read')
@@ -311,14 +288,13 @@ export class TrendOpsController {
     @Query('limit') limit: string = '50',
     @Query('status') status?: string,
     @Query('category') category?: string,
-    @Query('region') region?: string,
-  ) {
+    @Query('region') region?: string) {
     return await this.dashboardService.getTrends({
       page: parseInt(page),
       limit: parseInt(limit),
       status,
       category,
-      region,
+      region
     });
   }
 
@@ -334,8 +310,7 @@ export class TrendOpsController {
   async overrideTrend(
     @Param('id') trendId: string,
     @Body('overrideData') overrideData: any,
-    @Request() req: { admin: any },
-  ) {
+    @Req() req: { admin: any }) {
     await this.dashboardService.overrideTrend(trendId, overrideData, req.admin.id);
     return { message: 'Trend overridden successfully' };
   }
@@ -345,8 +320,7 @@ export class TrendOpsController {
   @Permissions('trends:approve')
   async approveTrend(
     @Param('id') trendId: string,
-    @Request() req: { admin: any },
-  ) {
+    @Req() req: { admin: any }) {
     await this.dashboardService.approveTrend(trendId, req.admin.id);
     return { message: 'Trend approved successfully' };
   }
@@ -357,8 +331,7 @@ export class TrendOpsController {
   async rejectTrend(
     @Param('id') trendId: string,
     @Body('reason') reason: string,
-    @Request() req: { admin: any },
-  ) {
+    @Req() req: { admin: any }) {
     await this.dashboardService.rejectTrend(trendId, reason, req.admin.id);
     return { message: 'Trend rejected successfully' };
   }
@@ -368,8 +341,7 @@ export class TrendOpsController {
 @UseGuards(AdminAuthGuard)
 export class RiskOpsController {
   constructor(
-    private dashboardService: AdminDashboardService,
-  ) {}
+    private dashboardService: AdminDashboardService) {}
 
   @Get('alerts')
   @Permissions('risk:read')
@@ -377,13 +349,12 @@ export class RiskOpsController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '50',
     @Query('severity') severity?: string,
-    @Query('status') status?: string,
-  ) {
+    @Query('status') status?: string) {
     return await this.dashboardService.getRiskAlerts({
       page: parseInt(page),
       limit: parseInt(limit),
       severity,
-      status,
+      status
     });
   }
 
@@ -393,13 +364,12 @@ export class RiskOpsController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '50',
     @Query('type') type?: string,
-    @Query('status') status?: string,
-  ) {
+    @Query('status') status?: string) {
     return await this.dashboardService.getHarmfulContent({
       page: parseInt(page),
       limit: parseInt(limit),
       type,
-      status,
+      status
     });
   }
 
@@ -409,8 +379,7 @@ export class RiskOpsController {
   async blockContent(
     @Param('id') contentId: string,
     @Body('reason') reason: string,
-    @Request() req: { admin: any },
-  ) {
+    @Req() req: { admin: any }) {
     await this.dashboardService.blockContent(contentId, reason, req.admin.id);
     return { message: 'Content blocked successfully' };
   }
@@ -420,8 +389,7 @@ export class RiskOpsController {
   @Permissions('risk:approve')
   async approveContent(
     @Param('id') contentId: string,
-    @Request() req: { admin: any },
-  ) {
+    @Req() req: { admin: any }) {
     await this.dashboardService.approveContent(contentId, req.admin.id);
     return { message: 'Content approved successfully' };
   }
@@ -431,8 +399,7 @@ export class RiskOpsController {
 @UseGuards(AdminAuthGuard)
 export class AuditController {
   constructor(
-    private dashboardService: AdminDashboardService,
-  ) {}
+    private dashboardService: AdminDashboardService) {}
 
   @Get()
   @Permissions('audit:read')
@@ -443,8 +410,7 @@ export class AuditController {
     @Query('adminId') adminId?: string,
     @Query('targetType') targetType?: string,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ) {
+    @Query('endDate') endDate?: string) {
     return await this.dashboardService.getAuditLogs({
       page: parseInt(page),
       limit: parseInt(limit),
@@ -452,7 +418,7 @@ export class AuditController {
       adminId,
       targetType,
       startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined
     });
   }
 

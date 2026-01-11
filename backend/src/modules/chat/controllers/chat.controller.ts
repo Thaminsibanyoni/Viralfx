@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Post,
@@ -12,20 +12,19 @@ import {
   HttpStatus,
   HttpCode,
   BadRequestException,
-  Request,
-} from '@nestjs/common';
+  Request, Req } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
   ApiQuery,
-  ApiBearerAuth,
+  ApiBearerAuth
 } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { ChatService } from '../services/chat.service';
 import { ChatModerationService } from '../services/chat-moderation.service';
 import {
@@ -45,7 +44,7 @@ import {
   UpdateParticipantRoleDto,
   MessageSearchDto,
   ChatStatsDto,
-  ExportChatDto,
+  ExportChatDto
 } from '../dto/chat.dto';
 
 @ApiTags('Chat')
@@ -55,8 +54,7 @@ import {
 export class ChatController {
   constructor(
     private readonly chatService: ChatService,
-    private readonly moderationService: ChatModerationService,
-  ) {}
+    private readonly moderationService: ChatModerationService) {}
 
   // Rooms endpoints
   @Post('rooms')
@@ -66,11 +64,10 @@ export class ChatController {
   @ApiResponse({ status: 400, description: 'Invalid room data' })
   async createRoom(
     @Body() roomData: CreateRoomDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.chatService.createRoom({
       ...roomData,
-      createdBy: req.user.userId,
+      createdBy: req.user.userId
     });
   }
 
@@ -82,9 +79,8 @@ export class ChatController {
   @ApiQuery({ name: 'includeArchived', required: false, type: Boolean, description: 'Include archived rooms' })
   @ApiResponse({ status: 200, description: 'Chat rooms retrieved successfully' })
   async getUserRooms(
-    @Request() req,
-    @Query() query: RoomQueryDto,
-  ) {
+    @Req() req,
+    @Query() query: RoomQueryDto) {
     return this.chatService.getUserRooms(req.user.userId, query);
   }
 
@@ -95,8 +91,7 @@ export class ChatController {
   @ApiResponse({ status: 404, description: 'Room not found' })
   async getRoom(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.chatService.getRoomById(id, req.user.userId);
   }
 
@@ -110,8 +105,7 @@ export class ChatController {
   async updateRoom(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateData: UpdateRoomDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.chatService.updateRoom(id, updateData, req.user.userId);
   }
 
@@ -123,8 +117,7 @@ export class ChatController {
   @ApiResponse({ status: 404, description: 'Room not found' })
   async joinRoom(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req,
-  ) {
+    @Req() req) {
     await this.chatService.joinRoom(req.user.userId, id);
     return { message: 'Successfully joined room' };
   }
@@ -137,8 +130,7 @@ export class ChatController {
   @ApiResponse({ status: 404, description: 'Room not found' })
   async leaveRoom(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req,
-  ) {
+    @Req() req) {
     await this.chatService.leaveRoom(req.user.userId, id);
     return { message: 'Successfully left room' };
   }
@@ -152,8 +144,7 @@ export class ChatController {
   async addParticipants(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() data: AddParticipantsDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.chatService.addParticipants(id, data.userIds, data.role, req.user.userId);
   }
 
@@ -167,8 +158,7 @@ export class ChatController {
   async removeParticipant(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('userId', ParseUUIDPipe) userId: string,
-    @Request() req,
-  ) {
+    @Req() req) {
     await this.chatService.removeParticipant(id, userId, req.user.userId);
     return { message: 'Participant removed successfully' };
   }
@@ -184,8 +174,7 @@ export class ChatController {
     @Param('id', ParseUUIDPipe) id: string,
     @Param('userId', ParseUUIDPipe) userId: string,
     @Body() data: UpdateParticipantRoleDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     await this.chatService.updateParticipantRole(id, userId, data.role, req.user.userId);
     return { message: 'Participant role updated successfully' };
   }
@@ -199,8 +188,7 @@ export class ChatController {
   @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   async sendMessage(
     @Body() messageData: SendMessageDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.chatService.sendMessage(req.user.userId, messageData);
   }
 
@@ -218,9 +206,8 @@ export class ChatController {
   @ApiResponse({ status: 404, description: 'Room not found' })
   async getMessages(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req,
-    @Query() query: MessageQueryDto,
-  ) {
+    @Req() req,
+    @Query() query: MessageQueryDto) {
     return this.chatService.getMessages(id, req.user.userId, query);
   }
 
@@ -234,8 +221,7 @@ export class ChatController {
   async editMessage(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() editData: EditMessageDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.chatService.editMessage(id, editData, req.user.userId);
   }
 
@@ -248,8 +234,7 @@ export class ChatController {
   @ApiResponse({ status: 403, description: 'Cannot delete this message' })
   async deleteMessage(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req,
-  ) {
+    @Req() req) {
     await this.chatService.deleteMessage(req.user.userId, id);
     return { message: 'Message deleted successfully' };
   }
@@ -261,8 +246,7 @@ export class ChatController {
   @ApiResponse({ status: 404, description: 'Message not found' })
   async addReaction(
     @Body() data: AddReactionDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     await this.chatService.addReaction(req.user.userId, data.messageId, data.emoji);
     return { message: 'Reaction updated successfully' };
   }
@@ -273,8 +257,7 @@ export class ChatController {
   @ApiResponse({ status: 400, description: 'Invalid search query' })
   async searchMessages(
     @Body() searchData: MessageSearchDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.chatService.searchMessages(
       searchData.roomId,
       searchData,
@@ -289,8 +272,7 @@ export class ChatController {
   @ApiResponse({ status: 200, description: 'Typing indicator sent' })
   async sendTypingIndicator(
     @Body() data: TypingDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     await this.chatService.sendTypingIndicator(req.user.userId, data.roomId, data.duration);
     return { message: 'Typing indicator sent' };
   }
@@ -301,8 +283,7 @@ export class ChatController {
   @ApiResponse({ status: 200, description: 'Messages marked as read' })
   async markAsRead(
     @Body() data: MarkAsReadDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     await this.chatService.markAsRead(req.user.userId, data.roomId, data.messageId);
     return { message: 'Messages marked as read' };
   }
@@ -310,7 +291,7 @@ export class ChatController {
   @Get('unread-counts')
   @ApiOperation({ summary: 'Get unread message counts' })
   @ApiResponse({ status: 200, description: 'Unread counts retrieved successfully' })
-  async getUnreadCounts(@Request() req) {
+  async getUnreadCounts(@Req() req) {
     return this.chatService.getUnreadCounts(req.user.userId);
   }
 
@@ -325,8 +306,7 @@ export class ChatController {
   async muteUser(
     @Param('id', ParseUUIDPipe) roomId: string,
     @Body() data: MuteUserDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     await this.moderationService.muteUser(
       roomId,
       data.userId,
@@ -347,8 +327,7 @@ export class ChatController {
   async banUser(
     @Param('id', ParseUUIDPipe) roomId: string,
     @Body() data: BanUserDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     await this.moderationService.banUser(
       roomId,
       data.userId,
@@ -369,8 +348,7 @@ export class ChatController {
   async getModerationLogs(
     @Param('id', ParseUUIDPipe) roomId: string,
     @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
-  ) {
+    @Query('limit') limit: number = 20) {
     return this.moderationService.getModerationLogs(roomId, { page, limit });
   }
 
@@ -383,8 +361,7 @@ export class ChatController {
   @ApiResponse({ status: 200, description: 'Chat statistics retrieved successfully' })
   async getChatStats(
     @Query() query: ChatStatsDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.chatService.getChatStats(query.roomId, query.timeWindow, req.user.userId);
   }
 
@@ -396,8 +373,7 @@ export class ChatController {
   @ApiResponse({ status: 400, description: 'Invalid export request' })
   async exportChat(
     @Body() exportData: ExportChatDto,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.chatService.exportChatHistory(
       exportData.roomId,
       exportData.format,
@@ -412,8 +388,7 @@ export class ChatController {
   @ApiResponse({ status: 200, description: 'Participants retrieved successfully' })
   async getRoomParticipants(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.chatService.getRoomParticipants(id, req.user.userId);
   }
 
@@ -423,8 +398,7 @@ export class ChatController {
   @ApiResponse({ status: 200, description: 'Pinned messages retrieved successfully' })
   async getPinnedMessages(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req,
-  ) {
+    @Req() req) {
     return this.chatService.getPinnedMessages(id, req.user.userId);
   }
 
@@ -436,8 +410,7 @@ export class ChatController {
   @ApiResponse({ status: 403, description: 'Insufficient permissions' })
   async togglePinMessage(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req,
-  ) {
+    @Req() req) {
     await this.chatService.togglePinMessage(id, req.user.userId);
     return { message: 'Message pin status updated' };
   }

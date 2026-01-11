@@ -1,11 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { WebhookEvent } from '../interfaces/payment-provider.interface';
-import { BrokerInvoice } from '../entities/broker-invoice.entity';
-import { BrokerPayment } from '../entities/broker-payment.entity';
-import { WalletService } from '../../wallet/wallet.service';
-import { RedisService } from '../../redis/redis.service';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerInvoice } from '../entities/broker-invoice.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerPayment } from '../entities/broker-payment.entity';
+import { WalletService } from "../../wallet/services/index";
+import { RedisService } from "../../redis/redis.service";
 
 // Entity for idempotency tracking
 interface ProcessedWebhook {
@@ -23,13 +21,8 @@ export class PaymentWebhookService {
   private readonly idempotencyExpiry = 24 * 60 * 60 * 1000; // 24 hours
 
   constructor(
-    @InjectRepository(BrokerInvoice)
-    private brokerInvoiceRepository: Repository<BrokerInvoice>,
-    @InjectRepository(BrokerPayment)
-    private brokerPaymentRepository: Repository<BrokerPayment>,
-    private walletService: WalletService,
-    private redisService: RedisService,
-  ) {}
+        private walletService: WalletService,
+    private redisService: RedisService) {}
 
   async isProcessed(webhookId: string): Promise<boolean> {
     // Check memory cache first
@@ -59,7 +52,7 @@ export class PaymentWebhookService {
       processedAt: new Date(),
       provider: webhookId.split('_')[0],
       eventType: webhookId.split('_')[1],
-      reference: webhookId.split('_')[2],
+      reference: webhookId.split('_')[2]
     };
 
     // Store in memory
@@ -70,8 +63,7 @@ export class PaymentWebhookService {
       await this.redisService.setex(
         `webhook:${webhookId}`,
         24 * 60 * 60, // 24 hours
-        JSON.stringify(webhook),
-      );
+        JSON.stringify(webhook));
     } catch (error) {
       this.logger.warn(`Failed to cache webhook ${webhookId} in Redis: ${error.message}`);
     }
@@ -85,9 +77,9 @@ export class PaymentWebhookService {
 
     try {
       // Find the related invoice
-      const invoice = await this.brokerInvoiceRepository.findOne({
+      const invoice = await this.prisma.brokerInvoice.findFirst({
         where: { invoiceNumber: event.reference },
-        relations: ['brokerAccount', 'brokerAccount.broker'],
+        relations: ['brokerAccount', 'brokerAccount.broker']
       });
 
       if (!invoice) {
@@ -96,22 +88,22 @@ export class PaymentWebhookService {
       }
 
       // Find or create payment record
-      let payment = await this.brokerPaymentRepository.findOne({
+      let payment = await this.prisma.brokerPayment.findFirst({
         where: {
           invoiceId: invoice.id,
-          transactionId: event.transactionId || event.reference,
-        },
+          transactionId: event.transactionId || event.reference
+        }
       });
 
       if (!payment) {
-        payment = this.brokerPaymentRepository.create({
+        payment = this.prisma.brokerPayment.create({
           brokerId: invoice.brokerId,
           invoiceId: invoice.id,
           transactionId: event.transactionId || event.reference,
           provider: event.provider,
           amount: event.amount,
           currency: event.currency,
-          status: 'pending',
+          status: 'pending'
         });
       }
 
@@ -136,7 +128,7 @@ export class PaymentWebhookService {
       }
 
       // Save payment record
-      await this.brokerPaymentRepository.save(payment);
+      await this.prisma.brokerPayment.upsert(payment);
 
       this.logger.log(`Payment webhook processed successfully: ${event.provider} - ${event.reference}`);
     } catch (error) {
@@ -148,8 +140,7 @@ export class PaymentWebhookService {
   private async handleSuccessfulPayment(
     payment: BrokerPayment,
     event: WebhookEvent,
-    invoice: BrokerInvoice,
-  ): Promise<void> {
+    invoice: BrokerInvoice): Promise<void> {
     this.logger.log(`Processing successful payment: ${payment.transactionId}`);
 
     payment.status = 'COMPLETED';
@@ -157,7 +148,7 @@ export class PaymentWebhookService {
     payment.providerReference = event.transactionId;
     payment.metadata = {
       ...payment.metadata,
-      webhookEvent: event,
+      webhookEvent: event
     };
 
     // Update invoice status
@@ -173,7 +164,7 @@ export class PaymentWebhookService {
       invoice.amountPaid = newTotalPaid;
     }
 
-    await this.brokerInvoiceRepository.save(invoice);
+    await this.prisma.brokerInvoice.upsert(invoice);
 
     // Credit broker wallet
     try {
@@ -182,7 +173,7 @@ export class PaymentWebhookService {
         invoiceId: invoice.id,
         paymentId: payment.id,
         provider: event.provider,
-        reference: event.reference,
+        reference: event.reference
       });
 
       this.logger.log(`Broker wallet credited: ${invoice.brokerId} - ${payment.amount}`);
@@ -197,8 +188,7 @@ export class PaymentWebhookService {
 
   private async handleFailedPayment(
     payment: BrokerPayment,
-    event: WebhookEvent,
-  ): Promise<void> {
+    event: WebhookEvent): Promise<void> {
     this.logger.log(`Processing failed payment: ${payment.transactionId}`);
 
     payment.status = 'FAILED';
@@ -207,7 +197,7 @@ export class PaymentWebhookService {
     payment.metadata = {
       ...payment.metadata,
       webhookEvent: event,
-      failureReason: payment.failureReason,
+      failureReason: payment.failureReason
     };
 
     // Send notification
@@ -216,27 +206,25 @@ export class PaymentWebhookService {
 
   private async handlePendingPayment(
     payment: BrokerPayment,
-    event: WebhookEvent,
-  ): Promise<void> {
+    event: WebhookEvent): Promise<void> {
     this.logger.log(`Processing pending payment: ${payment.transactionId}`);
 
     payment.status = 'PENDING';
     payment.metadata = {
       ...payment.metadata,
-      webhookEvent: event,
+      webhookEvent: event
     };
   }
 
   private async handleUnknownStatus(
     payment: BrokerPayment,
-    event: WebhookEvent,
-  ): Promise<void> {
+    event: WebhookEvent): Promise<void> {
     this.logger.log(`Processing payment with unknown status: ${payment.transactionId} - ${event.status}`);
 
     payment.status = 'UNKNOWN';
     payment.metadata = {
       ...payment.metadata,
-      webhookEvent: event,
+      webhookEvent: event
     };
   }
 
@@ -254,8 +242,7 @@ export class PaymentWebhookService {
   private async sendPaymentNotification(
     invoice: BrokerInvoice | null,
     payment: BrokerPayment,
-    status: 'success' | 'failed',
-  ): Promise<void> {
+    status: 'success' | 'failed'): Promise<void> {
     // Implement notification service integration
     // This would send emails, SMS, push notifications etc.
 
@@ -270,7 +257,7 @@ export class PaymentWebhookService {
       amount: payment.amount,
       provider: payment.provider,
       invoiceId: invoice?.id,
-      brokerId: invoice?.brokerId || payment.brokerId,
+      brokerId: invoice?.brokerId || payment.brokerId
     };
 
     // Integrate with your notification service here

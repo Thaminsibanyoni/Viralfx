@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsEmail, IsOptional, IsEnum, IsObject, IsPhoneNumber, IsUrl, MaxLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { BrokerType } from '../entities/broker.entity';
+import { BrokerType } from '../enums/broker.enum';
 
 class BusinessProfileDto {
   @ApiProperty()

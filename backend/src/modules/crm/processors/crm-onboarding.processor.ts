@@ -1,45 +1,46 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { RedisService } from '../../redis/redis.service';
-import { WalletService } from '../../wallet/wallet.service';
+import { RedisService } from "../../redis/redis.service";
+import { WalletService } from "../../wallet/services/index";
 import { BillingService } from '../services/billing.service';
-import { Broker } from '../../brokers/entities/broker.entity';
-import { BrokerAccount } from '../entities/broker-account.entity';
-import { BrokerNote } from '../entities/broker-note.entity';
-import { BrokerDocument } from '../entities/broker-document.entity';
-import { BrokerSubscription } from '../entities/broker-subscription.entity';
-import { BrokerInvoice } from '../entities/broker-invoice.entity';
-import { NotificationsService } from '../../notifications/services/notification.service';
+// COMMENTED OUT (cross-module entity import): import { Broker } from "../../brokers/entities/broker.entity";
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerAccount } from '../entities/broker-account.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerNote } from '../entities/broker-note.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerDocument } from '../entities/broker-document.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerSubscription } from '../entities/broker-subscription.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerInvoice } from '../entities/broker-invoice.entity';
+import { NotificationService } from "../../notifications/services/notification.service";
 
 @Processor('crm-onboarding')
-export class CrmOnboardingProcessor {
+export class CrmOnboardingProcessor extends WorkerHost {
   private readonly logger = new Logger(CrmOnboardingProcessor.name);
 
   constructor(
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-    @InjectRepository(BrokerAccount)
-    private brokerAccountRepository: Repository<BrokerAccount>,
-    @InjectRepository(BrokerNote)
-    private brokerNoteRepository: Repository<BrokerNote>,
-    @InjectRepository(BrokerDocument)
-    private brokerDocumentRepository: Repository<BrokerDocument>,
-    @InjectRepository(BrokerSubscription)
-    private brokerSubscriptionRepository: Repository<BrokerSubscription>,
-    @InjectRepository(BrokerInvoice)
-    private brokerInvoiceRepository: Repository<BrokerInvoice>,
-    private redisService: RedisService,
+        private redisService: RedisService,
     private walletService: WalletService,
     private billingService: BillingService,
-    private notificationsService: NotificationsService,
-    private dataSource: DataSource,
-  ) {}
+    private notificationsService: NotificationService,
+    private dataSource: DataSource) {
+    super();
+}
 
-  @Process('onboard-broker')
-  async handleBrokerOnboarding(job: Job<{
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'onboard-broker':
+        return this.handleBrokerOnboarding(job);
+      case 'fsca-review':
+        return this.handleFSCAReview(job);
+      case 'weekly-review':
+        return this.handleWeeklyOnboardingReview(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleBrokerOnboarding(job: Job<{
     brokerId: string;
     triggerSource: 'MANUAL' | 'AUTOMATIC' | 'WEBHOOK';
   }>) {
@@ -57,9 +58,9 @@ export class CrmOnboardingProcessor {
     }
 
     try {
-      const broker = await this.brokerRepository.findOne({
+      const broker = await this.prisma.broker.findFirst({
         where: { id: brokerId },
-        relations: ['brokerAccount'],
+        relations: ['brokerAccount']
       });
 
       if (!broker) {
@@ -69,11 +70,11 @@ export class CrmOnboardingProcessor {
       // Get or create broker account
       let brokerAccount = broker.brokerAccount;
       if (!brokerAccount) {
-        brokerAccount = await this.brokerAccountRepository.save({
+        brokerAccount = await this.prisma.brokeraccountrepository.upsert({
           brokerId,
           accountNumber: `BKR-${Date.now()}`,
           status: 'ONBOARDING',
-          onboardingStartedAt: new Date(),
+          onboardingStartedAt: new Date()
         });
       }
 
@@ -82,10 +83,10 @@ export class CrmOnboardingProcessor {
 
       // Update final status
       const finalStatus = onboardingSteps.failed.length === 0 ? 'ACTIVE' : 'ONBOARDING_FAILED';
-      await this.brokerAccountRepository.update(brokerAccount.id, {
+      await this.prisma.brokeraccountrepository.update(brokerAccount.id, {
         status: finalStatus,
         onboardingCompletedAt: finalStatus === 'ACTIVE' ? new Date() : null,
-        onboardingSteps: onboardingSteps,
+        onboardingSteps: onboardingSteps
       });
 
       // Send completion notification
@@ -96,8 +97,8 @@ export class CrmOnboardingProcessor {
           brokerId,
           brokerName: broker.companyName || broker.name,
           status: finalStatus,
-          steps: onboardingSteps,
-        },
+          steps: onboardingSteps
+        }
       });
 
       this.logger.log(`Broker onboarding completed for ${brokerId} with status: ${finalStatus}`);
@@ -107,12 +108,12 @@ export class CrmOnboardingProcessor {
       this.logger.error(`Broker onboarding failed for ${brokerId}:`, error);
 
       // Update account status to failed
-      await this.brokerAccountRepository.update(
+      await this.prisma.brokeraccountrepository.update(
         { brokerId },
         {
           status: 'ONBOARDING_FAILED',
           onboardingFailedAt: new Date(),
-          failureReason: error.message,
+          failureReason: error.message
         }
       );
 
@@ -122,8 +123,7 @@ export class CrmOnboardingProcessor {
     }
   }
 
-  @Process('fsca-review')
-  async handleFSCAReview(job: Job<{
+  private async handleFSCAReview(job: Job<{
     brokerId: string;
     reason: string;
     priority: 'LOW' | 'NORMAL' | 'HIGH';
@@ -133,8 +133,8 @@ export class CrmOnboardingProcessor {
     this.logger.log(`Creating FSCA review task for broker ${brokerId}: ${reason}`);
 
     try {
-      const broker = await this.brokerRepository.findOne({
-        where: { id: brokerId },
+      const broker = await this.prisma.broker.findFirst({
+        where: { id: brokerId }
       });
 
       if (!broker) {
@@ -142,7 +142,7 @@ export class CrmOnboardingProcessor {
       }
 
       // Create compliance review note
-      await this.brokerNoteRepository.save({
+      await this.prisma.brokernoterepository.upsert({
         brokerId,
         content: `FSCA verification review required: ${reason}`,
         category: 'COMPLIANCE',
@@ -152,8 +152,8 @@ export class CrmOnboardingProcessor {
         metadata: {
           reviewType: 'FSCA_VERIFICATION',
           priority,
-          automatedFlag: true,
-        },
+          automatedFlag: true
+        }
       });
 
       // Notify compliance operations team
@@ -166,8 +166,8 @@ export class CrmOnboardingProcessor {
           reviewType: 'FSCA_VERIFICATION',
           reason,
           priority,
-          actionUrl: `/compliance/review/${brokerId}`,
-        },
+          actionUrl: `/compliance/review/${brokerId}`
+        }
       });
 
       // If FSCA license number is available, attempt automated verification
@@ -184,8 +184,7 @@ export class CrmOnboardingProcessor {
     }
   }
 
-  @Process('weekly-review')
-  async handleWeeklyOnboardingReview(job: Job<{ pendingBrokers?: string[] }>) {
+  private async handleWeeklyOnboardingReview(job: Job<{ pendingBrokers?: string[] }>) {
     const { pendingBrokers } = job.data;
 
     this.logger.log('Starting weekly onboarding review');
@@ -193,8 +192,8 @@ export class CrmOnboardingProcessor {
     try {
       let brokers;
       if (pendingBrokers) {
-        brokers = await this.brokerRepository.findByIds(pendingBrokers, {
-          relations: ['brokerAccount'],
+        brokers = await this.prisma.findByIds(pendingBrokers, {
+          relations: ['brokerAccount']
         });
       } else {
         // Find brokers with stalled onboarding (> 7 days)
@@ -203,7 +202,7 @@ export class CrmOnboardingProcessor {
           .createQueryBuilder('broker')
           .leftJoinAndSelect('broker.brokerAccount', 'account')
           .where('account.status IN (:...statuses)', {
-            statuses: ['ONBOARDING', 'ONBOARDING_FAILED'],
+            statuses: ['ONBOARDING', 'ONBOARDING_FAILED']
           })
           .andWhere('account.onboardingStartedAt < :date', { date: sevenDaysAgo })
           .getMany();
@@ -214,7 +213,7 @@ export class CrmOnboardingProcessor {
       const reviewResults = {
         escalated: [],
         resolved: [],
-        requiresAction: [],
+        requiresAction: []
       };
 
       for (const broker of brokers) {
@@ -229,18 +228,18 @@ export class CrmOnboardingProcessor {
           reviewResults.escalated.push({
             brokerId: broker.id,
             daysStalled: daysSinceStart,
-            reason: review.reason,
+            reason: review.reason
           });
         } else if (review.action === 'RESOLVE') {
           reviewResults.resolved.push({
             brokerId: broker.id,
-            resolution: review.resolution,
+            resolution: review.resolution
           });
         } else {
           reviewResults.requiresAction.push({
             brokerId: broker.id,
             action: review.action,
-            details: review.details,
+            details: review.details
           });
         }
       }
@@ -255,8 +254,8 @@ export class CrmOnboardingProcessor {
           escalated: reviewResults.escalated.length,
           resolved: reviewResults.resolved.length,
           requiresAction: reviewResults.requiresAction.length,
-          details: reviewResults,
-        },
+          details: reviewResults
+        }
       });
 
       this.logger.log(`Weekly onboarding review completed. Escalated: ${reviewResults.escalated.length}, Resolved: ${reviewResults.resolved.length}`);
@@ -276,7 +275,7 @@ export class CrmOnboardingProcessor {
     const steps = {
       completed: [],
       failed: [],
-      skipped: [],
+      skipped: []
     };
 
     // Step 1: Verify required documents
@@ -324,8 +323,8 @@ export class CrmOnboardingProcessor {
 
   private async verifyRequiredDocuments(brokerId: string): Promise<any> {
     const requiredDocs = ['FSP_LICENSE', 'PROOF_OF_ADDRESS', 'BANK_STATEMENT', 'ID_DOCUMENT'];
-    const documents = await this.brokerDocumentRepository.find({
-      where: { brokerId },
+    const documents = await this.prisma.brokerdocumentrepository.findMany({
+      where: { brokerId }
     });
 
     const verified = documents.filter(doc =>
@@ -351,7 +350,7 @@ export class CrmOnboardingProcessor {
       welcomeEmail: true,
       setupGuide: true,
       apiCredentials: true,
-      trainingMaterials: true,
+      trainingMaterials: true
     };
 
     // Send welcome notification
@@ -359,7 +358,7 @@ export class CrmOnboardingProcessor {
       userId: broker.userId,
       type: 'welcome_package',
       channels: ['email'],
-      data: welcomeData,
+      data: welcomeData
     });
   }
 
@@ -372,15 +371,15 @@ export class CrmOnboardingProcessor {
         brokerId: broker.id,
         brokerName: broker.companyName || broker.name,
         fscaLicense: broker.fscaLicenseNumber,
-        onboardingDate: new Date().toISOString(),
-      },
+        onboardingDate: new Date().toISOString()
+      }
     });
   }
 
   private async attemptFSCAVerification(brokerId: string, licenseNumber: string): Promise<void> {
     // This would integrate with actual FSCA API
     // For now, create a pending verification task
-    await this.brokerNoteRepository.save({
+    await this.prisma.brokernoterepository.upsert({
       brokerId,
       content: `Automated FSCA verification initiated for license: ${licenseNumber}`,
       category: 'COMPLIANCE',
@@ -389,8 +388,8 @@ export class CrmOnboardingProcessor {
       metadata: {
         verificationType: 'FSCA_AUTOMATED',
         licenseNumber,
-        initiatedAt: new Date().toISOString(),
-      },
+        initiatedAt: new Date().toISOString()
+      }
     });
   }
 
@@ -401,8 +400,8 @@ export class CrmOnboardingProcessor {
     details?: any;
   }> {
     // Check if all documents are approved
-    const documents = await this.brokerDocumentRepository.find({
-      where: { brokerId: broker.id },
+    const documents = await this.prisma.brokerdocumentrepository.findMany({
+      where: { brokerId: broker.id }
     });
 
     const pendingDocs = documents.filter(doc => doc.status === 'PENDING');
@@ -411,14 +410,14 @@ export class CrmOnboardingProcessor {
     if (rejectedDocs.length > 0) {
       return {
         action: 'ESCALATE',
-        reason: `Rejected documents: ${rejectedDocs.map(d => d.documentType).join(', ')}`,
+        reason: `Rejected documents: ${rejectedDocs.map(d => d.documentType).join(', ')}`
       };
     }
 
     if (pendingDocs.length > 0 && daysStalled > 14) {
       return {
         action: 'ESCALATE',
-        reason: `Stalled onboarding with ${pendingDocs.length} pending documents for ${daysStalled} days`,
+        reason: `Stalled onboarding with ${pendingDocs.length} pending documents for ${daysStalled} days`
       };
     }
 
@@ -426,7 +425,7 @@ export class CrmOnboardingProcessor {
       // All documents processed - can complete onboarding
       return {
         action: 'RESOLVE',
-        resolution: 'All documents approved - ready to complete onboarding',
+        resolution: 'All documents approved - ready to complete onboarding'
       };
     }
 
@@ -435,22 +434,22 @@ export class CrmOnboardingProcessor {
       details: {
         pendingDocuments: pendingDocs.length,
         daysStalled,
-        nextAction: 'Send reminder to broker',
-      },
+        nextAction: 'Send reminder to broker'
+      }
     };
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onActive(job: Job) {
     this.logger.log(`Processing onboarding job ${job.id} of type ${job.name}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job, result: any) {
     this.logger.log(`Completed onboarding job ${job.id} of type ${job.name}. Result:`, result);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job, error: Error) {
     this.logger.error(`Failed onboarding job ${job.id} of type ${job.name}:`, error);
   }

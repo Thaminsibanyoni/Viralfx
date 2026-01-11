@@ -5,12 +5,10 @@ export const WsUser = createParamDecorator(
   (data: unknown, ctx: ExecutionContext) => {
     const client = ctx.switchToWs().getClient<Socket>();
     return client.data.user;
-  },
-);
+  });
 
 export const WsUserId = createParamDecorator(
   (data: unknown, ctx: ExecutionContext) => {
     const client = ctx.switchToWs().getClient<Socket>();
     return client.data.userId;
-  },
-);
+  });

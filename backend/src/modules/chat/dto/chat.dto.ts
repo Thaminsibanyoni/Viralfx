@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsArray, IsNumber, IsObject, IsDateString, MaxLength, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsArray, IsNumber, IsObject, IsDateString, MaxLength, Min, Max, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { MessageType, ChatRoomType, MessageStatus, UserRole } from '../types/chat.types';
 

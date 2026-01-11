@@ -103,14 +103,14 @@ export enum StrategyCategory {
   TREND_MOMENTUM = 'TREND_MOMENTUM',
   SENTIMENT_REVERSAL = 'SENTIMENT_REVERSAL',
   VOLATILITY_BREAKOUT = 'VOLATILITY_BREAKOUT',
-  CUSTOM = 'CUSTOM',
+  CUSTOM = 'CUSTOM'
 }
 
 export enum BacktestStatus {
   PENDING = 'PENDING',
   RUNNING = 'RUNNING',
   COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
+  FAILED = 'FAILED'
 }
 
 export interface CompareStrategiesConfig {

@@ -1,10 +1,9 @@
-import { Processor, Process, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import {Processor, WorkerHost } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 
 import { WithdrawalService } from '../services/withdrawal.service';
-import { WebSocketGateway } from '../../websocket/gateways/websocket.gateway';
-import { NotificationService } from '../../notification/services/notification.service';
+import { NotificationService } from "../../notifications/services/notification.service";
 
 interface ProcessWithdrawalJob {
   transactionId: string;
@@ -27,17 +26,34 @@ interface CheckPendingWithdrawalsJob {
 }
 
 @Processor('wallet-withdrawal')
-export class WithdrawalProcessor {
+export class WithdrawalProcessor extends WorkerHost {
   private readonly logger = new Logger(WithdrawalProcessor.name);
 
   constructor(
     private readonly withdrawalService: WithdrawalService,
-    private readonly webSocketGateway: WebSocketGateway,
-    private readonly notificationService: NotificationService,
-  ) {}
+    private readonly notificationService: NotificationService) {
+    super();
+}
 
-  @Process('process-withdrawal')
-  async processWithdrawal(job: Job<ProcessWithdrawalJob>): Promise<void> {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'process-withdrawal':
+        return this.processWithdrawal(job);
+      case 'review-withdrawal':
+        return this.reviewWithdrawal(job);
+      case 'check-pending-withdrawals':
+        return this.checkPendingWithdrawals(job);
+      case 'send-withdrawal-notifications':
+        return this.sendWithdrawalNotifications(job);
+      case 'process-aml-check':
+        return this.processAmlCheck(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async processWithdrawal(job: Job<ProcessWithdrawalJob>): Promise<void> {
     try {
       const { transactionId, userId, amount, destination, requiresManualReview } = job.data;
       this.logger.log(`Processing withdrawal ${transactionId} for user ${userId}`);
@@ -52,7 +68,7 @@ export class WithdrawalProcessor {
           amount,
           estimatedTime: '24 hours',
           message: 'Your withdrawal is under manual review for security reasons',
-          timestamp: new Date(),
+          timestamp: new Date()
         });
 
         // Send notification
@@ -61,7 +77,7 @@ export class WithdrawalProcessor {
           type: 'WITHDRAWAL_REVIEW',
           title: 'Withdrawal Under Review',
           message: `Your withdrawal of ${amount} is under manual review for security reasons. This typically takes 24 hours.`,
-          metadata: { transactionId, amount },
+          metadata: { transactionId, amount }
         });
       } else {
         // Process immediately
@@ -72,7 +88,7 @@ export class WithdrawalProcessor {
           transactionId,
           amount,
           estimatedTime: '5-10 minutes',
-          timestamp: new Date(),
+          timestamp: new Date()
         });
       }
 
@@ -83,8 +99,7 @@ export class WithdrawalProcessor {
     }
   }
 
-  @Process('review-withdrawal')
-  async reviewWithdrawal(job: Job<ReviewWithdrawalJob>): Promise<void> {
+  private async reviewWithdrawal(job: Job<ReviewWithdrawalJob>): Promise<void> {
     try {
       const { transactionId, adminId, approved, reason } = job.data;
       this.logger.log(`Admin ${adminId} reviewing withdrawal ${transactionId} - ${approved ? 'APPROVED' : 'REJECTED'}`);
@@ -99,7 +114,7 @@ export class WithdrawalProcessor {
           type: 'WITHDRAWAL_REVIEW_PROCESSED',
           title: 'Withdrawal Approved and Processed',
           message: `Withdrawal ${transactionId} has been approved and processed successfully`,
-          metadata: { transactionId, approved },
+          metadata: { transactionId, approved }
         });
       } else {
         // Reject the withdrawal
@@ -114,7 +129,7 @@ export class WithdrawalProcessor {
           type: 'WITHDRAWAL_REJECTED',
           title: 'Withdrawal Rejected',
           message: `Your withdrawal has been rejected. Reason: ${reason || 'Security review failed'}`,
-          metadata: { transactionId, reason },
+          metadata: { transactionId, reason }
         });
 
         // Notify admin of rejection
@@ -123,7 +138,7 @@ export class WithdrawalProcessor {
           type: 'WITHDRAWAL_REVIEW_PROCESSED',
           title: 'Withdrawal Rejected',
           message: `Withdrawal ${transactionId} has been rejected. Reason: ${reason}`,
-          metadata: { transactionId, approved, reason },
+          metadata: { transactionId, approved, reason }
         });
       }
 
@@ -134,8 +149,7 @@ export class WithdrawalProcessor {
     }
   }
 
-  @Process('check-pending-withdrawals')
-  async checkPendingWithdrawals(job: Job<CheckPendingWithdrawalsJob>): Promise<void> {
+  private async checkPendingWithdrawals(job: Job<CheckPendingWithdrawalsJob>): Promise<void> {
     try {
       this.logger.log('Checking pending withdrawals');
 
@@ -149,8 +163,7 @@ export class WithdrawalProcessor {
     }
   }
 
-  @Process('send-withdrawal-notifications')
-  async sendWithdrawalNotifications(): Promise<void> {
+  private async sendWithdrawalNotifications(): Promise<void> {
     try {
       this.logger.log('Sending withdrawal notifications');
 
@@ -164,8 +177,7 @@ export class WithdrawalProcessor {
     }
   }
 
-  @Process('process-aml-check')
-  async processAmlCheck(job: Job<{ transactionId: string; userId: string; amount: number }>): Promise<void> {
+  private async processAmlCheck(job: Job<{ transactionId: string; userId: string; amount: number }>): Promise<void> {
     try {
       const { transactionId, userId, amount } = job.data;
       this.logger.log(`Processing AML check for withdrawal ${transactionId}`);
@@ -180,7 +192,7 @@ export class WithdrawalProcessor {
     }
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   async onQueueFailed(job: Job, error: Error): Promise<void> {
     this.logger.error(`Withdrawal job ${job.id} failed:`, error);
 
@@ -192,7 +204,7 @@ export class WithdrawalProcessor {
         jobId: job.id,
         error: error.message,
         data: job.data,
-        critical: job.data?.amount > 10000, // Critical for large amounts
+        critical: job.data?.amount > 10000 // Critical for large amounts
       });
     }
   }
@@ -235,7 +247,7 @@ export class WithdrawalProcessor {
         title: 'Withdrawal Processing Failure',
         message: `Critical withdrawal processing failure: ${notification.error}`,
         metadata: notification,
-        priority: notification.critical ? 'critical' : 'high',
+        priority: notification.critical ? 'critical' : 'high'
       });
 
       this.logger.warn(`Admin notification sent: ${JSON.stringify(notification)}`);

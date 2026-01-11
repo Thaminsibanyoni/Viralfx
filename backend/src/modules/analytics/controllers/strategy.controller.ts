@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Post,
@@ -14,8 +14,7 @@ import {
   HttpStatus,
   BadRequestException,
   NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
+  ForbiddenException, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
@@ -24,10 +23,10 @@ import { BacktestingService } from '../services/backtesting.service';
 import {
   CreateStrategyDto,
   UpdateStrategyDto,
-  BacktestQueryDto,
+  BacktestQueryDto
 } from '../dto/index';
 import { BacktestStrategy } from '../interfaces/backtesting.interface';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 
 @ApiTags('Analytics - Strategies')
 @Controller('analytics/strategies')
@@ -36,8 +35,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 export class StrategyController {
   constructor(
     private readonly strategyService: StrategyService,
-    private readonly backtestingService: BacktestingService,
-  ) {}
+    private readonly backtestingService: BacktestingService) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new strategy' })
@@ -47,12 +45,11 @@ export class StrategyController {
   @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per minute
   async createStrategy(
     @Body(ValidationPipe) createDto: CreateStrategyDto,
-    @Request() req: { user: { id: string } },
-  ): Promise<BacktestStrategy> {
+    @Req() req: { user: { id: string } }): Promise<BacktestStrategy> {
     try {
       return await this.strategyService.createStrategy({
         ...createDto,
-        userId: req.user.id,
+        userId: req.user.id
       });
     } catch (error) {
       throw new BadRequestException(`Failed to create strategy: ${error.message}`);
@@ -67,8 +64,7 @@ export class StrategyController {
   @Throttle({ default: { limit: 100, ttl: 60000 } })
   async getStrategy(
     @Param('id') id: string,
-    @Request() req: { user: { id: string; role?: string } },
-  ): Promise<BacktestStrategy> {
+    @Req() req: { user: { id: string; role?: string } }): Promise<BacktestStrategy> {
     try {
       const strategy = await this.strategyService.getStrategy(id);
 
@@ -105,8 +101,7 @@ export class StrategyController {
       sortBy?: string;
       sortOrder?: string;
     },
-    @Request() req: { user: { id: string; role?: string } },
-  ): Promise<{
+    @Req() req: { user: { id: string; role?: string } }): Promise<{
     strategies: BacktestStrategy[];
     total: number;
     page: number;
@@ -125,7 +120,7 @@ export class StrategyController {
         page,
         limit,
         sortBy: sortBy as any,
-        sortOrder: sortOrder as any,
+        sortOrder: sortOrder as any
       });
 
       // Filter out private strategies that don't belong to the user
@@ -151,12 +146,11 @@ export class StrategyController {
   async updateStrategy(
     @Param('id') id: string,
     @Body(ValidationPipe) updateDto: UpdateStrategyDto,
-    @Request() req: { user: { id: string; role?: string } },
-  ): Promise<BacktestStrategy> {
+    @Req() req: { user: { id: string; role?: string } }): Promise<BacktestStrategy> {
     try {
       return await this.strategyService.updateStrategy(id, {
         ...updateDto,
-        userId: req.user.id, // For authorization check
+        userId: req.user.id // For authorization check
       });
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
@@ -176,8 +170,7 @@ export class StrategyController {
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   async deleteStrategy(
     @Param('id') id: string,
-    @Request() req: { user: { id: string; role?: string } },
-  ): Promise<void> {
+    @Req() req: { user: { id: string; role?: string } }): Promise<void> {
     try {
       await this.strategyService.deleteStrategy(id, req.user.id);
     } catch (error) {
@@ -197,8 +190,7 @@ export class StrategyController {
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   async cloneStrategy(
     @Param('id') id: string,
-    @Request() req: { user: { id: string } },
-  ): Promise<BacktestStrategy> {
+    @Req() req: { user: { id: string } }): Promise<BacktestStrategy> {
     try {
       return await this.strategyService.cloneStrategy(id, req.user.id);
     } catch (error) {
@@ -229,8 +221,7 @@ export class StrategyController {
   @Throttle({ default: { limit: 50, ttl: 60000 } })
   async validateStrategy(
     @Param('id') id: string,
-    @Request() req: { user: { id: string; role?: string } },
-  ): Promise<{
+    @Req() req: { user: { id: string; role?: string } }): Promise<{
     isValid: boolean;
     errors: string[];
     warnings: string[];
@@ -245,7 +236,7 @@ export class StrategyController {
 
       const validation = this.strategyService.validateStrategy({
         parameters: strategy.parameters,
-        rules: strategy.rules,
+        rules: strategy.rules
       });
 
       // Add warnings for potentially problematic configurations
@@ -272,7 +263,7 @@ export class StrategyController {
 
       return {
         ...validation,
-        warnings,
+        warnings
       };
     } catch (error) {
       throw new BadRequestException(`Failed to validate strategy: ${error.message}`);
@@ -292,8 +283,7 @@ export class StrategyController {
   async getStrategyBacktests(
     @Param('id') id: string,
     @Query() query: BacktestQueryDto,
-    @Request() req: { user: { id: string; role?: string } },
-  ): Promise<{
+    @Req() req: { user: { id: string; role?: string } }): Promise<{
     results: any[];
     total: number;
     page: number;
@@ -338,22 +328,22 @@ export class StrategyController {
         {
           category: 'TREND_MOMENTUM',
           displayName: 'Trend Momentum',
-          description: 'Strategies based on price/virality momentum and trend following',
+          description: 'Strategies based on price/virality momentum and trend following'
         },
         {
           category: 'SENTIMENT_REVERSAL',
           displayName: 'Sentiment Reversal',
-          description: 'Strategies that trade based on sentiment reversals and market psychology',
+          description: 'Strategies that trade based on sentiment reversals and market psychology'
         },
         {
           category: 'VOLATILITY_BREAKOUT',
           displayName: 'Volatility Breakout',
-          description: 'Strategies that capitalize on volatility breakouts and price movements',
+          description: 'Strategies that capitalize on volatility breakouts and price movements'
         },
         {
           category: 'CUSTOM',
           displayName: 'Custom',
-          description: 'User-defined custom strategies with unique logic',
+          description: 'User-defined custom strategies with unique logic'
         },
       ];
     } catch (error) {
@@ -367,8 +357,7 @@ export class StrategyController {
   @ApiResponse({ status: 403, description: 'Admin access required' })
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   async getUsageStats(
-    @Request() req: { user: { id: string; role?: string } },
-  ): Promise<{
+    @Req() req: { user: { id: string; role?: string } }): Promise<{
     totalStrategies: number;
     publicStrategies: number;
     privateStrategies: number;
@@ -396,12 +385,12 @@ export class StrategyController {
           TREND_MOMENTUM: 68,
           SENTIMENT_REVERSAL: 45,
           VOLATILITY_BREAKOUT: 32,
-          CUSTOM: 11,
+          CUSTOM: 11
         },
         mostUsedStrategies: [
           { strategyId: 'trend_momentum', name: 'Trend Momentum Strategy', usageCount: 342 },
           { strategyId: 'sentiment_reversal', name: 'Sentiment Reversal Strategy', usageCount: 256 },
-        ],
+        ]
       };
     } catch (error) {
       throw new BadRequestException(`Failed to get usage stats: ${error.message}`);

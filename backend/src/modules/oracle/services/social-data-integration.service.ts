@@ -26,8 +26,7 @@ export class SocialDataIntegrationService {
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
-    @InjectRedis() private readonly redis: Redis,
-  ) {
+    @InjectRedis() private readonly redis: Redis) {
     this.deceptionServiceUrl = this.configService.get<string>('DECEPTION_SERVICE_URL', 'http://localhost:3002');
     this.classificationServiceUrl = this.configService.get<string>('CLASSIFICATION_SERVICE_URL', 'http://localhost:3003');
   }
@@ -120,7 +119,7 @@ export class SocialDataIntegrationService {
         crossPlatformCorrelation: [],
         deceptionScore: 0,
         riskLevel: 'HIGH',
-        marketImpact: 'NONE',
+        marketImpact: 'NONE'
       };
 
       // Cache harmful content classification with longer TTL

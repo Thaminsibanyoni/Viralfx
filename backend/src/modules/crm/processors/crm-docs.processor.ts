@@ -1,30 +1,37 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { RedisService } from '../../redis/redis.service';
-import { BrokerDocument } from '../entities/broker-document.entity';
-import { BrokerNote } from '../entities/broker-note.entity';
-import { NotificationsService } from '../../notifications/services/notification.service';
-import { ClamAVService } from '../../files/services/clamav.service';
+import { RedisService } from "../../redis/redis.service";
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerDocument } from '../entities/broker-document.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerNote } from '../entities/broker-note.entity';
+import { NotificationService } from "../../notifications/services/notification.service";
+import { ClamAVService } from "../../files/services/clamav.service";
 
 @Processor('crm-docs')
-export class CrmDocsProcessor {
+export class CrmDocsProcessor extends WorkerHost {
   private readonly logger = new Logger(CrmDocsProcessor.name);
 
   constructor(
-    @InjectRepository(BrokerDocument)
-    private brokerDocumentRepository: Repository<BrokerDocument>,
-    @InjectRepository(BrokerNote)
-    private brokerNoteRepository: Repository<BrokerNote>,
-    private redisService: RedisService,
-    private notificationsService: NotificationsService,
-    private clamAVService: ClamAVService,
-  ) {}
+        private redisService: RedisService,
+    private notificationsService: NotificationService,
+    private clamAVService: ClamAVService) {
+    super();
+}
 
-  @Process('scan-document')
-  async handleDocumentScan(job: Job<{ docId: string; s3Path: string; brokerId: string }>) {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'scan-document':
+        return this.handleDocumentScan(job);
+      case 'scan-pending-docs':
+        return this.handlePendingDocumentsScan(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleDocumentScan(job: Job<{ docId: string; s3Path: string; brokerId: string }>) {
     const { docId, s3Path, brokerId } = job.data;
 
     // Implement Redis lock for idempotency
@@ -40,8 +47,8 @@ export class CrmDocsProcessor {
       this.logger.log(`Starting document scan for ${docId} with S3 path: ${s3Path}`);
 
       // Get document from database
-      const document = await this.brokerDocumentRepository.findOne({
-        where: { id: docId },
+      const document = await this.prisma.brokerdocumentrepository.findFirst({
+        where: { id: docId }
       });
 
       if (!document) {
@@ -53,17 +60,17 @@ export class CrmDocsProcessor {
 
       if (scanResult.infected) {
         // Document is infected - reject and notify compliance
-        await this.brokerDocumentRepository.update(docId, {
+        await this.prisma.brokerdocumentrepository.update(docId, {
           status: 'REJECTED',
-          reviewNotes: `Virus detected: ${scanResult.threat}`,
+          reviewNotes: `Virus detected: ${scanResult.threat}`
         });
 
         // Create compliance note
-        await this.brokerNoteRepository.save({
+        await this.prisma.brokernoterepository.upsert({
           brokerId,
           content: `Document rejected due to virus detection: ${document.documentType}`,
           category: 'SECURITY',
-          priority: 'HIGH',
+          priority: 'HIGH'
         });
 
         // Notify compliance operations
@@ -73,8 +80,8 @@ export class CrmDocsProcessor {
           data: {
             docId,
             brokerId,
-            reason: `Virus detected: ${scanResult.threat}`,
-          },
+            reason: `Virus detected: ${scanResult.threat}`
+          }
         });
 
         this.logger.warn(`Document ${docId} rejected due to virus detection: ${scanResult.threat}`);
@@ -82,9 +89,9 @@ export class CrmDocsProcessor {
       }
 
       // Document is clean - approve
-      await this.brokerDocumentRepository.update(docId, {
+      await this.prisma.brokerdocumentrepository.update(docId, {
         status: 'APPROVED',
-        reviewNotes: 'Document passed security verification',
+        reviewNotes: 'Document passed security verification'
       });
 
       // Notify admin about document approval
@@ -94,8 +101,8 @@ export class CrmDocsProcessor {
         data: {
           docId,
           brokerId,
-          documentType: document.documentType,
-        },
+          documentType: document.documentType
+        }
       });
 
       this.logger.log(`Document ${docId} approved successfully`);
@@ -105,9 +112,9 @@ export class CrmDocsProcessor {
       this.logger.error(`Failed to scan document ${docId}:`, error);
 
       // Update document status to indicate failure
-      await this.brokerDocumentRepository.update(docId, {
+      await this.prisma.brokerdocumentrepository.update(docId, {
         status: 'FAILED',
-        reviewNotes: `Scan failed: ${error.message}`,
+        reviewNotes: `Scan failed: ${error.message}`
       });
 
       throw error;
@@ -117,17 +124,16 @@ export class CrmDocsProcessor {
     }
   }
 
-  @Process('scan-pending-docs')
-  async handlePendingDocumentsScan(job: Job<{ pendingDocIds?: string[] }>) {
+  private async handlePendingDocumentsScan(job: Job<{ pendingDocIds?: string[] }>) {
     const { pendingDocIds } = job.data;
 
     let pendingDocs;
     if (pendingDocIds) {
-      pendingDocs = await this.brokerDocumentRepository.findByIds(pendingDocIds);
+      pendingDocs = await this.prisma.findByIds(pendingDocIds);
     } else {
       // Find all pending documents
-      pendingDocs = await this.brokerDocumentRepository.find({
-        where: { status: 'PENDING' },
+      pendingDocs = await this.prisma.brokerdocumentrepository.findMany({
+        where: { status: 'PENDING' }
       });
     }
 
@@ -139,14 +145,14 @@ export class CrmDocsProcessor {
         await job.queue.add('scan-document', {
           docId: doc.id,
           s3Path: doc.s3Path,
-          brokerId: doc.brokerId,
+          brokerId: doc.brokerId
         }, {
           delay: Math.random() * 5000, // Random delay to prevent overload
           attempts: 3,
           backoff: {
             type: 'exponential',
-            delay: 2000,
-          },
+            delay: 2000
+          }
         });
       } catch (error) {
         this.logger.error(`Failed to queue scan for document ${doc.id}:`, error);
@@ -163,7 +169,7 @@ export class CrmDocsProcessor {
         const result = await this.clamAVService.scanFile(s3Path);
         return {
           infected: result.infected,
-          threat: result.threat,
+          threat: result.threat
         };
       }
 
@@ -176,29 +182,29 @@ export class CrmDocsProcessor {
 
       return {
         infected: mockScanResult,
-        threat: mockScanResult ? 'Test.Virus.Demo' : undefined,
+        threat: mockScanResult ? 'Test.Virus.Demo' : undefined
       };
     } catch (error) {
       this.logger.error(`Virus scan failed for ${s3Path}:`, error);
       // Fail safe - treat as potentially infected
       return {
         infected: true,
-        threat: 'Scan_failed',
+        threat: 'Scan_failed'
       };
     }
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onActive(job: Job) {
     this.logger.log(`Processing job ${job.id} of type ${job.name}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job, result: any) {
     this.logger.log(`Completed job ${job.id} of type ${job.name}. Result:`, result);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job, error: Error) {
     this.logger.error(`Failed job ${job.id} of type ${job.name}:`, error);
   }

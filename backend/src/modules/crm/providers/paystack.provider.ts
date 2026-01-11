@@ -33,22 +33,22 @@ export class PaystackProvider implements PaymentProvider {
               {
                 display_name: 'Invoice ID',
                 variable_name: 'invoice_id',
-                value: paymentRequest.invoiceId,
+                value: paymentRequest.invoiceId
               },
               {
                 display_name: 'Broker ID',
                 variable_name: 'broker_id',
-                value: paymentRequest.brokerId,
+                value: paymentRequest.brokerId
               },
             ],
-            ...paymentRequest.metadata,
-          },
+            ...paymentRequest.metadata
+          }
         },
         {
           headers: {
             Authorization: `Bearer ${this.secretKey}`,
-            'Content-Type': 'application/json',
-          },
+            'Content-Type': 'application/json'
+          }
         }
       );
 
@@ -60,13 +60,13 @@ export class PaystackProvider implements PaymentProvider {
         authorizationUrl: data.authorization_url,
         accessCode: data.access_code,
         provider: 'paystack',
-        metadata: response.data,
+        metadata: response.data
       };
     } catch (error) {
       return {
         success: false,
         error: error.response?.data?.message || error.message,
-        provider: 'paystack',
+        provider: 'paystack'
       };
     }
   }
@@ -78,8 +78,8 @@ export class PaystackProvider implements PaymentProvider {
         {
           headers: {
             Authorization: `Bearer ${this.secretKey}`,
-            'Content-Type': 'application/json',
-          },
+            'Content-Type': 'application/json'
+          }
         }
       );
 
@@ -94,7 +94,7 @@ export class PaystackProvider implements PaymentProvider {
           status: data.status,
           paidAt: data.paid_at,
           provider: 'paystack',
-          metadata: response.data,
+          metadata: response.data
         };
       } else {
         return {
@@ -103,14 +103,14 @@ export class PaystackProvider implements PaymentProvider {
           status: data.status,
           message: data.gateway_response,
           provider: 'paystack',
-          metadata: response.data,
+          metadata: response.data
         };
       }
     } catch (error) {
       return {
         success: false,
         error: error.response?.data?.message || error.message,
-        provider: 'paystack',
+        provider: 'paystack'
       };
     }
   }
@@ -137,7 +137,7 @@ export class PaystackProvider implements PaymentProvider {
         status: event.data.status,
         paidAt: event.data.paid_at ? new Date(event.data.paid_at) : null,
         customerEmail: event.data.customer?.email,
-        metadata: event,
+        metadata: event
       };
     } catch (error) {
       throw new Error('Invalid webhook payload');
@@ -157,8 +157,8 @@ export class PaystackProvider implements PaymentProvider {
         {
           headers: {
             Authorization: `Bearer ${this.secretKey}`,
-            'Content-Type': 'application/json',
-          },
+            'Content-Type': 'application/json'
+          }
         }
       );
 
@@ -171,13 +171,13 @@ export class PaystackProvider implements PaymentProvider {
         amount: data.amount / 100,
         status: data.status,
         provider: 'paystack',
-        metadata: response.data,
+        metadata: response.data
       };
     } catch (error) {
       return {
         success: false,
         error: error.response?.data?.message || error.message,
-        provider: 'paystack',
+        provider: 'paystack'
       };
     }
   }

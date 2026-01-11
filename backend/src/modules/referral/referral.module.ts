@@ -1,59 +1,57 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ReferralService } from './services/referral.service';
-import { RewardService } from './services/reward.service';
-import { ReferralTrackingService } from './services/referral-tracking.service';
-import { ReferralController } from './controllers/referral.controller';
-import { RewardController } from './controllers/reward.controller';
-import { ReferralProcessingProcessor } from './processors/referral-processing.processor';
-import { RewardDistributionProcessor } from './processors/reward-distribution.processor';
-import { ReferralScheduler } from './schedulers/referral.scheduler';
-import { Referral } from './entities/referral.entity';
-import { Reward } from './entities/reward.entity';
-import { ReferralTier } from './entities/referral-tier.entity';
-import { PrismaModule } from '../prisma/prisma.module';
+import { CacheModule } from '@nestjs/cache-manager';
+import { ConfigModule } from '@nestjs/config';
+import { ReferralService } from "./services/referral.service";
+import { RewardService } from "./services/reward.service";
+import { ReferralTrackingService } from "./services/referral-tracking.service";
+import { ReferralController } from "./controllers/referral.controller";
+import { RewardController } from "./controllers/reward.controller";
+import { ReferralProcessingProcessor } from "./processors/referral-processing.processor";
+import { RewardDistributionProcessor } from "./processors/reward-distribution.processor";
+import { ReferralScheduler } from "./schedulers/referral.scheduler";
 import { UsersModule } from '../users/users.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { CacheModule } from '@nestjs/cache-manager';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Referral, Reward, ReferralTier]),
     BullModule.registerQueue({
-      name: 'referral-processing',
+      name: 'referral-processing'
     }),
     BullModule.registerQueue({
-      name: 'reward-distribution',
+      name: 'reward-distribution'
     }),
     BullModule.registerQueue({
-      name: 'notifications',
+      name: 'notifications'
     }),
     BullModule.registerQueue({
-      name: 'wallet',
+      name: 'wallet'
     }),
     ScheduleModule.forRoot(),
-    PrismaModule,
+    ConfigModule,
+    CacheModule.register({
+      ttl: 300, // 5 minutes default TTL
+      max: 100 // Maximum number of items in cache
+    }),
     UsersModule,
     WalletModule,
     NotificationsModule,
-    CacheModule,
   ],
   controllers: [ReferralController, RewardController],
   providers: [
     ReferralService,
     RewardService,
     ReferralTrackingService,
-    ReferralProcessingProcessor,
-    RewardDistributionProcessor,
+    // ReferralProcessingProcessor,  // TEMP_DISABLED
+    // RewardDistributionProcessor,  // TEMP_DISABLED
     ReferralScheduler,
   ],
   exports: [
     ReferralService,
     RewardService,
     ReferralTrackingService,
-  ],
+  ]
 })
 export class ReferralModule {}

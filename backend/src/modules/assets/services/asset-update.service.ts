@@ -1,18 +1,17 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, Interval } from '@nestjs/schedule';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Job, Queue } from 'bull';
-import { InjectQueue } from '@nestjs/bull';
+import { Job, Queue } from 'bullmq';
+import { InjectQueue } from '@nestjs/bullmq';
+import { PrismaService } from "../../../prisma/prisma.service";
 
-import { ViralAsset, SocialPlatform } from '../entities/viral-asset.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { ViralAsset, SocialPlatform } from '../entities/viral-asset.entity';
 import { AssetMetrics } from '../interfaces/classification.interface';
 import { SocialDataService } from '../services/social-data.service';
-import { NLPService } from '../../nlp/services/nlp.service';
-import { PricingEngineService } from './pricing-engine.service';
-import { WebSocketGateway } from '../../websocket/websocket.gateway';
-import { NotificationService } from '../../notifications/services/notification.service';
+import { NLPService } from "../../nlp/services/nlp.service";
+import { PricingEngineService } from "./pricing-engine.service";
+import { WebSocketGatewayHandler } from "../../websocket/gateways/websocket.gateway";
+import { NotificationService } from "../../notifications/services/notification.service";
 
 @Injectable()
 export class AssetUpdateService implements OnModuleInit {
@@ -22,12 +21,11 @@ export class AssetUpdateService implements OnModuleInit {
 
   constructor(
     private config: ConfigService,
-    @InjectRepository(ViralAsset)
-    private assetRepository: Repository<ViralAsset>,
+    private prisma: PrismaService,
     private socialDataService: SocialDataService,
     private nlpService: NLPService,
     private pricingEngine: PricingEngineService,
-    private websocketGateway: WebSocketGateway,
+    private websocketGateway: WebSocketGatewayHandler,
     private notificationService: NotificationService,
     @InjectQueue('asset-updates')
     private assetUpdateQueue: Queue,
@@ -47,21 +45,21 @@ export class AssetUpdateService implements OnModuleInit {
    */
   private async initializeCaches(): Promise<void> {
     try {
-      const activeAssets = await this.assetRepository.find({
+      const activeAssets = await this.prisma.viralAsset.findMany({
         where: { status: 'ACTIVE' }
       });
 
       for (const asset of activeAssets) {
         this.assetMetricsCache.set(asset.id, {
-          momentum: asset.momentum_score,
-          sentiment: asset.sentiment_index,
-          viralityRate: asset.virality_rate,
-          engagementVelocity: asset.engagement_velocity,
-          reach: asset.reach_estimate
+          momentum: asset.momentum_score || 0,
+          sentiment: asset.sentiment_index || 0,
+          viralityRate: asset.virality_rate || 0,
+          engagementVelocity: asset.engagement_velocity || 0,
+          reach: asset.reach_estimate || 0
         });
 
         this.priceUpdateCache.set(asset.id, {
-          price: asset.current_price,
+          price: asset.current_price || 0,
           timestamp: new Date()
         });
       }
@@ -110,11 +108,12 @@ export class AssetUpdateService implements OnModuleInit {
   @Interval(10000)
   async updateHighMomentumPrices(): Promise<void> {
     try {
-      const highMomentumAssets = await this.assetRepository
-        .createQueryBuilder('asset')
-        .where('asset.momentum_score > :threshold', { threshold: 80 })
-        .andWhere('asset.status = :status', { status: 'ACTIVE' })
-        .getMany();
+      const highMomentumAssets = await this.prisma.viralAsset.findMany({
+        where: {
+          momentum_score: { gt: 80 },
+          status: 'ACTIVE'
+        }
+      });
 
       if (highMomentumAssets.length === 0) {
         return;
@@ -145,13 +144,16 @@ export class AssetUpdateService implements OnModuleInit {
   @Cron('*/2 * * * *')
   async updateTrendingRankings(): Promise<void> {
     try {
-      const trendingAssets = await this.assetRepository
-        .createQueryBuilder('asset')
-        .where('asset.momentum_score > :threshold', { threshold: 60 })
-        .andWhere('asset.status = :status', { status: 'ACTIVE' })
-        .andWhere('asset.is_trending = :trending', { trending: true })
-        .orderBy('asset.momentum_score', 'DESC')
-        .getMany();
+      const trendingAssets = await this.prisma.viralAsset.findMany({
+        where: {
+          momentum_score: { gt: 60 },
+          status: 'ACTIVE',
+          is_trending: true
+        },
+        orderBy: {
+          momentum_score: 'desc'
+        }
+      });
 
       // Update trending rankings
       for (let i = 0; i < trendingAssets.length; i++) {
@@ -161,9 +163,12 @@ export class AssetUpdateService implements OnModuleInit {
         if (asset.trending_rank !== i + 1 ||
             Math.abs(asset.trending_rank - (i + 1)) > 5) {
 
-          await this.assetRepository.update(asset.id, {
-            trending_rank: i + 1,
-            updated_at: new Date()
+          await this.prisma.viralAsset.update({
+            where: { id: asset.id },
+            data: {
+              trending_rank: i + 1,
+              updated_at: new Date()
+            }
           });
 
           // Notify about significant ranking changes
@@ -181,37 +186,41 @@ export class AssetUpdateService implements OnModuleInit {
 
       // Remove trending status from assets below threshold
       const demoteThreshold = 50;
-      const assetsToDemote = await this.assetRepository
-        .createQueryBuilder('asset')
-        .where('asset.momentum_score < :threshold', { threshold: demoteThreshold })
-        .andWhere('asset.is_trending = :trending', { trending: true })
-        .getMany();
+      const assetsToDemote = await this.prisma.viralAsset.findMany({
+        where: {
+          momentum_score: { lt: demoteThreshold },
+          is_trending: true
+        }
+      });
 
       if (assetsToDemote.length > 0) {
-        await this.assetRepository
-          .createQueryBuilder()
-          .update(ViralAsset)
-          .set({
+        await this.prisma.viralAsset.updateMany({
+          where: {
+            id: { in: assetsToDemote.map(a => a.id) }
+          },
+          data: {
             is_trending: false,
             trending_rank: null,
             updated_at: new Date()
-          })
-          .where('id IN (:...ids)', { ids: assetsToDemote.map(a => a.id) })
-          .execute();
+          }
+        });
 
         this.logger.log(`Demoted ${assetsToDemote.length} assets from trending status`);
       }
 
       // Promote new assets to trending
       const promoteThreshold = 75;
-      const assetsToPromote = await this.assetRepository
-        .createQueryBuilder('asset')
-        .where('asset.momentum_score >= :threshold', { threshold: promoteThreshold })
-        .andWhere('asset.is_trending = :trending', { trending: false })
-        .andWhere('asset.status = :status', { status: 'ACTIVE' })
-        .orderBy('asset.momentum_score', 'DESC')
-        .limit(10) // Top 10 new trending assets
-        .getMany();
+      const assetsToPromote = await this.prisma.viralAsset.findMany({
+        where: {
+          momentum_score: { gte: promoteThreshold },
+          is_trending: false,
+          status: 'ACTIVE'
+        },
+        orderBy: {
+          momentum_score: 'desc'
+        },
+        take: 10 // Top 10 new trending assets
+      });
 
       if (assetsToPromote.length > 0) {
         const maxCurrentRank = trendingAssets.length > 0 ?
@@ -219,10 +228,13 @@ export class AssetUpdateService implements OnModuleInit {
 
         for (let i = 0; i < assetsToPromote.length; i++) {
           const asset = assetsToPromote[i];
-          await this.assetRepository.update(asset.id, {
-            is_trending: true,
-            trending_rank: maxCurrentRank + i + 1,
-            updated_at: new Date()
+          await this.prisma.viralAsset.update({
+            where: { id: asset.id },
+            data: {
+              is_trending: true,
+              trending_rank: maxCurrentRank + i + 1,
+              updated_at: new Date()
+            }
           });
         }
 
@@ -257,14 +269,17 @@ export class AssetUpdateService implements OnModuleInit {
       }
 
       // Update asset in database
-      await this.assetRepository.update(asset.id, {
-        momentum_score: updatedMetrics.momentum,
-        sentiment_index: updatedMetrics.sentiment,
-        virality_rate: updatedMetrics.viralityRate,
-        engagement_velocity: updatedMetrics.engagementVelocity,
-        reach_estimate: updatedMetrics.reach,
-        updated_at: new Date(),
-        is_trending: updatedMetrics.momentum > 70
+      await this.prisma.viralAsset.update({
+        where: { id: asset.id },
+        data: {
+          momentum_score: updatedMetrics.momentum,
+          sentiment_index: updatedMetrics.sentiment,
+          virality_rate: updatedMetrics.viralityRate,
+          engagement_velocity: updatedMetrics.engagementVelocity,
+          reach_estimate: updatedMetrics.reach,
+          updated_at: new Date(),
+          is_trending: updatedMetrics.momentum > 70
+        }
       });
 
       // Broadcast real-time updates
@@ -424,12 +439,13 @@ export class AssetUpdateService implements OnModuleInit {
   /**
    * Helper methods for metric calculations
    */
-  private async getActiveAssetsForUpdate(): Promise<ViralAsset[]> {
-    return this.assetRepository
-      .createQueryBuilder('asset')
-      .where('asset.status = :status', { status: 'ACTIVE' })
-      .andWhere('asset.expiry_time > :now', { now: new Date() })
-      .getMany();
+  private async getActiveAssetsForUpdate(): Promise<any[]> {
+    return this.prisma.viralAsset.findMany({
+      where: {
+        status: 'ACTIVE',
+        expiry_time: { gt: new Date() }
+      }
+    });
   }
 
   private createBatches<T>(items: T[], batchSize: number): T[][] {
@@ -528,28 +544,34 @@ export class AssetUpdateService implements OnModuleInit {
   }
 
   async forceUpdateAsset(assetId: string): Promise<void> {
-    const asset = await this.assetRepository.findOne({ where: { id: assetId } });
+    const asset = await this.prisma.viralAsset.findFirst({ where: { id: assetId } });
     if (asset) {
       await this.updateSingleAssetMetrics(asset);
     }
   }
 
-  async getTrendingAssets(limit: number = 50): Promise<ViralAsset[]> {
-    return this.assetRepository
-      .createQueryBuilder('asset')
-      .where('asset.is_trending = :trending', { trending: true })
-      .andWhere('asset.status = :status', { status: 'ACTIVE' })
-      .orderBy('asset.trending_rank', 'ASC')
-      .limit(limit)
-      .getMany();
+  async getTrendingAssets(limit: number = 50): Promise<any[]> {
+    return this.prisma.viralAsset.findMany({
+      where: {
+        is_trending: true,
+        status: 'ACTIVE'
+      },
+      orderBy: {
+        trending_rank: 'asc'
+      },
+      take: limit
+    });
   }
 
-  async getHighMomentumAssets(threshold: number = 80): Promise<ViralAsset[]> {
-    return this.assetRepository
-      .createQueryBuilder('asset')
-      .where('asset.momentum_score > :threshold', { threshold })
-      .andWhere('asset.status = :status', { status: 'ACTIVE' })
-      .orderBy('asset.momentum_score', 'DESC')
-      .getMany();
+  async getHighMomentumAssets(threshold: number = 80): Promise<any[]> {
+    return this.prisma.viralAsset.findMany({
+      where: {
+        momentum_score: { gt: threshold },
+        status: 'ACTIVE'
+      },
+      orderBy: {
+        momentum_score: 'desc'
+      }
+    });
   }
 }

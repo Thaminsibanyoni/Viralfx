@@ -1,6 +1,6 @@
 import { IsOptional, IsEnum, IsArray, IsString, IsUUID, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ArticleStatus } from '../entities/knowledge-base-article.entity';
+import { ArticleStatus } from '../enums/support.enum';
 
 export class UpdateArticleDto {
   @ApiPropertyOptional({ description: 'Updated title', example: 'Updated: How to Reset Your Password' })

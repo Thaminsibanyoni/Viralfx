@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ProviderHealthService } from './provider-health.service';
-import { ProviderRoutingService } from './provider-routing.service';
-import { RedisService } from '../../redis/redis.service';
+import { ProviderHealthService } from "./provider-health.service";
+import { ProviderRoutingService } from "./provider-routing.service";
+import { RedisService } from "../../redis/redis.service";
 
 export interface ChaosExperiment {
   id: string;
@@ -63,8 +63,7 @@ export class ChaosTestingService {
     private readonly configService: ConfigService,
     private readonly providerHealthService: ProviderHealthService,
     private readonly providerRoutingService: ProviderRoutingService,
-    private readonly redisService: RedisService,
-  ) {
+    private readonly redisService: RedisService) {
     this.initializeDefaultExperiments();
   }
 
@@ -79,7 +78,7 @@ export class ChaosTestingService {
         failureRate: 100,
         duration: 60000, // 1 minute
         enabled: false,
-        createdAt: new Date(),
+        createdAt: new Date()
       },
       {
         id: 'sms-latency-test',
@@ -91,7 +90,7 @@ export class ChaosTestingService {
         latencyMs: 5000,
         duration: 30000, // 30 seconds
         enabled: false,
-        createdAt: new Date(),
+        createdAt: new Date()
       },
       {
         id: 'push-circuit-breaker-test',
@@ -102,7 +101,7 @@ export class ChaosTestingService {
         failureRate: 80,
         duration: 120000, // 2 minutes
         enabled: false,
-        createdAt: new Date(),
+        createdAt: new Date()
       },
       {
         id: 'load-test',
@@ -112,7 +111,7 @@ export class ChaosTestingService {
         failureRate: 0,
         duration: 300000, // 5 minutes
         enabled: false,
-        createdAt: new Date(),
+        createdAt: new Date()
       },
     ];
 
@@ -125,7 +124,7 @@ export class ChaosTestingService {
     const newExperiment: ChaosExperiment = {
       ...experiment,
       id: this.generateExperimentId(),
-      createdAt: new Date(),
+      createdAt: new Date()
     };
 
     this.activeExperiments.set(newExperiment.id, newExperiment);
@@ -159,8 +158,8 @@ export class ChaosTestingService {
       metrics: {
         resilienceScore: 0,
         recoveryTime: 0,
-        impactScore: 0,
-      },
+        impactScore: 0
+      }
     };
 
     try {
@@ -216,7 +215,7 @@ export class ChaosTestingService {
         providerId,
         failureType: 'server_error',
         failureRate: experiment.failureRate,
-        duration: experiment.duration,
+        duration: experiment.duration
       };
 
       // Activate failure injection
@@ -251,7 +250,7 @@ export class ChaosTestingService {
         providerId,
         latencyMs: experiment.latencyMs || 2000,
         jitterMs: 500,
-        duration: experiment.duration,
+        duration: experiment.duration
       };
 
       // Activate latency injection
@@ -286,7 +285,7 @@ export class ChaosTestingService {
         providerId,
         failureType: 'connection_error',
         failureRate: 100,
-        duration: experiment.duration,
+        duration: experiment.duration
       };
 
       await this.activateFailureInjection(config);
@@ -327,7 +326,7 @@ export class ChaosTestingService {
         providerId: primaryProviderId,
         failureType: 'timeout',
         failureRate: 100,
-        duration: experiment.duration,
+        duration: experiment.duration
       };
 
       await this.activateFailureInjection(config);
@@ -342,7 +341,7 @@ export class ChaosTestingService {
         // Check if requests are being routed to fallback providers
         const routingDecision = await this.providerRoutingService.selectOptimalProvider({
           type: this.getProviderType(primaryProviderId),
-          priority: 'normal',
+          priority: 'normal'
         });
 
         if (routingDecision.primaryProvider !== primaryProviderId) {
@@ -389,7 +388,7 @@ export class ChaosTestingService {
     try {
       const routingDecision = await this.providerRoutingService.selectOptimalProvider({
         type: providerType as any,
-        priority: 'normal',
+        priority: 'normal'
       });
 
       // Simulate request
@@ -487,7 +486,7 @@ export class ChaosTestingService {
     this.injectionStates.set(config.providerId, {
       type: 'failure',
       config,
-      expiresAt,
+      expiresAt
     });
 
     // Store in Redis for distributed access
@@ -512,7 +511,7 @@ export class ChaosTestingService {
     this.injectionStates.set(config.providerId, {
       type: 'latency',
       config,
-      expiresAt,
+      expiresAt
     });
 
     await this.redisService.setex(

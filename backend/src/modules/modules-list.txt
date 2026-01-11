@@ -1,0 +1,54 @@
+# ViralFX Backend Modules - Comprehensive List
+
+## Core Infrastructure Modules
+1. auth - Authentication & Authorization
+2. prisma - Database ORM
+3. redis - Caching & Queue Management
+4. websocket - Real-time Communication
+5. audit - Audit Logging
+
+## Business Logic Modules
+6. admin - Super Admin Dashboard
+7. users - User Management
+8. wallet - Wallet & Transactions
+9. brokers - Broker Partner Program
+10. crm - Customer Relationship Management
+11. referral - Referral System
+
+## Trading & Analytics Modules
+12. markets - Market Data
+13. market-aggregation - Market Data Aggregation
+14. order-matching - Order Execution Engine
+15. analytics - Analytics & Backtesting
+16. vpmx - Viral Prediction Market Index
+17. trend-ml - ML-based Trend Analysis
+
+## Content & Social Modules
+18. ingest - Social Media Content Ingestion
+19. topics - Topic Management
+20. sentiment - Sentiment Analysis
+21. deception - Deception Detection
+22. viral - Viral Content Tracking
+
+## Communication Modules
+23. notifications - Notification System
+24. chat - Real-time Chat
+
+## Financial Modules
+25. billing - Billing System
+26. payment - Payment Processing
+
+## Support & Documentation
+27. support - Customer Support
+28. files - File Management
+29. storage - S3/MinIO Storage
+
+## Monitoring & Health
+30. monitoring - System Monitoring
+31. financial-reporting - Financial Reports
+32. oracle - Oracle/Consensus System
+33. vts - Virtual Trading System
+34. topics - Topic Management
+35. deception - Deception Detection
+
+## Total: 40+ Modules

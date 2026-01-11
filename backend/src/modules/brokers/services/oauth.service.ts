@@ -1,14 +1,11 @@
 import { Injectable, Logger, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Redis } from 'ioredis';
+import Redis from 'ioredis';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as AppleStrategy } from 'passport-apple';
-import { Broker } from '../entities/broker.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Broker } from '../entities/broker.entity';
 import { OAuthConfig } from '../interfaces/broker.interface';
-import { crypto } from '../../../common/utils/crypto';
-import * as Redis from 'ioredis';
+import { crypto } from "../../../common/utils/crypto";
 
 @Injectable()
 export class OAuthService {
@@ -17,14 +14,11 @@ export class OAuthService {
   private readonly supportedProviders = ['GOOGLE', 'APPLE', 'CUSTOM'];
 
   constructor(
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-    private configService: ConfigService,
-  ) {
+        private configService: ConfigService) {
     this.redis = new Redis({
       host: this.configService.get('REDIS_HOST', 'localhost'),
       port: this.configService.get('REDIS_PORT', 6379),
-      password: this.configService.get('REDIS_PASSWORD'),
+      password: this.configService.get('REDIS_PASSWORD')
     });
   }
 
@@ -35,7 +29,7 @@ export class OAuthService {
       throw new BadRequestException(`Unsupported OAuth provider: ${provider}`);
     }
 
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     if (!broker) {
       throw new Error(`Broker not found: ${brokerId}`);
     }
@@ -60,10 +54,10 @@ export class OAuthService {
     const currentOAuthConfig = broker.oauthConfig || {};
     broker.oauthConfig = {
       ...currentOAuthConfig,
-      [provider.toLowerCase()]: oauthConfig,
+      [provider.toLowerCase()]: oauthConfig
     };
 
-    await this.brokerRepository.save(broker);
+    await this.prisma.broker.upsert(broker);
 
     this.logger.log(`Generated OAuth config for broker ${brokerId}, provider ${provider}`);
     return oauthConfig as OAuthConfig;
@@ -72,7 +66,7 @@ export class OAuthService {
   async initiateOAuthFlow(brokerId: string, provider: string, redirectUri: string): Promise<string> {
     this.logger.log(`Initiating OAuth flow for broker ${brokerId} and provider ${provider}`);
 
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     if (!broker) {
       throw new Error(`Broker not found: ${brokerId}`);
     }
@@ -91,7 +85,7 @@ export class OAuthService {
       brokerId,
       provider,
       redirectUri,
-      codeVerifier,
+      codeVerifier
     }));
 
     // Build authorization URL based on provider
@@ -128,7 +122,7 @@ export class OAuthService {
     // Remove state from Redis
     await this.redis.del(`oauth:state:${state}`);
 
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     if (!broker) {
       throw new Error(`Broker not found: ${brokerId}`);
     }
@@ -170,11 +164,11 @@ export class OAuthService {
       accessToken: tokenResponse.access_token,
       refreshToken: tokenResponse.refresh_token,
       tokenExpiry: tokenResponse.expires_in ? new Date(Date.now() + tokenResponse.expires_in * 1000) : undefined,
-      encryptedTokens, // Store encrypted version for backup
+      encryptedTokens // Store encrypted version for backup
     };
 
     broker.oauthConfig = currentOAuthConfig;
-    await this.brokerRepository.save(broker);
+    await this.prisma.broker.upsert(broker);
 
     this.logger.log(`Successfully completed OAuth flow for broker ${brokerId}, provider ${provider}`);
 
@@ -182,14 +176,14 @@ export class OAuthService {
       success: true,
       provider,
       brokerId,
-      expiresAt: currentOAuthConfig[provider.toLowerCase()].tokenExpiry,
+      expiresAt: currentOAuthConfig[provider.toLowerCase()].tokenExpiry
     };
   }
 
   async refreshOAuthToken(brokerId: string, provider: string): Promise<void> {
     this.logger.log(`Refreshing OAuth token for broker ${brokerId}, provider ${provider}`);
 
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     if (!broker) {
       throw new Error(`Broker not found: ${brokerId}`);
     }
@@ -226,11 +220,11 @@ export class OAuthService {
       ...currentOAuthConfig[provider.toLowerCase()],
       accessToken: tokenResponse.access_token,
       refreshToken: tokenResponse.refresh_token || oauthConfig.refreshToken,
-      tokenExpiry: tokenResponse.expires_in ? new Date(Date.now() + tokenResponse.expires_in * 1000) : undefined,
+      tokenExpiry: tokenResponse.expires_in ? new Date(Date.now() + tokenResponse.expires_in * 1000) : undefined
     };
 
     broker.oauthConfig = currentOAuthConfig;
-    await this.brokerRepository.save(broker);
+    await this.prisma.broker.upsert(broker);
 
     this.logger.log(`Successfully refreshed OAuth token for broker ${brokerId}, provider ${provider}`);
   }
@@ -238,7 +232,7 @@ export class OAuthService {
   async revokeOAuthAccess(brokerId: string, provider: string): Promise<void> {
     this.logger.log(`Revoking OAuth access for broker ${brokerId}, provider ${provider}`);
 
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     if (!broker) {
       throw new Error(`Broker not found: ${brokerId}`);
     }
@@ -274,11 +268,11 @@ export class OAuthService {
       ...currentOAuthConfig[provider.toLowerCase()],
       accessToken: undefined,
       refreshToken: undefined,
-      tokenExpiry: undefined,
+      tokenExpiry: undefined
     };
 
     broker.oauthConfig = currentOAuthConfig;
-    await this.brokerRepository.save(broker);
+    await this.prisma.broker.upsert(broker);
 
     this.logger.log(`Successfully revoked OAuth access for broker ${brokerId}, provider ${provider}`);
   }
@@ -286,7 +280,7 @@ export class OAuthService {
   async validateOAuthScopes(brokerId: string, provider: string, requiredScopes: string[]): Promise<boolean> {
     this.logger.log(`Validating OAuth scopes for broker ${brokerId}, provider ${provider}`);
 
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     if (!broker) {
       throw new Error(`Broker not found: ${brokerId}`);
     }
@@ -310,7 +304,7 @@ export class OAuthService {
       clientId: this.configService.get<string>('GOOGLE_CLIENT_ID'),
       clientSecret: this.configService.get<string>('GOOGLE_CLIENT_SECRET'),
       redirectUri: this.configService.get<string>('GOOGLE_CALLBACK_URL'),
-      scopes: ['email', 'profile'],
+      scopes: ['email', 'profile']
     };
   }
 
@@ -320,7 +314,7 @@ export class OAuthService {
       clientId: this.configService.get<string>('APPLE_CLIENT_ID'),
       clientSecret: await this.generateAppleClientSecret(),
       redirectUri: this.configService.get<string>('APPLE_CALLBACK_URL'),
-      scopes: ['name', 'email'],
+      scopes: ['name', 'email']
     };
   }
 
@@ -330,7 +324,7 @@ export class OAuthService {
       provider: 'CUSTOM',
       clientId: crypto.randomBytes(16).toString('hex'),
       clientSecret: crypto.randomBytes(32).toString('hex'),
-      scopes: ['read', 'write'],
+      scopes: ['read', 'write']
     };
   }
 
@@ -342,7 +336,7 @@ export class OAuthService {
       scope: scopes.join(' '),
       state,
       access_type: 'offline',
-      prompt: 'consent',
+      prompt: 'consent'
     });
 
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
@@ -355,7 +349,7 @@ export class OAuthService {
       response_type: 'code',
       scope: scopes.join(' '),
       state,
-      response_mode: 'form_post',
+      response_mode: 'form_post'
     });
 
     return `https://appleid.apple.com/auth/authorize?${params.toString()}`;
@@ -367,7 +361,7 @@ export class OAuthService {
       client_id: config.clientId,
       redirect_uri: redirectUri,
       response_type: 'code',
-      state,
+      state
     });
 
     return `${this.configService.get<string>('CUSTOM_OAUTH_AUTH_URL', 'https://oauth.example.com/auth')}?${params.toString()}`;
@@ -380,13 +374,13 @@ export class OAuthService {
       client_secret: config.clientSecret,
       code,
       grant_type: 'authorization_code',
-      redirect_uri: redirectUri,
+      redirect_uri: redirectUri
     });
 
     const response = await fetch(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
+      body: params.toString()
     });
 
     return response.json();
@@ -400,13 +394,13 @@ export class OAuthService {
       code,
       grant_type: 'authorization_code',
       redirect_uri: redirectUri,
-      code_verifier: codeVerifier,
+      code_verifier: codeVerifier
     });
 
     const response = await fetch(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
+      body: params.toString()
     });
 
     return response.json();
@@ -419,13 +413,13 @@ export class OAuthService {
       client_secret: config.clientSecret,
       code,
       grant_type: 'authorization_code',
-      redirect_uri: redirectUri,
+      redirect_uri: redirectUri
     });
 
     const response = await fetch(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
+      body: params.toString()
     });
 
     return response.json();
@@ -437,13 +431,13 @@ export class OAuthService {
       client_id: config.clientId,
       client_secret: config.clientSecret,
       refresh_token: config.refreshToken,
-      grant_type: 'refresh_token',
+      grant_type: 'refresh_token'
     });
 
     const response = await fetch(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
+      body: params.toString()
     });
 
     return response.json();
@@ -455,13 +449,13 @@ export class OAuthService {
       client_id: config.clientId,
       client_secret: config.clientSecret,
       refresh_token: config.refreshToken,
-      grant_type: 'refresh_token',
+      grant_type: 'refresh_token'
     });
 
     const response = await fetch(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
+      body: params.toString()
     });
 
     return response.json();
@@ -473,13 +467,13 @@ export class OAuthService {
       client_id: config.clientId,
       client_secret: config.clientSecret,
       refresh_token: config.refreshToken,
-      grant_type: 'refresh_token',
+      grant_type: 'refresh_token'
     });
 
     const response = await fetch(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
+      body: params.toString()
     });
 
     return response.json();
@@ -500,13 +494,13 @@ export class OAuthService {
     const params = new URLSearchParams({
       client_id: config.clientId,
       client_secret: config.clientSecret,
-      token: accessToken,
+      token: accessToken
     });
 
     await fetch(revokeUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
+      body: params.toString()
     });
   }
 

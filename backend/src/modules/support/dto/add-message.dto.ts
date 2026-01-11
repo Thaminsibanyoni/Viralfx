@@ -22,8 +22,8 @@ export class MessageAttachmentDto {
 
 export class AddMessageDto {
   @ApiProperty({
-    description: 'Message content',
-    example: 'I have tried the suggested solution but the issue persists. Here is a screenshot of the error message.'
+  description: 'Message content',
+  example: 'I have tried the suggested solution but the issue persists. Here is a screenshot of the error message.'
   })
   @IsString()
   @MinLength(1, { message: 'Message content cannot be empty' })
@@ -31,22 +31,22 @@ export class AddMessageDto {
   content: string;
 
   @ApiPropertyOptional({
-    description: 'Whether this is an internal note (only visible to support team)',
-    default: false,
-    example: false
+  description: 'Whether this is an internal note (only visible to support team)',
+  default: false,
+  example: false
   })
   @IsOptional()
   @IsBoolean()
   isInternal?: boolean;
 
   @ApiPropertyOptional({
-    description: 'File attachments',
-    type: [MessageAttachmentDto],
-    example: [{
-      url: 'https://example.com/screenshot.png',
-      name: 'error-screenshot.png',
-      size: 245760,
-      type: 'image/png'
+  description: 'File attachments',
+  type: [MessageAttachmentDto],
+  example: [{
+  url: 'https://example.com/screenshot.png',
+  name: 'error-screenshot.png',
+  size: 245760,
+  type: 'image/png'
     }]
   })
   @IsOptional()

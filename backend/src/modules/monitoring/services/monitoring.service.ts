@@ -4,13 +4,13 @@ import { ConfigService } from '@nestjs/config';
 import { Redis } from 'ioredis';
 import { Cron } from '@nestjs/schedule';
 
-import { MetricsService } from './metrics.service';
-import { AlertingService } from './alerting.service';
-import { PerformanceService } from './performance.service';
-import { HealthService } from './health.service';
+import { MetricsService } from "./metrics.service";
+import { AlertingService } from "./alerting.service";
+import { PerformanceService } from "./performance.service";
+import { HealthService } from "./health.service";
 
-import { SystemMetric } from '../entities/metric.entity';
-import { Alert } from '../entities/alert.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { SystemMetric } from '../entities/metric.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Alert } from '../entities/alert.entity';
 
 @Injectable()
 export class MonitoringService implements OnModuleInit {

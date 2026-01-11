@@ -1,26 +1,24 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRedis } from '@nestjs-modules/ioredis';
-import { Processor, Process } from '@nestjs/bullmq';
+import {Processor, WorkerHost} from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Redis } from 'ioredis';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { IngestJobData, Content, ContentMetrics } from '../interfaces/ingest.interface';
 import { Platform } from '@prisma/client';
 
 @Injectable()
 @Processor('ingest:twitter')
-export class TwitterIngestProcessor {
+export class TwitterIngestProcessor extends WorkerHost {
   private readonly logger = new Logger(TwitterIngestProcessor.name);
 
   constructor(
     private readonly prismaService: PrismaService,
     private readonly configService: ConfigService,
-    @InjectRedis() private readonly redis: Redis,
-  ) {}
+    @InjectRedis() private readonly redis: Redis) {}
 
-  @Process('process')
-  async processContent(job: Job<IngestJobData>) {
+  private async processContent(job: Job<IngestJobData>) {
     return this.processContentJob('TWITTER', job);
   }
 
@@ -36,8 +34,8 @@ export class TwitterIngestProcessor {
       const existing = await this.prismaService.ingestEvent.findFirst({
         where: {
           platform,
-          nativeId: content.nativeId,
-        },
+          nativeId: content.nativeId
+        }
       });
 
       if (existing) {
@@ -48,7 +46,7 @@ export class TwitterIngestProcessor {
       const ingestEventData = this.transformToIngestEvent(platform, content);
 
       const ingestEvent = await this.prismaService.ingestEvent.create({
-        data: ingestEventData,
+        data: ingestEventData
       });
 
       const duration = Date.now() - startTime;
@@ -59,7 +57,7 @@ export class TwitterIngestProcessor {
       return {
         status: 'success',
         id: ingestEvent.id,
-        duration,
+        duration
       };
 
     } catch (error) {
@@ -77,7 +75,7 @@ export class TwitterIngestProcessor {
         return {
           status: 'failed',
           error: error.message,
-          retryCount,
+          retryCount
         };
       }
     }
@@ -121,7 +119,7 @@ export class TwitterIngestProcessor {
       type: url.type,
       thumbnail: url.thumbnail,
       duration: url.duration,
-      size: url.size,
+      size: url.size
     }));
 
     return {
@@ -140,7 +138,7 @@ export class TwitterIngestProcessor {
       processed: false,
       processingErrors: null,
       publishedAt: content.timestamp,
-      ingestedAt: new Date(),
+      ingestedAt: new Date()
     };
   }
 
@@ -202,7 +200,7 @@ export class TwitterIngestProcessor {
       nativeId: content.nativeId,
       authorId: content.authorId,
       error,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.redis.lpush(failedKey, JSON.stringify(failedData));

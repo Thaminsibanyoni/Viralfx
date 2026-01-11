@@ -25,8 +25,7 @@ export abstract class BaseConnector {
   constructor(
     @InjectRedis() redis: Redis,
     config: ConfigService,
-    platformName: string,
-  ) {
+    platformName: string) {
     this.redis = redis;
     this.config = config;
     this.platformName = platformName;
@@ -40,13 +39,20 @@ export abstract class BaseConnector {
   abstract transformContent(rawContent: any): Content;
 
   protected loadConfig(platformName: string): CollectorConfig {
+    const getArray = (key: string, defaultValue: string): string[] => {
+      const value = this.config.get(key);
+      if (!value) return defaultValue.split(',');
+      if (Array.isArray(value)) return value;
+      return value.toString().split(',');
+    };
+
     return {
       enabled: this.config.get(`${platformName.toUpperCase()}_ENABLED`, false),
       rateLimit: this.config.get(`${platformName.toUpperCase()}_RATE_LIMIT`, 100),
-      keywords: this.config.get(`${platformName.toUpperCase()}_KEYWORDS`, [])?.split(',') || [],
-      hashtags: this.config.get(`${platformName.toUpperCase()}_HASHTAGS`, [])?.split(',') || [],
-      regions: this.config.get(`${platformName.toUpperCase()}_REGIONS`, 'ZA')?.split(',') || [],
-      languages: this.config.get(`${platformName.toUpperCase()}_LANGUAGES`, 'en')?.split(',') || [],
+      keywords: getArray(`${platformName.toUpperCase()}_KEYWORDS`, ''),
+      hashtags: getArray(`${platformName.toUpperCase()}_HASHTAGS`, ''),
+      regions: getArray(`${platformName.toUpperCase()}_REGIONS`, 'ZA'),
+      languages: getArray(`${platformName.toUpperCase()}_LANGUAGES`, 'en')
     };
   }
 
@@ -70,7 +76,7 @@ export abstract class BaseConnector {
           location: JSON.stringify(item.location || {}),
           language: item.language || '',
           engagement: JSON.stringify(item.engagement),
-          metadata: JSON.stringify(item.metadata || {}),
+          metadata: JSON.stringify(item.metadata || {})
         }
       );
 
@@ -292,19 +298,19 @@ export abstract class BaseConnector {
           polarity: sentiment.polarity,
           confidence: sentiment.confidence,
           impactScore: sentiment.impactScore,
-          viralPotential: sentiment.viralPotential,
+          viralPotential: sentiment.viralPotential
         },
         viralIndicators: indicators,
         priorityScore: priority,
-        analyzedAt: new Date().toISOString(),
-      },
+        analyzedAt: new Date().toISOString()
+      }
     };
 
     return {
       sentiment,
       indicators,
       priority,
-      enhancedContent,
+      enhancedContent
     };
   }
 
@@ -357,7 +363,7 @@ export abstract class BaseConnector {
       priority,
       timestamp: new Date().toISOString(),
       viralPotential: content.metadata?.sentimentAnalysis?.viralPotential,
-      sentiment: content.metadata?.sentimentAnalysis?.polarity,
+      sentiment: content.metadata?.sentimentAnalysis?.polarity
     };
 
     await this.redis.lpush(logKey, JSON.stringify(logEntry));

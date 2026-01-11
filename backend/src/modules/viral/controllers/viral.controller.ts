@@ -9,7 +9,7 @@ import {
   ParseUUIDPipe,
   HttpStatus,
   HttpCode,
-  BadRequestException,
+  BadRequestException
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,12 +17,12 @@ import {
   ApiResponse,
   ApiParam,
   ApiQuery,
-  ApiBearerAuth,
+  ApiBearerAuth
 } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { ViralService } from '../services/viral.service';
 import { ViralIndexService } from '../services/viral-index.service';
 import { ViralMetricsService } from '../services/viral-metrics.service';
@@ -35,8 +35,7 @@ export class ViralController {
   constructor(
     private readonly viralService: ViralService,
     private readonly viralIndexService: ViralIndexService,
-    private readonly viralMetricsService: ViralMetricsService,
-  ) {}
+    private readonly viralMetricsService: ViralMetricsService) {}
 
   @Post('analyze')
   @Roles('ADMIN', 'ANALYST', 'CONTENT_CREATOR')
@@ -51,8 +50,7 @@ export class ViralController {
       source?: string;
       authorId?: string;
       metadata?: any;
-    },
-  ) {
+    }) {
     const { content, topicId, source, authorId, metadata } = body;
 
     if (!content || content.trim().length === 0) {
@@ -72,8 +70,7 @@ export class ViralController {
       topicId,
       source,
       authorId,
-      metadata,
-    );
+      metadata);
   }
 
   @Post('batch-analyze')
@@ -91,8 +88,7 @@ export class ViralController {
         authorId?: string;
         metadata?: any;
       }>;
-    },
-  ) {
+    }) {
     const { contents } = body;
 
     if (!contents || contents.length === 0) {
@@ -118,8 +114,7 @@ export class ViralController {
       source?: string;
       authorId?: string;
       metadata?: any;
-    },
-  ) {
+    }) {
     return this.viralService.queueViralityAnalysis(body);
   }
 
@@ -130,8 +125,7 @@ export class ViralController {
   @ApiResponse({ status: 200, description: 'Viral index retrieved successfully' })
   async getTopicViralIndex(
     @Param('topicId', ParseUUIDPipe) topicId: string,
-    @Query('timeWindow') timeWindow: number = 24,
-  ) {
+    @Query('timeWindow') timeWindow: number = 24) {
     if (timeWindow < 1 || timeWindow > 168) {
       throw new BadRequestException('Time window must be between 1 and 168 hours (1 week)');
     }
@@ -150,8 +144,7 @@ export class ViralController {
     @Param('topicId', ParseUUIDPipe) topicId: string,
     @Query('startTime') startTime: string,
     @Query('endTime') endTime: string,
-    @Query('interval') interval: number = 60,
-  ) {
+    @Query('interval') interval: number = 60) {
     const start = new Date(startTime);
     const end = new Date(endTime);
 
@@ -179,8 +172,7 @@ export class ViralController {
   async getViralContent(
     @Param('topicId', ParseUUIDPipe) topicId: string,
     @Query('limit') limit: number = 20,
-    @Query('minViralScore') minViralScore: number = 0.5,
-  ) {
+    @Query('minViralScore') minViralScore: number = 0.5) {
     const validatedLimit = Math.min(Math.max(limit, 1), 100);
 
     if (minViralScore < 0 || minViralScore > 1) {
@@ -197,8 +189,7 @@ export class ViralController {
   @ApiResponse({ status: 200, description: 'Virality analysis retrieved successfully' })
   async getTopicVirality(
     @Param('topicId', ParseUUIDPipe) topicId: string,
-    @Query('timeWindow') timeWindow: number = 24,
-  ) {
+    @Query('timeWindow') timeWindow: number = 24) {
     if (timeWindow < 1 || timeWindow > 168) {
       throw new BadRequestException('Time window must be between 1 and 168 hours (1 week)');
     }
@@ -213,8 +204,7 @@ export class ViralController {
   @ApiResponse({ status: 200, description: 'Viral velocity retrieved successfully' })
   async getViralVelocity(
     @Param('topicId', ParseUUIDPipe) topicId: string,
-    @Query('timeWindow') timeWindow: number = 1,
-  ) {
+    @Query('timeWindow') timeWindow: number = 1) {
     if (timeWindow < 0.5 || timeWindow > 24) {
       throw new BadRequestException('Time window must be between 0.5 and 24 hours');
     }
@@ -229,8 +219,7 @@ export class ViralController {
   @ApiResponse({ status: 200, description: 'Trending content retrieved successfully' })
   async getTrendingViralContent(
     @Query('timeWindow') timeWindow: number = 24,
-    @Query('limit') limit: number = 10,
-  ) {
+    @Query('limit') limit: number = 10) {
     const validatedLimit = Math.min(Math.max(limit, 1), 50);
 
     if (timeWindow < 1 || timeWindow > 168) {
@@ -249,8 +238,7 @@ export class ViralController {
   async getTrendingTopics(
     @Query('limit') limit: number = 10,
     @Query('timeWindow') timeWindow: number = 24,
-    @Query('minIndex') minIndex: number = 0.5,
-  ) {
+    @Query('minIndex') minIndex: number = 0.5) {
     const validatedLimit = Math.min(Math.max(limit, 1), 20);
 
     if (timeWindow < 1 || timeWindow > 168) {
@@ -273,8 +261,7 @@ export class ViralController {
   async detectViralBreakouts(
     @Query('threshold') threshold: number = 0.8,
     @Query('momentumThreshold') momentumThreshold: number = 0.6,
-    @Query('timeWindow') timeWindow: number = 1,
-  ) {
+    @Query('timeWindow') timeWindow: number = 1) {
     if (threshold < 0 || threshold > 1) {
       throw new BadRequestException('Threshold must be between 0 and 1');
     }
@@ -297,8 +284,7 @@ export class ViralController {
   @ApiResponse({ status: 200, description: 'Topic metrics retrieved successfully' })
   async getTopicMetrics(
     @Param('topicId', ParseUUIDPipe) topicId: string,
-    @Query('timeWindow') timeWindow: number = 24,
-  ) {
+    @Query('timeWindow') timeWindow: number = 24) {
     if (timeWindow < 1 || timeWindow > 168) {
       throw new BadRequestException('Time window must be between 1 and 168 hours (1 week)');
     }
@@ -315,8 +301,7 @@ export class ViralController {
   async getContentMetrics(
     @Param('topicId', ParseUUIDPipe) topicId: string,
     @Query('startTime') startTime: string,
-    @Query('endTime') endTime: string,
-  ) {
+    @Query('endTime') endTime: string) {
     const start = new Date(startTime);
     const end = new Date(endTime);
 
@@ -338,8 +323,7 @@ export class ViralController {
   @ApiResponse({ status: 200, description: 'Metrics summary retrieved successfully' })
   async getMetricsSummary(
     @Param('topicId', ParseUUIDPipe) topicId: string,
-    @Query('timeWindow') timeWindow: number = 24,
-  ) {
+    @Query('timeWindow') timeWindow: number = 24) {
     if (timeWindow < 1 || timeWindow > 168) {
       throw new BadRequestException('Time window must be between 1 and 168 hours (1 week)');
     }
@@ -382,14 +366,12 @@ export class ViralController {
       contentType: string;
       score: number;
       metadata?: any;
-    },
-  ) {
+    }) {
     await this.viralMetricsService.trackMetrics(
       body.topicId,
       body.contentType,
       body.score,
-      body.metadata,
-    );
+      body.metadata);
 
     return { message: 'Metrics tracked successfully' };
   }

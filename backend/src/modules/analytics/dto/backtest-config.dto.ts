@@ -5,7 +5,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class BacktestConfigDto {
   @ApiProperty({
     description: 'Strategy ID to run backtest for',
-    example: 'trend_momentum',
+    example: 'trend_momentum'
   })
   @IsString()
   @IsNotEmpty()
@@ -13,7 +13,7 @@ export class BacktestConfigDto {
 
   @ApiProperty({
     description: 'Symbol/ticker to backtest',
-    example: 'AAPL',
+    example: 'AAPL'
   })
   @IsString()
   @IsNotEmpty()
@@ -21,7 +21,7 @@ export class BacktestConfigDto {
 
   @ApiProperty({
     description: 'Start date for backtest period',
-    example: '2024-01-01T00:00:00Z',
+    example: '2024-01-01T00:00:00Z'
   })
   @IsDate()
   @Type(() => Date)
@@ -29,7 +29,7 @@ export class BacktestConfigDto {
 
   @ApiProperty({
     description: 'End date for backtest period',
-    example: '2024-12-31T23:59:59Z',
+    example: '2024-12-31T23:59:59Z'
   })
   @IsDate()
   @Type(() => Date)
@@ -40,7 +40,7 @@ export class BacktestConfigDto {
     example: 10000,
     minimum: 100,
     maximum: 1000000,
-    default: 10000,
+    default: 10000
   })
   @IsNumber()
   @Min(100)
@@ -49,7 +49,7 @@ export class BacktestConfigDto {
 
   @ApiPropertyOptional({
     description: 'Strategy parameters to override defaults',
-    example: { minViralityScore: 80, sentimentThreshold: 0.6 },
+    example: { minViralityScore: 80, sentimentThreshold: 0.6 }
   })
   @IsObject()
   @IsOptional()
@@ -60,8 +60,8 @@ export class BacktestConfigDto {
     example: {
       slippage: 0.001,
       commission: 0.002,
-      maxPositionSize: 1.0,
-    },
+      maxPositionSize: 1.0
+    }
   })
   @IsObject()
   @IsOptional()

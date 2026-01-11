@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { VPMXComponents, VPMXResult, VPMXWeighting } from './interfaces/vpmx.interface';
+import { VPMXComponents, VPMXResult, VPMXWeighting } from "./interfaces/vpmx.interface";
 import { SentimentModule } from '../sentiment/sentiment.module';
 import { ViralModule } from '../viral/viral.module';
 import { DeceptionModule } from '../deception/deception.module';
@@ -18,13 +18,12 @@ export class VPMXComputationService {
     engagementQualityWeight: 0.10,
     trendStabilityWeight: 0.10,
     deceptionRiskWeight: 0.05,
-    regionalWeightingWeight: 0.05,
+    regionalWeightingWeight: 0.05
   };
 
   constructor(
     @InjectQueue('vpmx-computation') private readonly vpmxQueue: Queue,
-    @InjectQueue('vpmx-weighting') private readonly weightingQueue: Queue,
-  ) {}
+    @InjectQueue('vpmx-weighting') private readonly weightingQueue: Queue) {}
 
   /**
    * Compute VPMX using the weighted composite formula
@@ -32,8 +31,7 @@ export class VPMXComputationService {
   async computeVPMX(
     vtsSymbol: string,
     timestamp?: Date,
-    weighting: VPMXWeighting = this.DEFAULT_WEIGHTING,
-  ): Promise<VPMXResult> {
+    weighting: VPMXWeighting = this.DEFAULT_WEIGHTING): Promise<VPMXResult> {
     this.logger.log(`Computing VPMX for ${vtsSymbol}`);
 
     // Get all required components
@@ -50,7 +48,7 @@ export class VPMXComputationService {
       timestamp: timestamp || new Date(),
       value: Math.max(0, Math.min(1000, value)), // Clamp between 0-1000
       components,
-      metadata,
+      metadata
     };
   }
 
@@ -59,8 +57,7 @@ export class VPMXComputationService {
    */
   private async getVPMXComponents(
     vtsSymbol: string,
-    timestamp?: Date,
-  ): Promise<VPMXComponents> {
+    timestamp?: Date): Promise<VPMXComponents> {
     // Parallel fetch all component data
     const [
       globalSentimentScore,
@@ -90,7 +87,7 @@ export class VPMXComputationService {
       engagementQualityScore: engagementQuality,
       trendStability,
       deceptionRiskInverse: deceptionRisk,
-      regionalWeighting,
+      regionalWeighting
     };
   }
 
@@ -99,8 +96,7 @@ export class VPMXComputationService {
    */
   private applyWeightingFormula(
     components: VPMXComponents,
-    weighting: VPMXWeighting,
-  ): number {
+    weighting: VPMXWeighting): number {
     return (
       components.globalSentimentScore * weighting.globalSentimentWeight +
       components.viralMomentumIndex * weighting.viralMomentumWeight +
@@ -119,13 +115,12 @@ export class VPMXComputationService {
   private async computeMetadata(
     vtsSymbol: string,
     components: VPMXComponents,
-    vpmxValue: number,
-  ): Promise<any> {
+    vpmxValue: number): Promise<any> {
     return {
       breakoutProbability: this.calculateBreakoutProbability(components, vpmxValue),
       smiCorrelation: await this.calculateSMICorrelation(vtsSymbol),
       volatilityIndex: this.calculateVolatilityIndex(components),
-      confidenceScore: this.calculateConfidenceScore(components),
+      confidenceScore: this.calculateConfidenceScore(components)
     };
   }
 
@@ -226,14 +221,13 @@ export class VPMXComputationService {
   async queueVPMXComputation(
     vtsSymbol: string,
     timestamp?: Date,
-    force = false,
-  ): Promise<string> {
+    force = false): Promise<string> {
     const job = await this.vpmxQueue.add(
       'compute-index',
       {
         vtsSymbol,
         timestamp: timestamp?.toISOString(),
-        force,
+        force
       },
       {
         removeOnComplete: 100,
@@ -241,10 +235,9 @@ export class VPMXComputationService {
         attempts: 3,
         backoff: {
           type: 'exponential',
-          delay: 2000,
-        },
-      },
-    );
+          delay: 2000
+        }
+      });
 
     return job.id!;
   }
@@ -261,8 +254,7 @@ export class VPMXComputationService {
    */
   async batchComputeVPMX(
     vtsSymbols: string[],
-    timestamp?: Date,
-  ): Promise<VPMXResult[]> {
+    timestamp?: Date): Promise<VPMXResult[]> {
     const jobs = vtsSymbols.map(symbol =>
       this.queueVPMXComputation(symbol, timestamp)
     );

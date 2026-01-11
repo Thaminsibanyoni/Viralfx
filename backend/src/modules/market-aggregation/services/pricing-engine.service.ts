@@ -1,16 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThan } from 'typeorm';
 import { Job, Queue } from 'bullmq';
 import { InjectQueue } from '@nestjs/bullmq';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 
-import { Symbol } from '../entities/symbol.entity';
-import { Price, PriceInterval } from '../entities/price.entity';
-import { Order } from '../entities/order.entity';
-import { PrismaService } from '../../prisma/prisma.service';
+// COMMENTED OUT (TypeORM entity deleted): import { Symbol } from '../entities/symbol.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Price, PriceInterval } from '../entities/price.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Order } from '../entities/order.entity';
 
 @Injectable()
 export class PricingEngineService {
@@ -18,24 +16,17 @@ export class PricingEngineService {
 
   constructor(
     private config: ConfigService,
-    @InjectRepository(Symbol)
-    private symbolRepository: Repository<Symbol>,
-    @InjectRepository(Price)
-    private priceRepository: Repository<Price>,
-    @InjectRepository(Order)
-    private orderRepository: Repository<Order>,
-    @InjectQueue('price-calculation')
+        @InjectQueue('price-calculation')
     private priceQueue: Queue,
     @InjectRedis()
     private redis: Redis,
-    private prismaService: PrismaService,
-  ) {}
+    private prismaService: PrismaService) {}
 
   /**
    * Calculate price based on virality score and market factors
    */
   async calculatePrice(symbol: string, viralityScore?: number): Promise<number> {
-    const symbolData = await this.symbolRepository.findOne({ where: { symbol } });
+    const symbolData = await this.prisma.symbolrepository.findFirst({ where: { symbol } });
     if (!symbolData) {
       throw new Error(`Symbol ${symbol} not found`);
     }
@@ -60,10 +51,10 @@ export class PricingEngineService {
     const newPrice = Math.max(0.01, basePrice + priceChange); // Ensure price doesn't go negative
 
     // Update last virality score for next calculation
-    await this.symbolRepository.update(symbol, {
+    await this.prisma.symbolrepository.update(symbol, {
       lastViralityScore: actualViralityScore,
       lastVelocity: velocity,
-      lastSentiment: sentiment,
+      lastSentiment: sentiment
     });
 
     return Math.round(newPrice * 100) / 100; // Round to 2 decimal places
@@ -81,23 +72,23 @@ export class PricingEngineService {
     const startTime = new Date(endTime.getTime() - windowMs);
 
     // Get historical prices in the time window
-    const historicalPrices = await this.priceRepository.find({
+    const historicalPrices = await this.prisma.pricerepository.findMany({
       where: {
         symbol,
-        timestamp: MoreThan(startTime),
+        timestamp: MoreThan(startTime)
       },
       order: { timestamp: 'ASC' },
-      take: 1000, // Limit for performance
+      take: 1000 // Limit for performance
     });
 
     // Get orders in the time window for volume analysis
-    const historicalOrders = await this.orderRepository.find({
+    const historicalOrders = await this.prisma.order.findMany({
       where: {
         symbol,
         createdAt: MoreThan(startTime),
-        status: 'FILLED',
+        status: 'FILLED'
       },
-      select: ['createdAt', 'quantity', 'price'],
+      select: ['createdAt', 'quantity', 'price']
     });
 
     // Generate simulated price points
@@ -124,7 +115,7 @@ export class PricingEngineService {
         timestamp: intervalTime,
         price: Math.round(currentPrice * 100) / 100,
         volume,
-        volatility,
+        volatility
       });
     }
 
@@ -137,16 +128,16 @@ export class PricingEngineService {
   async updatePrices(): Promise<void> {
     try {
       // Get all active symbols
-      const activeSymbols = await this.symbolRepository.find({
-        where: { status: 'ACTIVE' },
+      const activeSymbols = await this.prisma.symbolrepository.findMany({
+        where: { status: 'ACTIVE' }
       });
 
       for (const symbolData of activeSymbols) {
         // Queue price calculation job for each symbol
         await this.priceQueue.add('update-symbol-price', {
-          symbol: symbolData.symbol,
+          symbol: symbolData.symbol
         }, {
-          delay: Math.random() * 5000, // Stagger updates to prevent load spikes
+          delay: Math.random() * 5000 // Stagger updates to prevent load spikes
         });
       }
 
@@ -170,9 +161,9 @@ export class PricingEngineService {
     }
 
     // Get from database
-    const latestPrice = await this.priceRepository.findOne({
+    const latestPrice = await this.prisma.pricerepository.findFirst({
       where: { symbol },
-      order: { timestamp: 'DESC' },
+      order: { timestamp: 'DESC' }
     });
 
     if (latestPrice) {
@@ -194,12 +185,12 @@ export class PricingEngineService {
     interval: PriceInterval
   ): Promise<PriceHistoryPoint[]> {
     const intervalMs = this.getIntervalMilliseconds(interval);
-    const prices = await this.priceRepository.find({
+    const prices = await this.prisma.pricerepository.findMany({
       where: {
         symbol,
-        timestamp: MoreThan(from),
+        timestamp: MoreThan(from)
       },
-      order: { timestamp: 'ASC' },
+      order: { timestamp: 'ASC' }
     });
 
     // Aggregate prices by interval
@@ -231,7 +222,7 @@ export class PricingEngineService {
       volume24h,
       high24h,
       low24h,
-      lastUpdated: new Date(),
+      lastUpdated: new Date()
     };
   }
 
@@ -240,10 +231,10 @@ export class PricingEngineService {
    */
 
   private async calculateVelocity(symbol: string): Promise<number> {
-    const recentPrices = await this.priceRepository.find({
+    const recentPrices = await this.prisma.pricerepository.findMany({
       where: { symbol },
       order: { timestamp: 'DESC' },
-      take: 10,
+      take: 10
     });
 
     if (recentPrices.length < 2) return 0;
@@ -259,7 +250,7 @@ export class PricingEngineService {
 
   private async getAverageSentiment(symbol: string): Promise<number> {
     try {
-      const symbolData = await this.symbolRepository.findOne({ where: { symbol } });
+      const symbolData = await this.prisma.symbolrepository.findFirst({ where: { symbol } });
       if (!symbolData?.topicId) {
         return 0;
       }
@@ -272,7 +263,7 @@ export class PricingEngineService {
 
       const viralSnapshot = await this.prismaService.viralIndexSnapshot.findFirst({
         where: { topicId: symbolData.topicId },
-        orderBy: { ts: 'DESC' },
+        orderBy: { ts: 'DESC' }
       });
 
       const sentiment = viralSnapshot?.sentimentMean || 0;
@@ -289,7 +280,7 @@ export class PricingEngineService {
 
   private async getViralityData(symbol: string): Promise<{ viralIndex: number, velocity: number, sentiment: number }> {
     try {
-      const symbolData = await this.symbolRepository.findOne({ where: { symbol } });
+      const symbolData = await this.prisma.symbolrepository.findFirst({ where: { symbol } });
       if (!symbolData?.topicId) {
         return { viralIndex: 0, velocity: 0, sentiment: 0 };
       }
@@ -302,13 +293,13 @@ export class PricingEngineService {
 
       const viralSnapshot = await this.prismaService.viralIndexSnapshot.findFirst({
         where: { topicId: symbolData.topicId },
-        orderBy: { ts: 'DESC' },
+        orderBy: { ts: 'DESC' }
       });
 
       const result = {
         viralIndex: viralSnapshot?.viralIndex || 0,
         velocity: viralSnapshot?.viralVelocity || 0,
-        sentiment: viralSnapshot?.sentimentMean || 0,
+        sentiment: viralSnapshot?.sentimentMean || 0
       };
 
       // Cache for 30 seconds
@@ -322,10 +313,10 @@ export class PricingEngineService {
   }
 
   private async getOrderBookImbalance(symbol: string): Promise<number> {
-    const recentOrders = await this.orderRepository.find({
+    const recentOrders = await this.prisma.order.findMany({
       where: { symbol, status: 'PENDING' },
       take: 100,
-      select: ['side', 'quantity'],
+      select: ['side', 'quantity']
     });
 
     const buyVolume = recentOrders
@@ -347,7 +338,7 @@ export class PricingEngineService {
       '4h': 4 * 60 * 60 * 1000,
       '24h': 24 * 60 * 60 * 1000,
       '7d': 7 * 24 * 60 * 60 * 1000,
-      '30d': 30 * 24 * 60 * 60 * 1000,
+      '30d': 30 * 24 * 60 * 60 * 1000
     };
     return windows[window] || windows['1h'];
   }
@@ -359,7 +350,7 @@ export class PricingEngineService {
       '15m': 15 * 60,
       '1h': 60 * 60,
       '4h': 4 * 60 * 60,
-      '1d': 24 * 60 * 60,
+      '1d': 24 * 60 * 60
     };
     return intervals[interval] || intervals['1m'];
   }
@@ -432,7 +423,7 @@ export class PricingEngineService {
       low: lowPrice,
       close: closePrice,
       volume,
-      volatility,
+      volatility
     };
   }
 
@@ -485,14 +476,14 @@ export class PricingEngineService {
           '15m': PriceInterval.FIFTEEN_MINUTES,
           '1h': PriceInterval.ONE_HOUR,
           '4h': PriceInterval.FOUR_HOURS,
-          '1d': PriceInterval.ONE_DAY,
+          '1d': PriceInterval.ONE_DAY
         };
         interval = intervalMap[metrics.interval] || PriceInterval.ONE_MINUTE;
       } else if (metrics.interval && Object.values(PriceInterval).includes(metrics.interval as PriceInterval)) {
         interval = metrics.interval as PriceInterval;
       }
 
-      const priceRecord = this.priceRepository.create({
+      const priceRecord = this.prisma.pricerepository.create({
         symbol,
         price,
         open: metrics.open || price,
@@ -505,10 +496,10 @@ export class PricingEngineService {
         sentiment: metrics.sentiment,
         orderBookImbalance: metrics.orderBookImbalance,
         timestamp: new Date(),
-        interval,
+        interval
       });
 
-      const saved = await this.priceRepository.save(priceRecord);
+      const saved = await this.prisma.pricerepository.upsert(priceRecord);
       return saved;
     } catch (error) {
       this.logger.error(`Failed to store price record for ${symbol}:`, error);
@@ -533,12 +524,12 @@ export class PricingEngineService {
   private async getPrice24hAgo(symbol: string): Promise<number> {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    const price = await this.priceRepository.findOne({
+    const price = await this.prisma.pricerepository.findFirst({
       where: {
         symbol,
-        timestamp: LessThan(twentyFourHoursAgo),
+        timestamp: LessThan(twentyFourHoursAgo)
       },
-      order: { timestamp: 'DESC' },
+      order: { timestamp: 'DESC' }
     });
 
     return price?.price || 100;

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from '../redis/redis.service';
-import { UserFairnessMetrics } from './interfaces/vpmx.interface';
+import { UserFairnessMetrics } from "./interfaces/vpmx.interface";
 
 @Injectable()
 export class UserFairnessService {
@@ -11,8 +11,7 @@ export class UserFairnessService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly redis: RedisService,
-  ) {}
+    private readonly redis: RedisService) {}
 
   /**
    * Get user fairness metrics
@@ -31,7 +30,7 @@ export class UserFairnessService {
       where: {
         userId,
         deletedAt: null // Exclude soft-deleted fairness records
-      },
+      }
     });
 
     if (!userFairness) {
@@ -47,7 +46,7 @@ export class UserFairnessService {
       totalLosses: userFairness.totalLosses,
       fairnessScore: userFairness.fairnessScore,
       isWhale: userFairness.isWhale,
-      limits: userFairness.limits as any,
+      limits: userFairness.limits as any
     };
 
     // Cache for 60 seconds
@@ -62,8 +61,7 @@ export class UserFairnessService {
   async canPlaceBet(
     userId: string,
     betAmount: number,
-    marketId: string,
-  ): Promise<{
+    marketId: string): Promise<{
     allowed: boolean;
     reason?: string;
     adjustedAmount?: number;
@@ -82,7 +80,7 @@ export class UserFairnessService {
       if (restriction && Date.now() < new Date(restriction.restrictionExpires).getTime()) {
         return {
           allowed: false,
-          reason: `User restricted: ${restriction.restrictionReason}`,
+          reason: `User restricted: ${restriction.restrictionReason}`
         };
       }
     }
@@ -93,7 +91,7 @@ export class UserFairnessService {
       return {
         allowed: false,
         reason: `Bet size exceeds maximum limit. Max: $${maxBetSize}`,
-        adjustedAmount: maxBetSize,
+        adjustedAmount: maxBetSize
       };
     }
 
@@ -104,7 +102,7 @@ export class UserFairnessService {
     if (dailyBets >= maxDailyBets) {
       return {
         allowed: false,
-        reason: `Daily bet limit exceeded. Max: ${maxDailyBets}`,
+        reason: `Daily bet limit exceeded. Max: ${maxDailyBets}`
       };
     }
 
@@ -118,7 +116,7 @@ export class UserFairnessService {
         const remainingTime = Math.ceil((coolingPeriod * 1000 - timeSinceLastBet) / 1000);
         return {
           allowed: false,
-          reason: `Cooling period active. Please wait ${remainingTime} seconds`,
+          reason: `Cooling period active. Please wait ${remainingTime} seconds`
         };
       }
     }
@@ -134,7 +132,7 @@ export class UserFairnessService {
         return {
           allowed: false,
           reason: `Whale user bet size exceeds limit. Max: $${whaleRestrictions.maxBetSize}`,
-          adjustedAmount: whaleRestrictions.maxBetSize,
+          adjustedAmount: whaleRestrictions.maxBetSize
         };
       }
     }
@@ -142,7 +140,7 @@ export class UserFairnessService {
     return {
       allowed: true,
       adjustedOdds,
-      marginRequirement,
+      marginRequirement
     };
   }
 
@@ -154,8 +152,7 @@ export class UserFairnessService {
     betAmount: number,
     outcome: 'WON' | 'LOST' | 'REFUNDED',
     payout: number = 0,
-    odds: number = 0,
-  ): Promise<void> {
+    odds: number = 0): Promise<void> {
     try {
       const fairness = await this.getUserFairnessMetrics(userId);
       if (!fairness) return;
@@ -178,8 +175,7 @@ export class UserFairnessService {
         newAvgBetSize,
         totalBets,
         totalWinnings,
-        totalLosses,
-      );
+        totalLosses);
 
       // Check if user is now a whale
       const isWhale = totalBets > 100 || newAvgBetSize > 10000;
@@ -201,8 +197,8 @@ export class UserFairnessService {
           isWhale,
           oddsAdjustment,
           marginRequirement,
-          lastUpdated: new Date(),
-        },
+          lastUpdated: new Date()
+        }
       });
 
       // Record bet in history
@@ -212,7 +208,7 @@ export class UserFairnessService {
         payout,
         odds,
         timestamp: new Date(),
-        fairnessScore: newFairnessScore,
+        fairnessScore: newFairnessScore
       });
 
       // Invalidate cache
@@ -245,11 +241,11 @@ export class UserFairnessService {
         maxBetSize: 1000, // $1000 default
         maxDailyBets: 50,
         coolingPeriod: 0, // No cooling period
-        maxPositions: 10, // Max simultaneous bets
+        maxPositions: 10 // Max simultaneous bets
       },
       oddsAdjustment: 0,
       marginRequirement: 0,
-      isRestricted: false,
+      isRestricted: false
     };
 
     await this.prisma.vPMXUserFairness.create({
@@ -263,8 +259,8 @@ export class UserFairnessService {
         isWhale: defaultFairness.isWhale,
         limits: defaultFairness.limits,
         oddsAdjustment: defaultFairness.oddsAdjustment,
-        marginRequirement: defaultFairness.marginRequirement,
-      },
+        marginRequirement: defaultFairness.marginRequirement
+      }
     });
 
     this.logger.log(`Initialized fairness metrics for user ${userId}`);
@@ -277,8 +273,7 @@ export class UserFairnessService {
   async applyRestriction(
     userId: string,
     reason: string,
-    durationHours: number = 24,
-  ): Promise<void> {
+    durationHours: number = 24): Promise<void> {
     try {
       const expiresAt = new Date(Date.now() + (durationHours * 60 * 60 * 1000));
 
@@ -287,8 +282,8 @@ export class UserFairnessService {
         data: {
           isRestricted: true,
           restrictionReason: reason,
-          restrictionExpires: expiresAt,
-        },
+          restrictionExpires: expiresAt
+        }
       });
 
       // Invalidate cache
@@ -311,8 +306,8 @@ export class UserFairnessService {
         data: {
           isRestricted: false,
           restrictionReason: null,
-          restrictionExpires: null,
-        },
+          restrictionExpires: null
+        }
       });
 
       // Invalidate cache
@@ -338,10 +333,10 @@ export class UserFairnessService {
           { winRate: { lt: 0.2 } },
           { isWhale: true },
           { isRestricted: true },
-        ],
+        ]
       },
       orderBy: { fairnessScore: 'asc' },
-      take: 50,
+      take: 50
     });
 
     return unusualUsers.map(user => ({
@@ -353,7 +348,7 @@ export class UserFairnessService {
       isWhale: user.isWhale,
       isRestricted: user.isRestricted,
       restrictionReason: user.restrictionReason,
-      flags: this.getUserFlags(user),
+      flags: this.getUserFlags(user)
     }));
   }
 
@@ -364,7 +359,7 @@ export class UserFairnessService {
     const users = await this.prisma.vPMXUserFairness.findMany({
       where: {
         deletedAt: null // Exclude soft-deleted records
-      },
+      }
     });
 
     for (const user of users) {
@@ -393,20 +388,20 @@ export class UserFairnessService {
       recentPerformance: {
         last20Bets: recentBets,
         winRateByPeriod,
-        bettingPatterns,
+        bettingPatterns
       },
       fairnessAnalysis: {
         score: fairness.fairnessScore,
         confidence: this.calculateFairnessConfidence(fairness),
         recommendations: this.getFairnessRecommendations(fairness),
-        riskFactors: this.identifyRiskFactors(fairness),
+        riskFactors: this.identifyRiskFactors(fairness)
       },
       limits: {
         current: fairness.limits,
         effective: this.calculateEffectiveLimits(fairness),
-        history: await this.getLimitHistory(userId),
+        history: await this.getLimitHistory(userId)
       },
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -418,8 +413,7 @@ export class UserFairnessService {
     avgBetSize: number,
     totalBets: number,
     totalWinnings: number,
-    totalLosses: number,
-  ): Promise<number> {
+    totalLosses: number): Promise<number> {
     let score = 100; // Start with perfect score
 
     // Penalize extremely high win rates
@@ -479,8 +473,7 @@ export class UserFairnessService {
   private async calculateAdjustedOdds(
     userId: string,
     marketId: string,
-    fairness: UserFairnessMetrics,
-  ): Promise<number> {
+    fairness: UserFairnessMetrics): Promise<number> {
     // Base odds would come from the market
     const baseOdds = 2.0; // Placeholder
 
@@ -495,8 +488,7 @@ export class UserFairnessService {
   private async checkAutomaticRestrictions(
     userId: string,
     fairnessScore: number,
-    winRate: number,
-  ): Promise<void> {
+    winRate: number): Promise<void> {
     let shouldRestrict = false;
     let reason = '';
     let duration = 24; // hours
@@ -558,13 +550,13 @@ export class UserFairnessService {
       where: {
         userId,
         deletedAt: null // Exclude soft-deleted records
-      },
+      }
     });
     if (!fairness || !fairness.isRestricted) return null;
 
     return {
       reason: fairness.restrictionReason,
-      expires: fairness.restrictionExpires,
+      expires: fairness.restrictionExpires
     };
   }
 
@@ -573,7 +565,7 @@ export class UserFairnessService {
     return {
       maxBetSize: 50000, // $50,000 max for whales
       maxDailyBets: 20,
-      requiredMargin: 0.15, // 15% margin requirement
+      requiredMargin: 0.15 // 15% margin requirement
     };
   }
 
@@ -600,15 +592,14 @@ export class UserFairnessService {
       fairness.avgBetSize,
       fairness.totalBets,
       fairness.totalWinnings,
-      fairness.totalLosses,
-    );
+      fairness.totalLosses);
 
     await this.prisma.vPMXUserFairness.updateMany({
       where: {
         userId,
         deletedAt: null // Only update active records
       },
-      data: { fairnessScore: newScore, lastUpdated: new Date() },
+      data: { fairnessScore: newScore, lastUpdated: new Date() }
     });
   }
 
@@ -624,7 +615,7 @@ export class UserFairnessService {
     return {
       last24h: 0.65,
       last7d: 0.58,
-      last30d: 0.62,
+      last30d: 0.62
     };
   }
 
@@ -634,7 +625,7 @@ export class UserFairnessService {
       averageTimeBetweenBets: 1800, // seconds
       preferredBetSize: 250,
       varianceScore: 0.3,
-      consistencyScore: 0.7,
+      consistencyScore: 0.7
     };
   }
 
@@ -684,7 +675,7 @@ export class UserFairnessService {
     return {
       maxBetSize: baseLimits?.maxBetSize ? baseLimits.maxBetSize * multiplier : 1000 * multiplier,
       maxDailyBets: baseLimits?.maxDailyBets || 50,
-      coolingPeriod: baseLimits?.coolingPeriod || 0,
+      coolingPeriod: baseLimits?.coolingPeriod || 0
     };
   }
 

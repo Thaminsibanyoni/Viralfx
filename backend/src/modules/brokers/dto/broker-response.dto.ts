@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Exclude } from 'class-transformer';
-import { BrokerVerification, VerificationStatus } from '../entities/broker-verification.entity';
-import { BrokerBill } from '../entities/broker-bill.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerVerification, VerificationStatus } from '../entities/broker-verification.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerBill } from '../entities/broker-bill.entity';
 
 export class BrokerResponseDto {
   @ApiProperty()

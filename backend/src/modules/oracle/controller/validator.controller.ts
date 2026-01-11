@@ -7,8 +7,7 @@ import { ConsensusService } from '../services/consensus.service';
 @Controller('api/validators')
 export class ValidatorController {
   constructor(
-    private readonly consensusService: ConsensusService,
-  ) {}
+    private readonly consensusService: ConsensusService) {}
 
   @Get('health')
   @ApiOperation({
@@ -42,15 +41,14 @@ export class ValidatorController {
         data: {
           ...health,
           networkType: 'docker-simulated',
-          uptime: process.uptime(),
+          uptime: process.uptime()
         },
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       throw new HttpException(
         `Failed to get validator metrics: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+        HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 }

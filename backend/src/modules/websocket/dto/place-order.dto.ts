@@ -1,15 +1,16 @@
 import { IsEnum, IsNumber, IsOptional, IsString, IsUUID, Min, Max } from 'class-validator';
-import { OrderType, OrderSide, TimeInForce } from '../../database/entities/order.entity';
+// TypeORM entity enums removed - using string literals instead
+// import { OrderType, OrderSide, TimeInForce } // Removed database entity import - using Prismaorder.entity';
 
 export class PlaceOrderDto {
   @IsUUID(4)
   trendId: string;
 
-  @IsEnum(OrderType)
-  orderType: OrderType;
+  @IsEnum(['MARKET', 'LIMIT', 'STOP', 'STOP_LIMIT'])
+  orderType: string;
 
-  @IsEnum(OrderSide)
-  orderSide: OrderSide;
+  @IsEnum(['BUY', 'SELL'])
+  orderSide: string;
 
   @IsNumber({ maxDecimalPlaces: 8 })
   @Min(0.00000001)
@@ -25,9 +26,9 @@ export class PlaceOrderDto {
   @Min(0.00000001)
   stopPrice?: number;
 
-  @IsEnum(TimeInForce)
+  @IsEnum(['GTC', 'IOC', 'FOK', 'DAY'])
   @IsOptional()
-  timeInForce?: TimeInForce = TimeInForce.GTC;
+  timeInForce?: string = 'GTC';
 
   @IsString()
   @IsOptional()

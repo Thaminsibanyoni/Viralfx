@@ -10,13 +10,12 @@ import {
   UseGuards,
   HttpStatus,
   HttpCode,
-  Throttle,
-  Request,
-} from '@nestjs/common';
+  Request, Req } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { CreateBrokerDto } from '../dto/create-broker.dto';
 import { UpdateBrokerDto } from '../dto/update-broker.dto';
 import { BrokerResponseDto } from '../dto/broker-response.dto';
@@ -36,8 +35,7 @@ export class BrokersController {
   constructor(
     private readonly brokersService: BrokersService,
     private readonly fscaService: FSCAService,
-    private readonly integrationService: IntegrationService,
-  ) {}
+    private readonly integrationService: IntegrationService) {}
 
   @Post()
   @Roles(UserRole.ADMIN)
@@ -50,7 +48,7 @@ export class BrokersController {
     return {
       success: true,
       message: 'Broker created successfully',
-      data: broker,
+      data: broker
     };
   }
 
@@ -71,7 +69,7 @@ export class BrokersController {
     return {
       success: true,
       data: result.brokers,
-      pagination: result.pagination,
+      pagination: result.pagination
     };
   }
 
@@ -83,7 +81,7 @@ export class BrokersController {
     const stats = await this.brokersService.getPlatformStats();
     return {
       success: true,
-      data: stats,
+      data: stats
     };
   }
 
@@ -96,7 +94,7 @@ export class BrokersController {
     const broker = await this.brokersService.getBrokerById(id);
     return {
       success: true,
-      data: broker,
+      data: broker
     };
   }
 
@@ -108,13 +106,12 @@ export class BrokersController {
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Broker not found' })
   async updateBroker(
     @Param('id') id: string,
-    @Body() updateBrokerDto: UpdateBrokerDto,
-  ): Promise<any> {
+    @Body() updateBrokerDto: UpdateBrokerDto): Promise<any> {
     const broker = await this.brokersService.updateBroker(id, updateBrokerDto);
     return {
       success: true,
       message: 'Broker updated successfully',
-      data: broker,
+      data: broker
     };
   }
 
@@ -128,7 +125,7 @@ export class BrokersController {
     await this.brokersService.deleteBroker(id);
     return {
       success: true,
-      message: 'Broker deleted successfully',
+      message: 'Broker deleted successfully'
     };
   }
 
@@ -141,7 +138,7 @@ export class BrokersController {
     const stats = await this.brokersService.getBrokerStats(id);
     return {
       success: true,
-      data: stats,
+      data: stats
     };
   }
 
@@ -152,17 +149,16 @@ export class BrokersController {
   @ApiResponse({ status: HttpStatus.OK, description: 'Verification initiated successfully' })
   async verifyFSCA(
     @Param('id') id: string,
-    @Body() verificationDto: FSCAVerificationDto,
-  ): Promise<any> {
+    @Body() verificationDto: FSCAVerificationDto): Promise<any> {
     const result = await this.fscaService.verifyFSCALicense({
       ...verificationDto,
-      brokerId: id,
+      brokerId: id
     });
 
     return {
       success: true,
       message: 'FSCA verification completed',
-      data: result,
+      data: result
     };
   }
 
@@ -174,7 +170,7 @@ export class BrokersController {
     const broker = await this.brokersService.getBrokerById(id);
     return {
       success: true,
-      data: broker.verifications || [],
+      data: broker.verifications || []
     };
   }
 
@@ -185,13 +181,12 @@ export class BrokersController {
   @HttpCode(HttpStatus.CREATED)
   async createIntegration(
     @Param('id') id: string,
-    @Body() createIntegrationDto: CreateIntegrationDto,
-  ): Promise<any> {
+    @Body() createIntegrationDto: CreateIntegrationDto): Promise<any> {
     const integration = await this.integrationService.createIntegration(id, createIntegrationDto);
     return {
       success: true,
       message: 'Integration created successfully',
-      data: integration,
+      data: integration
     };
   }
 
@@ -203,7 +198,7 @@ export class BrokersController {
     const integrations = await this.integrationService.getBrokerIntegrations(id);
     return {
       success: true,
-      data: integrations,
+      data: integrations
     };
   }
 
@@ -217,7 +212,7 @@ export class BrokersController {
     return {
       success: true,
       message: 'Integration test completed',
-      data: testResult,
+      data: testResult
     };
   }
 
@@ -232,7 +227,7 @@ export class BrokersController {
     return {
       success: true,
       message: 'API credentials rotated successfully',
-      data: credentials,
+      data: credentials
     };
   }
 
@@ -246,7 +241,7 @@ export class BrokersController {
     return {
       success: true,
       message: 'API credentials generated successfully',
-      data: credentials,
+      data: credentials
     };
   }
 
@@ -254,12 +249,12 @@ export class BrokersController {
   @Get('me/profile')
   @ApiOperation({ summary: 'Get current broker profile (for authenticated broker)' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Profile retrieved successfully' })
-  async getMyProfile(@Request() req): Promise<any> {
+  async getMyProfile(@Req() req): Promise<any> {
     // This would be implemented when broker authentication is added
     // For now, return a placeholder
     return {
       success: true,
-      message: 'Profile endpoint - requires broker authentication',
+      message: 'Profile endpoint - requires broker authentication'
     };
   }
 
@@ -267,35 +262,34 @@ export class BrokersController {
   @ApiOperation({ summary: 'Update current broker profile' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Profile updated successfully' })
   async updateMyProfile(
-    @Request() req,
-    @Body() updateDto: UpdateBrokerDto,
-  ): Promise<any> {
+    @Req() req,
+    @Body() updateDto: UpdateBrokerDto): Promise<any> {
     // This would be implemented when broker authentication is added
     return {
       success: true,
-      message: 'Profile update endpoint - requires broker authentication',
+      message: 'Profile update endpoint - requires broker authentication'
     };
   }
 
   @Get('me/integrations')
   @ApiOperation({ summary: 'Get current broker integrations' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Integrations retrieved successfully' })
-  async getMyIntegrations(@Request() req): Promise<any> {
+  async getMyIntegrations(@Req() req): Promise<any> {
     // This would be implemented when broker authentication is added
     return {
       success: true,
-      message: 'Integrations endpoint - requires broker authentication',
+      message: 'Integrations endpoint - requires broker authentication'
     };
   }
 
   @Get('me/analytics')
   @ApiOperation({ summary: 'Get current broker analytics' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Analytics retrieved successfully' })
-  async getMyAnalytics(@Request() req): Promise<any> {
+  async getMyAnalytics(@Req() req): Promise<any> {
     // This would be implemented when broker authentication is added
     return {
       success: true,
-      message: 'Analytics endpoint - requires broker authentication',
+      message: 'Analytics endpoint - requires broker authentication'
     };
   }
 }

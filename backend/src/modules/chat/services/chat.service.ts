@@ -1,8 +1,9 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { Injectable, Logger, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 import { Cache } from 'cache-manager';
 import { ConfigService } from '@nestjs/config';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
   CreateMessageDto,
   MessageDto,
@@ -22,9 +23,8 @@ export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: Redis,
-    private readonly cacheManager: Cache,
-    private readonly configService: ConfigService,
-  ) {}
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    private readonly configService: ConfigService) {}
 
   /**
    * Create a new chat room
@@ -52,9 +52,9 @@ export class ChatService {
           participants: roomData.participantIds ? {
             create: roomData.participantIds.map(userId => ({
               userId,
-              role: roomData.createdBy === userId ? 'ADMIN' : 'MEMBER',
-            })),
-          } : undefined,
+              role: roomData.createdBy === userId ? 'ADMIN' : 'MEMBER'
+            }))
+          } : undefined
         },
         include: {
           participants: {
@@ -68,12 +68,12 @@ export class ChatService {
                     select: {
                       firstName: true,
                       lastName: true,
-                      avatar: true,
-                    },
-                  },
-                },
-              },
-            },
+                      avatar: true
+                    }
+                  }
+                }
+              }
+            }
           },
           createdBy: {
             select: {
@@ -83,18 +83,18 @@ export class ChatService {
                 select: {
                   firstName: true,
                   lastName: true,
-                  avatar: true,
-                },
-              },
-            },
+                  avatar: true
+                }
+              }
+            }
           },
           _count: {
             select: {
               participants: true,
-              messages: true,
-            },
-          },
-        },
+              messages: true
+            }
+          }
+        }
       });
 
       // Cache the room
@@ -105,7 +105,7 @@ export class ChatService {
         await this.createSystemMessage({
           roomId: room.id,
           content: `Chat room "${room.name}" has been created`,
-          metadata: { action: 'room_created', createdBy: roomData.createdBy },
+          metadata: { action: 'room_created', createdBy: roomData.createdBy }
         });
       }
 
@@ -136,9 +136,9 @@ export class ChatService {
       participants: {
         some: {
           userId,
-          leftAt: null,
-        },
-      },
+          leftAt: null
+        }
+      }
     };
 
     if (type) {
@@ -168,12 +168,12 @@ export class ChatService {
                       firstName: true,
                       lastName: true,
                       avatar: true,
-                      isOnline: true,
-                    },
-                  },
-                },
-              },
-            },
+                      isOnline: true
+                    }
+                  }
+                }
+              }
+            }
           },
           lastMessage: {
             include: {
@@ -185,12 +185,12 @@ export class ChatService {
                     select: {
                       firstName: true,
                       lastName: true,
-                      avatar: true,
-                    },
-                  },
-                },
-              },
-            },
+                      avatar: true
+                    }
+                  }
+                }
+              }
+            }
           },
           _count: {
             select: {
@@ -198,13 +198,13 @@ export class ChatService {
               messages: {
                 where: {
                   createdAt: {
-                    gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
-                  },
-                },
-              },
-            },
-          },
-        },
+                    gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+                  }
+                }
+              }
+            }
+          }
+        }
       }),
       this.prisma.chatRoom.count({ where: whereClause }),
     ]);
@@ -213,7 +213,7 @@ export class ChatService {
       rooms: rooms.map(room => this.formatChatRoom(room)),
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit)
     };
   }
 
@@ -238,9 +238,9 @@ export class ChatService {
         participants: {
           some: {
             userId,
-            leftAt: null,
-          },
-        },
+            leftAt: null
+          }
+        }
       },
       include: {
         participants: {
@@ -256,20 +256,20 @@ export class ChatService {
                     firstName: true,
                     lastName: true,
                     avatar: true,
-                    isOnline: true,
-                  },
-                },
-              },
-            },
-          },
+                    isOnline: true
+                  }
+                }
+              }
+            }
+          }
         },
         topic: {
           select: {
             id: true,
             name: true,
             description: true,
-            category: true,
-          },
+            category: true
+          }
         },
         messages: {
           orderBy: { createdAt: 'desc' },
@@ -283,20 +283,20 @@ export class ChatService {
                   select: {
                     firstName: true,
                     lastName: true,
-                    avatar: true,
-                  },
-                },
-              },
-            },
-          },
+                    avatar: true
+                  }
+                }
+              }
+            }
+          }
         },
         _count: {
           select: {
             participants: true,
-            messages: true,
-          },
-        },
-      },
+            messages: true
+          }
+        }
+      }
     });
 
     if (!room) {
@@ -323,8 +323,8 @@ export class ChatService {
       where: {
         roomId,
         userId,
-        leftAt: null,
-      },
+        leftAt: null
+      }
     });
 
     if (!participant) {
@@ -365,7 +365,7 @@ export class ChatService {
             type,
             metadata: metadata || {},
             replyToId,
-            status: 'SENT',
+            status: 'SENT'
           },
           include: {
             sender: {
@@ -376,46 +376,46 @@ export class ChatService {
                   select: {
                     firstName: true,
                     lastName: true,
-                    avatar: true,
-                  },
-                },
-              },
+                    avatar: true
+                  }
+                }
+              }
             },
             replyTo: {
               include: {
                 sender: {
                   select: {
                     id: true,
-                    username: true,
-                  },
-                },
-              },
+                    username: true
+                  }
+                }
+              }
             },
             room: {
               select: {
                 type: true,
                 participants: {
                   select: {
-                    userId: true,
-                  },
-                },
-              },
-            },
-          },
+                    userId: true
+                  }
+                }
+              }
+            }
+          }
         });
 
         // Update room last message
         await tx.chatRoom.update({
           where: { id: roomId },
-          data: { lastMessageAt: new Date() },
+          data: { lastMessageAt: new Date() }
         });
 
         // Update participant's last activity
         await tx.chatParticipant.update({
           where: {
-            roomId_userId: { roomId, userId },
+            roomId_userId: { roomId, userId }
           },
-          data: { lastActiveAt: new Date() },
+          data: { lastActiveAt: new Date() }
         });
 
         return newMessage;
@@ -496,32 +496,32 @@ export class ChatService {
               select: {
                 firstName: true,
                 lastName: true,
-                avatar: true,
-              },
-            },
-          },
+                avatar: true
+              }
+            }
+          }
         },
         replyTo: {
           include: {
             sender: {
               select: {
                 id: true,
-                username: true,
-              },
-            },
-          },
+                username: true
+              }
+            }
+          }
         },
         reactions: {
           include: {
             user: {
               select: {
                 id: true,
-                username: true,
-              },
-            },
-          },
-        },
-      },
+                username: true
+              }
+            }
+          }
+        }
+      }
     });
 
     const hasMore = messages.length > limit;
@@ -538,7 +538,7 @@ export class ChatService {
     return {
       messages: messageData.reverse().map(msg => this.formatMessage(msg)),
       total: messageData.length,
-      hasMore,
+      hasMore
     };
   }
 
@@ -547,7 +547,7 @@ export class ChatService {
    */
   async joinRoom(userId: string, roomId: string): Promise<void> {
     const room = await this.prisma.chatRoom.findFirst({
-      where: { id: roomId, type: 'PUBLIC' },
+      where: { id: roomId, type: 'PUBLIC' }
     });
 
     if (!room) {
@@ -557,8 +557,8 @@ export class ChatService {
     // Check if already a participant
     const existingParticipant = await this.prisma.chatParticipant.findUnique({
       where: {
-        roomId_userId: { roomId, userId },
-      },
+        roomId_userId: { roomId, userId }
+      }
     });
 
     if (existingParticipant && !existingParticipant.leftAt) {
@@ -569,12 +569,12 @@ export class ChatService {
       // Rejoin
       await this.prisma.chatParticipant.update({
         where: {
-          roomId_userId: { roomId, userId },
+          roomId_userId: { roomId, userId }
         },
         data: {
           leftAt: null,
-          joinedAt: new Date(),
-        },
+          joinedAt: new Date()
+        }
       });
     } else {
       // Join for first time
@@ -582,15 +582,15 @@ export class ChatService {
         data: {
           roomId,
           userId,
-          role: 'MEMBER',
-        },
+          role: 'MEMBER'
+        }
       });
     }
 
     await this.createSystemMessage({
       roomId,
       content: 'A new user has joined the room',
-      metadata: { action: 'user_joined', userId },
+      metadata: { action: 'user_joined', userId }
     });
 
     await this.invalidateRoomCache(roomId);
@@ -602,8 +602,8 @@ export class ChatService {
   async leaveRoom(userId: string, roomId: string): Promise<void> {
     const participant = await this.prisma.chatParticipant.findUnique({
       where: {
-        roomId_userId: { roomId, userId },
-      },
+        roomId_userId: { roomId, userId }
+      }
     });
 
     if (!participant || participant.leftAt) {
@@ -612,17 +612,17 @@ export class ChatService {
 
     await this.prisma.chatParticipant.update({
       where: {
-        roomId_userId: { roomId, userId },
+        roomId_userId: { roomId, userId }
       },
       data: {
-        leftAt: new Date(),
-      },
+        leftAt: new Date()
+      }
     });
 
     await this.createSystemMessage({
       roomId,
       content: 'A user has left the room',
-      metadata: { action: 'user_left', userId },
+      metadata: { action: 'user_left', userId }
     });
 
     await this.invalidateRoomCache(roomId);
@@ -644,11 +644,11 @@ export class ChatService {
           participants: {
             some: {
               userId,
-              leftAt: null,
-            },
-          },
-        },
-      },
+              leftAt: null
+            }
+          }
+        }
+      }
     });
 
     if (!message) {
@@ -658,16 +658,16 @@ export class ChatService {
     // Check if reaction already exists
     const existingReaction = await this.prisma.messageReaction.findUnique({
       where: {
-        messageId_userId_emoji: { messageId, userId, emoji },
-      },
+        messageId_userId_emoji: { messageId, userId, emoji }
+      }
     });
 
     if (existingReaction) {
       // Remove existing reaction (toggle)
       await this.prisma.messageReaction.delete({
         where: {
-          id: existingReaction.id,
-        },
+          id: existingReaction.id
+        }
       });
     } else {
       // Add new reaction
@@ -675,8 +675,8 @@ export class ChatService {
         data: {
           messageId,
           userId,
-          emoji,
-        },
+          emoji
+        }
       });
     }
 
@@ -694,11 +694,11 @@ export class ChatService {
           include: {
             participants: {
               where: { userId },
-              select: { role: true },
-            },
-          },
-        },
-      },
+              select: { role: true }
+            }
+          }
+        }
+      }
     });
 
     if (!message) {
@@ -726,9 +726,9 @@ export class ChatService {
           ...message.metadata,
           deletedAt: new Date(),
           deletedBy: userId,
-          originalContent: message.content,
-        },
-      },
+          originalContent: message.content
+        }
+      }
     });
 
     await this.invalidateMessageCache(messageId);
@@ -749,8 +749,8 @@ export class ChatService {
         content: data.content,
         type: 'SYSTEM',
         status: 'SENT',
-        metadata: data.metadata || {},
-      },
+        metadata: data.metadata || {}
+      }
     });
   }
 
@@ -771,7 +771,7 @@ export class ChatService {
     if (containsBannedWords) {
       return {
         approved: false,
-        reason: 'Message contains inappropriate content',
+        reason: 'Message contains inappropriate content'
       };
     }
 
@@ -780,7 +780,7 @@ export class ChatService {
     if (content.length > maxLength) {
       return {
         approved: false,
-        reason: 'Message too long',
+        reason: 'Message too long'
       };
     }
 
@@ -789,7 +789,7 @@ export class ChatService {
     if (capsRatio > 0.7 && content.length > 10) {
       return {
         approved: false,
-        reason: 'Excessive capitalization',
+        reason: 'Excessive capitalization'
       };
     }
 
@@ -799,7 +799,7 @@ export class ChatService {
     if (links && links.length > 3) {
       return {
         approved: false,
-        reason: 'Too many links',
+        reason: 'Too many links'
       };
     }
 
@@ -814,8 +814,8 @@ export class ChatService {
       where: {
         roomId,
         userId: { not: senderId },
-        leftAt: null,
-      },
+        leftAt: null
+      }
     });
 
     for (const participant of participants) {
@@ -832,7 +832,7 @@ export class ChatService {
     for (const messageId of messageIds) {
       const message = await this.prisma.message.findUnique({
         where: { id: messageId },
-        select: { roomId: true },
+        select: { roomId: true }
       });
 
       if (message) {
@@ -861,8 +861,8 @@ export class ChatService {
       where: {
         roomId,
         userId,
-        leftAt: null,
-      },
+        leftAt: null
+      }
     }) !== null;
 
     await this.cacheManager.set(cacheKey, isParticipant, 300); // 5 minutes
@@ -927,7 +927,7 @@ export class ChatService {
         role: p.role,
         joinedAt: p.joinedAt,
         lastActiveAt: p.lastActiveAt,
-        isMuted: p.isMuted,
+        isMuted: p.isMuted
       })) || [],
       lastMessage: room.lastMessage,
       lastMessageAt: room.lastMessageAt,
@@ -936,7 +936,7 @@ export class ChatService {
       createdAt: room.createdAt,
       updatedAt: room.updatedAt,
       participantCount: room._count?.participants || 0,
-      messageCount: room._count?.messages || 0,
+      messageCount: room._count?.messages || 0
     };
   }
 
@@ -959,9 +959,9 @@ export class ChatService {
         id: r.id,
         emoji: r.emoji,
         user: r.user,
-        createdAt: r.createdAt,
+        createdAt: r.createdAt
       })) || [],
-      isEdited: message.updatedAt > message.createdAt,
+      isEdited: message.updatedAt > message.createdAt
     };
   }
 }

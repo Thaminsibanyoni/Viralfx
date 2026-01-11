@@ -1,13 +1,12 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException, Optional } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { AuditService } from '../../audit/audit.service';
+import { AuditService } from "../../audit/audit.service";
 
 @Injectable()
 export class PermissionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    private readonly auditService: AuditService,
-  ) {}
+    private readonly auditService: AuditService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -20,8 +19,7 @@ export class PermissionGuard implements CanActivate {
     // Get required permission from metadata
     const requiredPermission = this.reflector.get<string>(
       'permission',
-      context.getHandler(),
-    );
+      context.getHandler());
 
     // If no specific permission required, allow access (fallback to @Roles)
     if (!requiredPermission) {
@@ -33,7 +31,7 @@ export class PermissionGuard implements CanActivate {
 
     if (!hasPermission) {
       // Log access denial for audit
-      await this.auditService.logEvent({
+      await this.auditService.logAuditEvent({
         adminId: user.id,
         entity: 'ACCESS_DENIED',
         action: 'PERMISSION_CHECK_FAILED',
@@ -42,19 +40,18 @@ export class PermissionGuard implements CanActivate {
           endpoint: request.url,
           method: request.method,
           requiredPermission,
-          userPermissions: user.permissions || [],
+          userPermissions: user.permissions || []
         }),
         timestamp: new Date(),
         hmac: this.generateAuditHmac({
           endpoint: request.url,
           permission: requiredPermission,
-          userId: user.id,
-        }),
+          userId: user.id
+        })
       });
 
       throw new ForbiddenException(
-        `Insufficient permissions. Required: ${requiredPermission}`,
-      );
+        `Insufficient permissions. Required: ${requiredPermission}`);
     }
 
     return true;

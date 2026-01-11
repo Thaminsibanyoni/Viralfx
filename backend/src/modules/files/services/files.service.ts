@@ -1,9 +1,10 @@
-import { Injectable, Logger, BadRequestException, NotFoundException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException, InternalServerErrorException, Inject } from '@nestjs/common';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../prisma/prisma.service';
 import { MinioService } from 'nestjs-minio-client';
 import { v4 as uuidv4 } from 'uuid';
 import { Cache } from 'cache-manager';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Readable } from 'stream';
 import * as crypto from 'crypto';
 import * as path from 'path';
@@ -13,13 +14,13 @@ import {
   FileQueryDto,
   FileUploadResponseDto,
   FileStatsDto,
-  PresignedUrlDto,
+  PresignedUrlDto
 } from '../dto/files.dto';
 import {
   FileType,
   FileStatus,
   FileVisibility,
-  ImageProcessingStatus,
+  ImageProcessingStatus
 } from '../types/files.types';
 
 @Injectable()
@@ -34,8 +35,7 @@ export class FilesService {
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly minio: MinioService,
-    private readonly cacheManager: Cache,
-  ) {
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache) {
     this.bucketName = this.configService.get('MINIO_BUCKET', 'viralfx-files');
     this.maxFileSize = parseInt(this.configService.get('MAX_FILE_SIZE', '104857600')); // 100MB default
     this.allowedMimeTypes = this.configService.get<string[]>(
@@ -91,7 +91,7 @@ export class FilesService {
         } else {
           failed.push({
             filename: files[index].originalname,
-            error: result.reason.message || 'Upload failed',
+            error: result.reason.message || 'Upload failed'
           });
         }
       });
@@ -101,7 +101,7 @@ export class FilesService {
       return {
         successful,
         failed,
-        total: files.length,
+        total: files.length
       };
     } catch (error) {
       this.logger.error('File upload failed:', error);
@@ -150,7 +150,7 @@ export class FilesService {
           'Content-Type': file.mimetype,
           'X-Amz-Meta-Uploaded-By': userId,
           'X-Amz-Meta-Original-Name': file.originalname,
-          'X-Amz-Meta-File-Hash': fileHash,
+          'X-Amz-Meta-File-Hash': fileHash
         }
       );
 
@@ -174,10 +174,10 @@ export class FilesService {
           metadata: {
             ...fileMetadata,
             uploadedAt: new Date().toISOString(),
-            tags: uploadData.tags || [],
+            tags: uploadData.tags || []
           },
-          expiresAt: uploadData.expiresAt,
-        },
+          expiresAt: uploadData.expiresAt
+        }
       });
 
       // Process image if applicable
@@ -221,12 +221,12 @@ export class FilesService {
               profile: {
                 select: {
                   firstName: true,
-                  lastName: true,
-                },
-              },
-            },
-          },
-        },
+                  lastName: true
+                }
+              }
+            }
+          }
+        }
       });
 
       if (!fileRecord) {
@@ -252,7 +252,7 @@ export class FilesService {
     expiresIn: number = 3600
   ): Promise<PresignedUrlDto> {
     const fileRecord = await this.prisma.file.findUnique({
-      where: { id: fileId },
+      where: { id: fileId }
     });
 
     if (!fileRecord) {
@@ -278,7 +278,7 @@ export class FilesService {
         fileName: fileRecord.originalName,
         mimeType: fileRecord.mimeType,
         size: fileRecord.size,
-        expiresAt: new Date(Date.now() + expiresIn * 1000),
+        expiresAt: new Date(Date.now() + expiresIn * 1000)
       };
     } catch (error) {
       this.logger.error('Failed to generate presigned URL:', error);
@@ -318,17 +318,17 @@ export class FilesService {
           metadata: {
             tags: uploadData.tags || [],
             uploadUrl: presignedUrl,
-            createdAt: new Date().toISOString(),
+            createdAt: new Date().toISOString()
           },
-          expiresAt: uploadData.expiresAt,
-        },
+          expiresAt: uploadData.expiresAt
+        }
       });
 
       return {
         url: presignedUrl,
         fileId: fileRecord.id,
         fileName: uploadData.fileName || fileName,
-        expiresAt: new Date(Date.now() + expiresIn * 1000),
+        expiresAt: new Date(Date.now() + expiresIn * 1000)
       };
     } catch (error) {
       this.logger.error('Failed to generate upload URL:', error);
@@ -355,7 +355,7 @@ export class FilesService {
       category,
       status,
       visibility,
-      search,
+      search
     } = query;
 
     const skip = (page - 1) * limit;
@@ -400,12 +400,12 @@ export class FilesService {
               profile: {
                 select: {
                   firstName: true,
-                  lastName: true,
-                },
-              },
-            },
-          },
-        },
+                  lastName: true
+                }
+              }
+            }
+          }
+        }
       }),
       this.prisma.file.count({ where: whereClause }),
     ]);
@@ -414,7 +414,7 @@ export class FilesService {
       files: files.map(file => this.formatFile(file)),
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit)
     };
   }
 
@@ -423,7 +423,7 @@ export class FilesService {
    */
   async deleteFile(fileId: string, userId?: string): Promise<void> {
     const fileRecord = await this.prisma.file.findUnique({
-      where: { id: fileId },
+      where: { id: fileId }
     });
 
     if (!fileRecord) {
@@ -444,7 +444,7 @@ export class FilesService {
 
       // Delete from database
       await this.prisma.file.delete({
-        where: { id: fileId },
+        where: { id: fileId }
       });
 
       // Remove from cache
@@ -470,7 +470,7 @@ export class FilesService {
     if (timeWindow) {
       const daysBack = this.parseTimeWindow(timeWindow);
       whereClause.createdAt = {
-        gte: new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000),
+        gte: new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000)
       };
     }
 
@@ -485,26 +485,26 @@ export class FilesService {
       this.prisma.file.count({ where: whereClause }),
       this.prisma.file.aggregate({
         where: whereClause,
-        _sum: { size: true },
+        _sum: { size: true }
       }),
       this.prisma.file.groupBy({
         by: ['fileType'],
         where: whereClause,
         _count: { fileType: true },
-        _sum: { size: true },
+        _sum: { size: true }
       }),
       this.prisma.file.groupBy({
         by: ['status'],
         where: whereClause,
-        _count: { status: true },
+        _count: { status: true }
       }),
       this.prisma.file.count({
         where: {
           ...whereClause,
           createdAt: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
-          },
-        },
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
+          }
+        }
       }),
       this.getStorageUsage(),
     ]);
@@ -515,7 +515,7 @@ export class FilesService {
       filesByType: filesByType.reduce((acc, item) => {
         acc[item.fileType] = {
           count: item._count.fileType,
-          size: item._sum.size || 0,
+          size: item._sum.size || 0
         };
         return acc;
       }, {}),
@@ -524,7 +524,7 @@ export class FilesService {
         return acc;
       }, {}),
       recentUploads,
-      storageUsage,
+      storageUsage
     };
   }
 
@@ -574,7 +574,7 @@ export class FilesService {
   private async extractFileMetadata(buffer: Buffer, mimeType: string): Promise<any> {
     const metadata: any = {
       size: buffer.length,
-      hash: crypto.createHash('sha256').update(buffer).digest('hex'),
+      hash: crypto.createHash('sha256').update(buffer).digest('hex')
     };
 
     if (mimeType.startsWith('image/')) {
@@ -583,7 +583,7 @@ export class FilesService {
         // For now, just add basic info
         metadata.dimensions = {
           width: 0, // Would extract from image
-          height: 0,
+          height: 0
         };
       } catch (error) {
         this.logger.warn('Failed to extract image metadata:', error);
@@ -604,9 +604,9 @@ export class FilesService {
         data: {
           metadata: {
             imageProcessingStatus: ImageProcessingStatus.PROCESSING,
-            processedAt: new Date().toISOString(),
-          },
-        },
+            processedAt: new Date().toISOString()
+          }
+        }
       });
 
       // Create thumbnails, resize images, etc.
@@ -620,10 +620,10 @@ export class FilesService {
             thumbnails: {
               small: `thumbs/small/${fileId}.jpg`,
               medium: `thumbs/medium/${fileId}.jpg`,
-              large: `thumbs/large/${fileId}.jpg`,
-            },
-          },
-        },
+              large: `thumbs/large/${fileId}.jpg`
+            }
+          }
+        }
       });
 
       this.logger.log(`Image processing completed for file: ${fileId}`);
@@ -635,9 +635,9 @@ export class FilesService {
         data: {
           metadata: {
             imageProcessingStatus: ImageProcessingStatus.FAILED,
-            processingError: error.message,
-          },
-        },
+            processingError: error.message
+          }
+        }
       });
     }
   }
@@ -650,8 +650,8 @@ export class FilesService {
       where: {
         hash,
         userId,
-        status: FileStatus.UPLOADED,
-      },
+        status: FileStatus.UPLOADED
+      }
     });
   }
 
@@ -689,7 +689,7 @@ export class FilesService {
   private async getUserRole(userId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true },
+      select: { role: true }
     });
 
     return user?.role || 'USER';
@@ -713,14 +713,14 @@ export class FilesService {
       return {
         total: 0, // Would get from MinIO stats or config
         used: 0,
-        available: 0,
+        available: 0
       };
     } catch (error) {
       this.logger.error('Failed to get storage usage:', error);
       return {
         total: 0,
         used: 0,
-        available: 0,
+        available: 0
       };
     }
   }
@@ -761,7 +761,7 @@ export class FilesService {
       createdAt: file.createdAt,
       updatedAt: file.updatedAt,
       expiresAt: file.expiresAt,
-      user: file.user,
+      user: file.user
     };
   }
 
@@ -782,7 +782,7 @@ export class FilesService {
       d: 1,         // day
       w: 7,         // week
       m: 30,        // month
-      y: 365,       // year
+      y: 365       // year
     };
 
     return value * (multipliers[unit as keyof typeof multipliers] || 1);

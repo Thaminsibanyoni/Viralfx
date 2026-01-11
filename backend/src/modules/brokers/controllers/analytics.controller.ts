@@ -6,17 +6,14 @@ import {
   Body,
   Query,
   UseGuards,
-  UseInterceptors,
-  CacheInterceptor,
   HttpStatus,
   HttpCode,
   Res,
-  Request,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+  Request, Req } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiQuery } from '@nestjs/swagger';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { AnalyticsService } from '../services/analytics.service';
 import { BrokerDashboardMetrics, BrokerAnalytics } from '../interfaces/broker.interface';
 import { UserRole } from '@prisma/client';
@@ -24,7 +21,6 @@ import { Response } from 'express';
 
 @ApiTags('analytics')
 @Controller('analytics')
-@UseInterceptors(CacheInterceptor) // Apply caching to all endpoints
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
@@ -37,7 +33,7 @@ export class AnalyticsController {
     const dashboard = await this.analyticsService.getAdminDashboard();
     return {
       success: true,
-      data: dashboard,
+      data: dashboard
     };
   }
 
@@ -51,7 +47,7 @@ export class AnalyticsController {
     const dashboard = await this.analyticsService.getBrokerDashboard(brokerId);
     return {
       success: true,
-      data: dashboard,
+      data: dashboard
     };
   }
 
@@ -66,17 +62,16 @@ export class AnalyticsController {
   async getPerformanceMetrics(
     @Param('brokerId') brokerId: string,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ): Promise<any> {
+    @Query('endDate') endDate?: string): Promise<any> {
     const defaultPeriod = {
       start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-      end: endDate ? new Date(endDate) : new Date(),
+      end: endDate ? new Date(endDate) : new Date()
     };
 
     const metrics = await this.analyticsService.getPerformanceMetrics(brokerId, defaultPeriod);
     return {
       success: true,
-      data: metrics,
+      data: metrics
     };
   }
 
@@ -95,11 +90,10 @@ export class AnalyticsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('endpoint') endpoint?: string,
-    @Query('method') method?: string,
-  ): Promise<any> {
+    @Query('method') method?: string): Promise<any> {
     const defaultPeriod = {
       start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-      end: endDate ? new Date(endDate) : new Date(),
+      end: endDate ? new Date(endDate) : new Date()
     };
 
     let stats = await this.analyticsService.getApiUsageStats(brokerId, defaultPeriod);
@@ -114,7 +108,7 @@ export class AnalyticsController {
 
     return {
       success: true,
-      data: stats,
+      data: stats
     };
   }
 
@@ -129,17 +123,16 @@ export class AnalyticsController {
   async getMarketingAnalytics(
     @Param('brokerId') brokerId: string,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ): Promise<any> {
+    @Query('endDate') endDate?: string): Promise<any> {
     const defaultPeriod = {
       start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-      end: endDate ? new Date(endDate) : new Date(),
+      end: endDate ? new Date(endDate) : new Date()
     };
 
     const analytics = await this.analyticsService.getMarketingAnalytics(brokerId, defaultPeriod);
     return {
       success: true,
-      data: analytics,
+      data: analytics
     };
   }
 
@@ -154,17 +147,16 @@ export class AnalyticsController {
   async getRevenueAnalytics(
     @Param('brokerId') brokerId: string,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ): Promise<any> {
+    @Query('endDate') endDate?: string): Promise<any> {
     const defaultPeriod = {
       start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-      end: endDate ? new Date(endDate) : new Date(),
+      end: endDate ? new Date(endDate) : new Date()
     };
 
     const analytics = await this.analyticsService.getRevenueAnalytics(brokerId, defaultPeriod);
     return {
       success: true,
-      data: analytics,
+      data: analytics
     };
   }
 
@@ -179,31 +171,29 @@ export class AnalyticsController {
         brokerId: { type: 'string', description: 'Broker ID (optional for platform-wide reports)' },
         reportType: {
           type: 'string',
-          enum: ['PERFORMANCE', 'API_USAGE', 'REVENUE', 'MARKETING', 'COMPREHENSIVE'],
+          enum: ['PERFORMANCE', 'API_USAGE', 'REVENUE', 'MARKETING', 'COMPREHENSIVE']
         },
         period: {
           type: 'object',
           properties: {
             start: { type: 'string', format: 'date-time' },
-            end: { type: 'string', format: 'date-time' },
-          },
+            end: { type: 'string', format: 'date-time' }
+          }
         },
         metrics: { type: 'array', items: { type: 'string' } },
-        format: { type: 'string', enum: ['PDF', 'CSV', 'JSON'] },
+        format: { type: 'string', enum: ['PDF', 'CSV', 'JSON'] }
       },
-      required: ['reportType', 'format'],
-    },
+      required: ['reportType', 'format']
+    }
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'Report generated successfully' })
   @HttpCode(HttpStatus.OK)
   async generateReport(
     @Body() reportConfig: any,
-    @Res() res: Response,
-  ): Promise<void> {
+    @Res() res: Response): Promise<void> {
     const reportBuffer = await this.analyticsService.generateCustomReport(
       reportConfig.brokerId,
-      reportConfig,
-    );
+      reportConfig);
 
     const filename = `${reportConfig.reportType.toLowerCase()}-report-${Date.now()}.${reportConfig.format.toLowerCase()}`;
 
@@ -230,7 +220,7 @@ export class AnalyticsController {
             description: 'Comprehensive monthly performance metrics',
             reportType: 'COMPREHENSIVE',
             format: 'PDF',
-            metrics: ['volume', 'clients', 'revenue', 'compliance'],
+            metrics: ['volume', 'clients', 'revenue', 'compliance']
           },
           {
             id: 'api-usage-analysis',
@@ -238,7 +228,7 @@ export class AnalyticsController {
             description: 'Detailed API usage statistics and trends',
             reportType: 'API_USAGE',
             format: 'CSV',
-            metrics: ['requests', 'response_time', 'errors'],
+            metrics: ['requests', 'response_time', 'errors']
           },
           {
             id: 'revenue-breakdown',
@@ -246,10 +236,10 @@ export class AnalyticsController {
             description: 'Revenue analysis by source and period',
             reportType: 'REVENUE',
             format: 'PDF',
-            metrics: ['commissions', 'fees', 'services'],
+            metrics: ['commissions', 'fees', 'services']
           },
-        ],
-      },
+        ]
+      }
     };
   }
 
@@ -258,11 +248,11 @@ export class AnalyticsController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get current broker dashboard metrics' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Dashboard metrics retrieved successfully' })
-  async getMyDashboard(@Request() req): Promise<any> {
+  async getMyDashboard(@Req() req): Promise<any> {
     // This would be implemented when broker authentication is added
     return {
       success: true,
-      message: 'My dashboard endpoint - requires broker authentication',
+      message: 'My dashboard endpoint - requires broker authentication'
     };
   }
 
@@ -270,10 +260,10 @@ export class AnalyticsController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get current broker performance metrics' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Performance metrics retrieved successfully' })
-  async getMyPerformance(@Request() req): Promise<any> {
+  async getMyPerformance(@Req() req): Promise<any> {
     return {
       success: true,
-      message: 'My performance endpoint - requires broker authentication',
+      message: 'My performance endpoint - requires broker authentication'
     };
   }
 
@@ -281,10 +271,10 @@ export class AnalyticsController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get current broker API usage statistics' })
   @ApiResponse({ status: HttpStatus.OK, description: 'API usage statistics retrieved successfully' })
-  async getMyApiUsage(@Request() req): Promise<any> {
+  async getMyApiUsage(@Req() req): Promise<any> {
     return {
       success: true,
-      message: 'My API usage endpoint - requires broker authentication',
+      message: 'My API usage endpoint - requires broker authentication'
     };
   }
 
@@ -292,10 +282,10 @@ export class AnalyticsController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Generate report for current broker' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Report generated successfully' })
-  async generateMyReport(@Request() req, @Body() reportConfig: any): Promise<any> {
+  async generateMyReport(@Req() req, @Body() reportConfig: any): Promise<any> {
     return {
       success: true,
-      message: 'Generate my report endpoint - requires broker authentication',
+      message: 'Generate my report endpoint - requires broker authentication'
     };
   }
 
@@ -317,9 +307,9 @@ export class AnalyticsController {
         brokerActivity: {
           online: 89,
           offline: 12,
-          maintenance: 3,
-        },
-      },
+          maintenance: 3
+        }
+      }
     };
   }
 
@@ -341,9 +331,9 @@ export class AnalyticsController {
         predictions: {
           nextMonthVolume: 2500000,
           nextMonthRevenue: 125000,
-          topPerformingBrokers: ['ABC Brokers', 'XYZ Investments', 'Financial Services Ltd'],
-        },
-      },
+          topPerformingBrokers: ['ABC Brokers', 'XYZ Investments', 'Financial Services Ltd']
+        }
+      }
     };
   }
 
@@ -351,7 +341,7 @@ export class AnalyticsController {
     const contentTypes = {
       PDF: 'application/pdf',
       CSV: 'text/csv',
-      JSON: 'application/json',
+      JSON: 'application/json'
     };
     return contentTypes[format.toUpperCase()] || 'application/octet-stream';
   }

@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
-import { MarketDataService } from '../../market-aggregation/services/market-data.service';
-import { TrendService } from '../../moderation/services/trend.service';
-import { SocialMediaService } from './social-media.service';
-import { SentimentAnalysisService } from './sentiment-analysis.service';
-import { ViralityPredictionService } from './virality-prediction.service';
-import { RiskAssessmentService } from './risk-assessment.service';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { MarketDataService } from "../../market-aggregation/services/market-data.service";
+import { SocialMediaService } from "./social-media.service";
+import { SentimentAnalysisService } from "./sentiment-analysis.service";
+import { ViralityPredictionService } from "./virality-prediction.service";
+import { RiskAssessmentService } from "./risk-assessment.service";
 
 export interface TrendAnalysisResult {
   trendId: string;
@@ -53,13 +53,12 @@ export class TrendAnalyzerService {
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
+    private readonly prisma: PrismaService,
     private readonly marketDataService: MarketDataService,
-    private readonly trendService: TrendService,
     private readonly socialMediaService: SocialMediaService,
     private readonly sentimentAnalysisService: SentimentAnalysisService,
     private readonly viralityPredictionService: ViralityPredictionService,
-    private readonly riskAssessmentService: RiskAssessmentService,
-  ) {}
+    private readonly riskAssessmentService: RiskAssessmentService) {}
 
   /**
    * Analyze a trend comprehensively using multiple ML models
@@ -76,31 +75,57 @@ export class TrendAnalyzerService {
         }
       }
 
-      // Get trend data
-      const trend = await this.trendService.getTrendById(trendId);
+      // Get trend data using Prisma (Topic model)
+      const trend = await this.prisma.topic.findUnique({
+        where: { id: trendId },
+        include: {
+          ingestEvents: {
+            take: 50,
+            orderBy: { timestamp: 'desc' }
+          }
+        }
+      });
+
       if (!trend) {
         throw new Error(`Trend not found: ${trendId}`);
       }
 
+      // Transform trend data to match expected structure
+      const trendData = {
+        id: trend.id,
+        name: trend.name,
+        symbol: trend.symbol || trend.slug,
+        description: trend.description,
+        category: trend.category,
+        region: trend.region,
+        hashtags: trend.canonical?.hashtags || [],
+        keywords: trend.canonical?.keywords || [],
+        currentPrice: 0, // Would come from market data
+        volume24h: Number(trend.totalVolume),
+        price24hChange: 0, // Would come from price history
+        marketCap: 0, // Would come from market data
+        metadata: trend.metadata
+      };
+
       // Get social media metrics
-      const socialMetrics = await this.getSocialMetrics(trend);
+      const socialMetrics = await this.getSocialMetrics(trendData);
 
       // Get market data
-      const marketData = await this.getMarketMetrics(trend);
+      const marketData = await this.getMarketMetrics(trendData);
 
       // Perform sentiment analysis
-      const sentimentAnalysis = await this.sentimentAnalysisService.analyzeSentiment(trend);
+      const sentimentAnalysis = await this.sentimentAnalysisService.analyzeSentiment(trendData);
 
       // Predict virality
       const viralityPrediction = await this.viralityPredictionService.predictVirality(
-        trend,
+        trendData,
         socialMetrics,
         sentimentAnalysis
       );
 
       // Assess risk
       const riskAssessment = await this.riskAssessmentService.assessRisk(
-        trend,
+        trendData,
         socialMetrics,
         marketData,
         sentimentAnalysis
@@ -108,7 +133,7 @@ export class TrendAnalyzerService {
 
       // Generate comprehensive analysis
       const analysis = await this.generateComprehensiveAnalysis(
-        trend,
+        trendData,
         socialMetrics,
         marketData,
         sentimentAnalysis,
@@ -176,9 +201,27 @@ export class TrendAnalyzerService {
   }> {
     try {
       const analysis = await this.analyzeTrend(trendId);
-      const trend = await this.trendService.getTrendById(trendId);
 
-      const recommendations = this.generateRecommendations(analysis, trend);
+      // Get trend data using Prisma
+      const trend = await this.prisma.topic.findUnique({
+        where: { id: trendId }
+      });
+
+      if (!trend) {
+        throw new Error(`Trend not found: ${trendId}`);
+      }
+
+      const trendData = {
+        id: trend.id,
+        name: trend.name,
+        symbol: trend.symbol || trend.slug,
+        currentPrice: 0,
+        volume24h: Number(trend.totalVolume),
+        price24hChange: 0,
+        marketCap: 0
+      };
+
+      const recommendations = this.generateRecommendations(analysis, trendData);
 
       // Cache recommendations
       await this.cacheRecommendations(trendId, recommendations);
@@ -251,19 +294,38 @@ export class TrendAnalyzerService {
   }> {
     try {
       const analysis = await this.analyzeTrend(trendId);
-      const trend = await this.trendService.getTrendById(trendId);
+
+      // Get trend data using Prisma
+      const trend = await this.prisma.topic.findUnique({
+        where: { id: trendId }
+      });
+
+      if (!trend) {
+        throw new Error(`Trend not found: ${trendId}`);
+      }
+
+      const trendData = {
+        id: trend.id,
+        name: trend.name,
+        symbol: trend.symbol || trend.slug,
+        category: trend.category,
+        currentPrice: 0,
+        volume24h: Number(trend.totalVolume),
+        price24hChange: 0,
+        marketCap: 0
+      };
 
       // Find similar trends
-      const similarTrends = await this.findSimilarTrends(trend, analysis);
+      const similarTrends = await this.findSimilarTrends(trendData, analysis);
 
       // Analyze competitive position
-      const marketPosition = await this.analyzeMarketPosition(trend, analysis, similarTrends);
+      const marketPosition = await this.analyzeMarketPosition(trendData, analysis, similarTrends);
 
       return {
         similarTrends,
         marketPosition,
-        competitiveAdvantages: this.identifyCompetitiveAdvantages(trend, analysis, similarTrends),
-        threats: this.identifyCompetitiveThreats(trend, analysis, similarTrends),
+        competitiveAdvantages: this.identifyCompetitiveAdvantages(trendData, analysis, similarTrends),
+        threats: this.identifyCompetitiveThreats(trendData, analysis, similarTrends)
       };
 
     } catch (error) {
@@ -312,7 +374,7 @@ export class TrendAnalyzerService {
         marketCap: trend.marketCap,
         volatility: this.calculateVolatility(priceHistory),
         liquidity: this.calculateLiquidity(marketData),
-        priceHistory,
+        priceHistory
       };
 
     } catch (error) {
@@ -366,9 +428,9 @@ export class TrendAnalyzerService {
         growthRate: aggregatedSocial.growthRate,
         reach: aggregatedSocial.reach,
         influencerCount: aggregatedSocial.influencerCount,
-        contentQuality: sentimentAnalysis.contentQuality,
+        contentQuality: sentimentAnalysis.contentQuality
       },
-      predictions,
+      predictions
     };
   }
 
@@ -383,7 +445,7 @@ export class TrendAnalyzerService {
         engagement: 0,
         sentiment: 0,
         influencerCount: 0,
-        growthRate: 0,
+        growthRate: 0
       };
     }
 
@@ -396,7 +458,7 @@ export class TrendAnalyzerService {
       engagement: acc.engagement + metric.engagement,
       sentiment: acc.sentiment + metric.sentiment,
       influencerCount: acc.influencerCount + metric.influencerCount,
-      growthRate: acc.growthRate + metric.growthRate,
+      growthRate: acc.growthRate + metric.growthRate
     }), {
       mentions: 0,
       likes: 0,
@@ -406,7 +468,7 @@ export class TrendAnalyzerService {
       engagement: 0,
       sentiment: 0,
       influencerCount: 0,
-      growthRate: 0,
+      growthRate: 0
     });
 
     const count = metrics.length;
@@ -415,7 +477,7 @@ export class TrendAnalyzerService {
       ...total,
       engagement: total.engagement / count,
       sentiment: total.sentiment / count,
-      growthRate: total.growthRate / count,
+      growthRate: total.growthRate / count
     };
   }
 
@@ -480,7 +542,7 @@ export class TrendAnalyzerService {
     return {
       priceTarget,
       volumeForecast,
-      category,
+      category
     };
   }
 
@@ -638,7 +700,7 @@ export class TrendAnalyzerService {
           metric,
           oldValue,
           newValue,
-          changePercent: changePercent * 100,
+          changePercent: changePercent * 100
         });
       }
     }
@@ -661,7 +723,7 @@ export class TrendAnalyzerService {
         trendId,
         timestamp: new Date().toISOString(),
         changes,
-        analysis,
+        analysis
       })
     );
   }
@@ -676,8 +738,8 @@ export class TrendAnalyzerService {
         socialHealth: 90,
         marketHealth: 80,
         sentimentHealth: 85,
-        engagementHealth: 88,
-      },
+        engagementHealth: 88
+      }
     };
   }
 
@@ -713,7 +775,7 @@ export class TrendAnalyzerService {
       confidence: 75,
       reasons: ['Moderate virality detected', 'Balanced risk profile'],
       riskLevel: 'MEDIUM',
-      timeframe: 'MEDIUM',
+      timeframe: 'MEDIUM'
     };
   }
 

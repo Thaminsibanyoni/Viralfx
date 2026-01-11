@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
-import { BaseConnector, Content, ContentMetrics, MediaUrl } from './base.connector';
+import { BaseConnector, Content, ContentMetrics, MediaUrl } from "./base.connector";
 import { firstValueFrom } from 'rxjs';
 
 @Injectable()
@@ -17,8 +17,7 @@ export class TikTokConnector extends BaseConnector {
   constructor(
     @InjectRedis() redis: Redis,
     config: ConfigService,
-    httpService: HttpService,
-  ) {
+    httpService: HttpService) {
     super(redis, config, 'tiktok');
     this.httpService = httpService;
     this.accessToken = config.get<string>('TIKTOK_ACCESS_TOKEN') || '';
@@ -122,7 +121,7 @@ export class TikTokConnector extends BaseConnector {
       type: 'video',
       thumbnail: rawVideo.video?.cover?.url_list?.[0],
       duration: rawVideo.video?.duration * 1000, // Convert to milliseconds
-      size: rawVideo.video?.size,
+      size: rawVideo.video?.size
     }];
 
     // Build metrics
@@ -130,7 +129,7 @@ export class TikTokConnector extends BaseConnector {
       likes: rawVideo.stats?.like_count || 0,
       shares: rawVideo.stats?.share_count || 0,
       comments: rawVideo.stats?.comment_count || 0,
-      plays: rawVideo.stats?.play_count || 0,
+      plays: rawVideo.stats?.play_count || 0
     };
 
     // Calculate engagement
@@ -155,8 +154,8 @@ export class TikTokConnector extends BaseConnector {
         challenges: rawVideo.challenges,
         duetInfo: rawVideo.duet_info,
         stitchInfo: rawVideo.stitch_info,
-        effectiveComments: rawVideo.stats?.effective_comment_count,
-      },
+        effectiveComments: rawVideo.stats?.effective_comment_count
+      }
     };
   }
 
@@ -181,7 +180,7 @@ export class TikTokConnector extends BaseConnector {
           const response = await this.makeApiRequest(`/hashtag/hashtag/videos/`, {
             hashtag_name: cleanHashtag,
             count: 20,
-            cursor: parseInt(cursor),
+            cursor: parseInt(cursor)
           });
 
           if (response?.data?.videos) {
@@ -265,7 +264,7 @@ export class TikTokConnector extends BaseConnector {
           const response = await this.makeApiRequest(`/search/video/`, {
             keyword,
             count: 20,
-            cursor: parseInt(cursor),
+            cursor: parseInt(cursor)
           });
 
           if (response?.data?.videos) {
@@ -337,7 +336,7 @@ export class TikTokConnector extends BaseConnector {
     try {
       const headers = {
         'Authorization': `Bearer ${this.accessToken}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       };
 
       const url = `${this.apiBaseUrl}${endpoint}`;
@@ -353,7 +352,7 @@ export class TikTokConnector extends BaseConnector {
         // Retry once with new token
         const headers = {
           'Authorization': `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         };
 
         const url = `${this.apiBaseUrl}${endpoint}`;
@@ -378,11 +377,11 @@ export class TikTokConnector extends BaseConnector {
         this.httpService.post(`${this.apiBaseUrl}/oauth2/token/`, {
           client_key: this.appId,
           client_secret: this.appSecret,
-          grant_type: 'client_credentials',
+          grant_type: 'client_credentials'
         }, {
           headers: {
-            'Content-Type': 'application/json',
-          },
+            'Content-Type': 'application/json'
+          }
         })
       );
 
@@ -410,8 +409,8 @@ export class TikTokConnector extends BaseConnector {
       const response = await firstValueFrom(
         this.httpService.get(testUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          },
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
         })
       );
 

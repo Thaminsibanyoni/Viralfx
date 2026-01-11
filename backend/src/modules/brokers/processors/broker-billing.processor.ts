@@ -1,13 +1,12 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, LessThan } from 'typeorm';
 import { BillingService } from '../services/billing.service';
-import { NotificationService } from '../../notifications/services/notification.service';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
-import { Broker, BrokerStatus } from '../entities/broker.entity';
+import { NotificationService } from "../../notifications/services/notification.service";
+import { PrismaService } from "../../../prisma/prisma.service";
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Broker, BrokerStatus } from '../entities/broker.entity';
 
 export interface BillingJobData {
   brokerId?: string;
@@ -17,36 +16,56 @@ export interface BillingJobData {
 }
 
 @Processor('broker-billing')
-export class BrokerBillingProcessor {
+export class BrokerBillingProcessor extends WorkerHost {
   private readonly logger = new Logger(BrokerBillingProcessor.name);
 
   constructor(
-    @InjectRepository(Broker)
-    private readonly brokerRepository: Repository<Broker>,
-    @InjectRepository(BrokerBill)
-    private readonly billRepository: Repository<BrokerBill>,
-    private readonly billingService: BillingService,
-    private readonly notificationService: NotificationService,
     private readonly prismaService: PrismaService,
-  ) {}
+    private readonly billingService: BillingService,
+    private readonly notificationService: NotificationService) {
+    super();
+}
 
-  @OnQueueActive()
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'generate-monthly-bills':
+        return this.handleGenerateMonthlyBills(job);
+      case 'send-bill-notification':
+        return this.handleSendBillNotification(job);
+      case 'check-overdue-bills':
+        return this.handleCheckOverdueBills(job);
+      case 'suspend-overdue-brokers':
+        return this.handleSuspendOverdueBrokers(job);
+      case 'process-payment-confirmation':
+        return this.handleProcessPaymentConfirmation(job);
+      case 'generate-billing-report':
+        return this.handleGenerateBillingReport(job);
+      case 'send-billing-reminders':
+        return this.handleSendBillingReminders(job);
+      case 'reconcile-payments':
+        return this.handleReconcilePayments(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  @OnWorkerEvent('active')
   onActive(job: Job<BillingJobData>) {
     this.logger.log(`Processing billing job ${job.id} of type ${job.name}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job<BillingJobData>) {
     this.logger.log(`Completed billing job ${job.id} of type ${job.name}`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job<BillingJobData>, error: Error) {
     this.logger.error(`Failed billing job ${job.id} of type ${job.name}:`, error);
   }
 
-  @Process('generate-monthly-bills')
-  async handleGenerateMonthlyBills(job: Job<BillingJobData>) {
+  private async handleGenerateMonthlyBills(job: Job<BillingJobData>) {
     this.logger.log('Generating monthly bills for all active brokers');
 
     try {
@@ -77,7 +96,7 @@ export class BrokerBillingProcessor {
         period: billingPeriod.toISOString(),
         totalBrokers: brokerIds.length,
         successfulBills,
-        failedBills,
+        failedBills
       });
 
       this.logger.log(`Monthly bill generation completed. Success: ${successfulBills}, Failed: ${failedBills}`);
@@ -87,21 +106,20 @@ export class BrokerBillingProcessor {
         totalBrokers: brokerIds.length,
         successfulBills,
         failedBills,
-        results,
+        results
       };
     } catch (error) {
       this.logger.error('Monthly bill generation failed:', error);
 
       await this.logBillingActivity('SYSTEM', 'MONTHLY_BILL_GENERATION_ERROR', {
-        error: error.message,
+        error: error.message
       });
 
       throw error;
     }
   }
 
-  @Process('send-bill-notification')
-  async handleSendBillNotification(job: Job<BillingJobData>) {
+  private async handleSendBillNotification(job: Job<BillingJobData>) {
     const { billId } = job.data;
 
     this.logger.log(`Sending bill notification for bill ${billId}`);
@@ -111,7 +129,7 @@ export class BrokerBillingProcessor {
 
       await this.logBillingActivity(billId, 'BILL_NOTIFICATION_SENT', {
         billId,
-        sentAt: new Date().toISOString(),
+        sentAt: new Date().toISOString()
       });
 
       this.logger.log(`Bill notification sent for ${billId}`);
@@ -121,22 +139,21 @@ export class BrokerBillingProcessor {
 
       await this.logBillingActivity(billId, 'BILL_NOTIFICATION_ERROR', {
         billId,
-        error: error.message,
+        error: error.message
       });
 
       throw error;
     }
   }
 
-  @Process('check-overdue-bills')
-  async handleCheckOverdueBills(job: Job<BillingJobData>) {
+  private async handleCheckOverdueBills(job: Job<BillingJobData>) {
     this.logger.log('Checking for overdue bills');
 
     try {
       await this.billingService.checkOverdueBills();
 
       await this.logBillingActivity('SYSTEM', 'OVERDUE_BILLS_CHECK', {
-        checkedAt: new Date().toISOString(),
+        checkedAt: new Date().toISOString()
       });
 
       this.logger.log('Overdue bills check completed');
@@ -145,15 +162,14 @@ export class BrokerBillingProcessor {
       this.logger.error('Failed to check overdue bills:', error);
 
       await this.logBillingActivity('SYSTEM', 'OVERDUE_BILLS_CHECK_ERROR', {
-        error: error.message,
+        error: error.message
       });
 
       throw error;
     }
   }
 
-  @Process('suspend-overdue-brokers')
-  async handleSuspendOverdueBrokers(job: Job<BillingJobData>) {
+  private async handleSuspendOverdueBrokers(job: Job<BillingJobData>) {
     this.logger.log('Suspending brokers with severely overdue bills');
 
     try {
@@ -180,7 +196,7 @@ export class BrokerBillingProcessor {
       await this.logBillingActivity('SYSTEM', 'BROKER_SUSPENSIONS', {
         suspended,
         failed,
-        totalChecked: overdueBrokerIds.length,
+        totalChecked: overdueBrokerIds.length
       });
 
       this.logger.log(`Broker suspensions completed. Suspended: ${suspended}, Failed: ${failed}`);
@@ -189,21 +205,20 @@ export class BrokerBillingProcessor {
         success: true,
         suspended,
         failed,
-        results,
+        results
       };
     } catch (error) {
       this.logger.error('Failed to suspend overdue brokers:', error);
 
       await this.logBillingActivity('SYSTEM', 'BROKER_SUSPENSIONS_ERROR', {
-        error: error.message,
+        error: error.message
       });
 
       throw error;
     }
   }
 
-  @Process('process-payment-confirmation')
-  async handleProcessPaymentConfirmation(job: Job<BillingJobData>) {
+  private async handleProcessPaymentConfirmation(job: Job<BillingJobData>) {
     const { billId, options } = job.data;
 
     this.logger.log(`Processing payment confirmation for bill ${billId}`);
@@ -217,7 +232,7 @@ export class BrokerBillingProcessor {
       await this.logBillingActivity(billId, 'PAYMENT_CONFIRMATION_PROCESSED', {
         billId,
         paymentData,
-        processedAt: new Date().toISOString(),
+        processedAt: new Date().toISOString()
       });
 
       // Trigger any post-payment actions
@@ -230,15 +245,14 @@ export class BrokerBillingProcessor {
 
       await this.logBillingActivity(billId, 'PAYMENT_CONFIRMATION_ERROR', {
         billId,
-        error: error.message,
+        error: error.message
       });
 
       throw error;
     }
   }
 
-  @Process('generate-billing-report')
-  async handleGenerateBillingReport(job: Job<BillingJobData>) {
+  private async handleGenerateBillingReport(job: Job<BillingJobData>) {
     const { options } = job.data;
 
     this.logger.log('Generating billing report');
@@ -254,34 +268,33 @@ export class BrokerBillingProcessor {
         paidBills: 45,
         pendingBills: 12,
         overdueBills: 3,
-        generatedAt: new Date().toISOString(),
+        generatedAt: new Date().toISOString()
       };
 
       await this.logBillingActivity('SYSTEM', 'BILLING_REPORT_GENERATED', {
         period: period.toISOString(),
         reportType,
         format,
-        data: reportData,
+        data: reportData
       });
 
       this.logger.log(`Billing report generated for ${reportType}`);
       return {
         success: true,
-        data: reportData,
+        data: reportData
       };
     } catch (error) {
       this.logger.error('Failed to generate billing report:', error);
 
       await this.logBillingActivity('SYSTEM', 'BILLING_REPORT_ERROR', {
-        error: error.message,
+        error: error.message
       });
 
       throw error;
     }
   }
 
-  @Process('send-billing-reminders')
-  async handleSendBillingReminders(job: Job<BillingJobData>) {
+  private async handleSendBillingReminders(job: Job<BillingJobData>) {
     this.logger.log('Sending billing reminders');
 
     try {
@@ -306,7 +319,7 @@ export class BrokerBillingProcessor {
       await this.logBillingActivity('SYSTEM', 'BILLING_REMINDERS_SENT', {
         sent,
         failed,
-        totalProcessed: reminderData.length,
+        totalProcessed: reminderData.length
       });
 
       this.logger.log(`Billing reminders completed. Sent: ${sent}, Failed: ${failed}`);
@@ -315,21 +328,20 @@ export class BrokerBillingProcessor {
         success: true,
         sent,
         failed,
-        results,
+        results
       };
     } catch (error) {
       this.logger.error('Failed to send billing reminders:', error);
 
       await this.logBillingActivity('SYSTEM', 'BILLING_REMINDERS_ERROR', {
-        error: error.message,
+        error: error.message
       });
 
       throw error;
     }
   }
 
-  @Process('reconcile-payments')
-  async handleReconcilePayments(job: Job<BillingJobData>) {
+  private async handleReconcilePayments(job: Job<BillingJobData>) {
     this.logger.log('Reconciling payments');
 
     try {
@@ -343,24 +355,24 @@ export class BrokerBillingProcessor {
         unreconciledPayments: 1,
         totalAmount: 34500,
         reconciledAmount: 34000,
-        unreconciledAmount: 500,
+        unreconciledAmount: 500
       };
 
       await this.logBillingActivity('SYSTEM', 'PAYMENT_RECONCILIATION', {
-        results: reconciliationResults,
+        results: reconciliationResults
       });
 
       this.logger.log(`Payment reconciliation completed. Reconciled: ${reconciliationResults.reconciledPayments}/${reconciliationResults.totalPayments}`);
 
       return {
         success: true,
-        data: reconciliationResults,
+        data: reconciliationResults
       };
     } catch (error) {
       this.logger.error('Failed to reconcile payments:', error);
 
       await this.logBillingActivity('SYSTEM', 'PAYMENT_RECONCILIATION_ERROR', {
-        error: error.message,
+        error: error.message
       });
 
       throw error;
@@ -372,7 +384,7 @@ export class BrokerBillingProcessor {
     // and log the suspension reason
     await this.logBillingActivity(brokerId, 'BROKER_SUSPENDED', {
       reason: 'OVERDUE_BILLS',
-      suspendedAt: new Date().toISOString(),
+      suspendedAt: new Date().toISOString()
     });
   }
 
@@ -382,7 +394,7 @@ export class BrokerBillingProcessor {
 
     await this.logBillingActivity(billId, 'POST_PAYMENT_ACTIONS', {
       paymentData,
-      actionsPerformed: ['STATUS_UPDATED', 'NOTIFICATION_SENT', 'ANALYTICS_UPDATED'],
+      actionsPerformed: ['STATUS_UPDATED', 'NOTIFICATION_SENT', 'ANALYTICS_UPDATED']
     });
   }
 
@@ -410,7 +422,7 @@ export class BrokerBillingProcessor {
         billId,
         daysUntilDue,
         daysOverdue,
-        type,
+        type
       },
       recommendations: [
         'Make payment as soon as possible',
@@ -418,15 +430,14 @@ export class BrokerBillingProcessor {
         'Review your payment methods',
       ],
       createdAt: new Date(),
-      status: 'OPEN',
+      status: 'OPEN'
     });
   }
 
   private async logBillingActivity(
     entityId: string,
     activity: string,
-    details: any,
-  ): Promise<void> {
+    details: any): Promise<void> {
     await this.prismaService.auditLog.create({
       data: {
         action: 'BILLING_OPERATION',
@@ -436,23 +447,23 @@ export class BrokerBillingProcessor {
         newValues: JSON.stringify({
           activity,
           details,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString()
         }),
         userId: null,
         ipAddress: null,
-        userAgent: 'Billing Processor',
-      },
+        userAgent: 'Billing Processor'
+      }
     });
   }
 
   private async getActiveBrokers(): Promise<Broker[]> {
     try {
-      return await this.brokerRepository.find({
+      return await this.prisma.broker.findMany({
         where: {
           isActive: true,
-          status: BrokerStatus.VERIFIED,
+          status: BrokerStatus.VERIFIED
         },
-        select: ['id'],
+        select: ['id']
       });
     } catch (error) {
       this.logger.error('Failed to get active brokers:', error);
@@ -465,13 +476,13 @@ export class BrokerBillingProcessor {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const overdueBills = await this.billRepository.find({
+      const overdueBills = await this.prisma.billrepository.findMany({
         where: {
           dueDate: LessThan(thirtyDaysAgo),
-          status: BillStatus.PENDING,
+          status: BillStatus.PENDING
         },
         relations: ['broker'],
-        select: ['broker'],
+        select: ['broker']
       });
 
       return [...new Set(overdueBills.map(bill => bill.broker.id))];
@@ -495,12 +506,12 @@ export class BrokerBillingProcessor {
       threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
 
       // Find bills due in next 3 days
-      const dueSoonBills = await this.billRepository.find({
+      const dueSoonBills = await this.prisma.billrepository.findMany({
         where: {
           dueDate: LessThan(threeDaysFromNow),
-          status: BillStatus.PENDING,
+          status: BillStatus.PENDING
         },
-        relations: ['broker'],
+        relations: ['broker']
       });
 
       for (const bill of dueSoonBills) {
@@ -510,7 +521,7 @@ export class BrokerBillingProcessor {
             brokerId: bill.broker.id,
             billId: bill.id,
             daysUntilDue,
-            type: 'DUE_SOON',
+            type: 'DUE_SOON'
           });
         }
       }
@@ -519,13 +530,13 @@ export class BrokerBillingProcessor {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const overdueBills = await this.billRepository.find({
+      const overdueBills = await this.prisma.billrepository.findMany({
         where: {
           dueDate: MoreThan(thirtyDaysAgo),
           dueDate: LessThan(today),
-          status: BillStatus.PENDING,
+          status: BillStatus.PENDING
         },
-        relations: ['broker'],
+        relations: ['broker']
       });
 
       for (const bill of overdueBills) {
@@ -534,7 +545,7 @@ export class BrokerBillingProcessor {
           brokerId: bill.broker.id,
           billId: bill.id,
           daysOverdue,
-          type: 'OVERDUE',
+          type: 'OVERDUE'
         });
       }
 

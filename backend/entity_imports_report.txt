@@ -1,0 +1,500 @@
+ENTITY IMPORTS HANDLING REPORT
+================================================================================
+
+Total files processed: 79
+Files with imports commented: 73
+Files needing Prisma migration: 70
+
+================================================================================
+PRIORITY LIST - Files Needing Prisma Model Migration
+================================================================================
+
+1. modules/crm/services/crm.service.ts
+   Entities used: Lead, Opportunity, Activity, ActivityEntityType, ActivityType, ActivityStatus, RelationshipManager, LeadStatus, OpportunityStage
+   Imports commented: 6
+     - import { Lead } from '../entities/lead.entity';
+     - import { Opportunity } from '../entities/opportunity.entity';
+     - import { Activity, ActivityEntityType, ActivityType, ActivityStatus } from '../entities/activity.entity';
+     - import { RelationshipManager } from '../entities/relationship-manager.entity';
+     - import { LeadStatus } from '../entities/lead.entity';
+     - import { OpportunityStage } from '../entities/opportunity.entity';
+
+2. modules/crm/services/support.service.ts
+   Entities used: Ticket, TicketMessage, TicketCategory, TicketPriority, TicketAssignment, User, UserStatus
+   Imports commented: 7
+     - import { Ticket } from '../entities/ticket.entity';
+     - import { TicketMessage } from '../entities/ticket-message.entity';
+     - import { TicketCategory } from '../entities/ticket-category.entity';
+     - import { TicketPriority } from '../entities/ticket-priority.entity';
+     - import { TicketAssignment } from '../entities/ticket-assignment.entity';
+     - import { User } from '../../../database/entities/user.entity';
+     - import { UserStatus, UserRole } from '../../../database/entities/user.entity';
+
+3. modules/brokers/services/brokers.service.ts
+   Entities used: Broker, BrokerStatus, BrokerTier, VerificationType, VerificationStatus, BillStatus
+   Imports commented: 4
+     - import { Broker, BrokerStatus, BrokerTier } from '../entities/broker.entity';
+     - import { BrokerVerification, VerificationType, VerificationStatus } from '../entities/broker-verification.entity';
+     - import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
+     - import { BrokerApiUsage, ApiMethod } from '../entities/broker-api-usage.entity';
+
+4. modules/brokers/services/fsca.service.ts
+   Entities used: BrokerVerification, VerificationType, VerificationStatus, KycStatus, Broker, BrokerStatus
+   Imports commented: 2
+     - import { BrokerVerification, VerificationType, VerificationStatus, KycStatus } from '../entities/broker-verification.entity';
+     - import { Broker, BrokerStatus } from '../entities/broker.entity';
+
+5. modules/support/services/ticket.service.ts
+   Entities used: Ticket, TicketStatus, TicketPriority, TicketMessage, TicketSLA, SLA
+   Imports commented: 5
+     - import { Ticket, TicketStatus, TicketPriority } from '../entities/ticket.entity';
+     - import { TicketMessage } from '../entities/ticket-message.entity';
+     - import { TicketCategory } from '../entities/ticket-category.entity';
+     - import { TicketSLA } from '../entities/ticket-sla.entity';
+     - import { SLA } from '../entities/sla.entity';
+
+6. modules/assets/services/asset-classification.service.ts
+   Entities used: ViralAsset, ViralCategory, SocialPlatform, ContentSafetyLevel, ModerationStatus
+   Imports commented: 1
+     - import { ViralAsset, ViralCategory, SocialPlatform, ContentSafetyLevel, ModerationStatus } from '../entities/viral-asset.entity';
+
+7. modules/brokers/processors/broker-billing.processor.ts
+   Entities used: BrokerBill, BillStatus, Broker, BrokerStatus
+   Imports commented: 2
+     - import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
+     - import { Broker, BrokerStatus } from '../entities/broker.entity';
+
+8. modules/brokers/processors/broker-verification.processor.ts
+   Entities used: BrokerVerification, VerificationStatus, VerificationType, KycStatus
+   Imports commented: 1
+     - import { BrokerVerification, VerificationStatus, VerificationType, KycStatus } from '../entities/broker-verification.entity';
+
+9. modules/brokers/services/billing.service.ts
+   Entities used: BrokerBill, BillStatus, Broker, BrokerTier
+   Imports commented: 2
+     - import { BrokerBill, BillStatus, PaymentMethod } from '../entities/broker-bill.entity';
+     - import { Broker, BrokerTier } from '../entities/broker.entity';
+
+10. modules/brokers/services/client-attribution.service.ts
+   Entities used: BrokerClient, ClientStatus, AttributionType, Broker
+   Imports commented: 2
+     - import { BrokerClient, ClientStatus, AttributionType } from '../entities/broker-client.entity';
+     - import { Broker } from '../entities/broker.entity';
+
+11. modules/brokers/services/compliance.service.ts
+   Entities used: BrokerComplianceCheck, ComplianceCheckType, ComplianceResult, Broker
+   Imports commented: 2
+     - import { BrokerComplianceCheck, ComplianceCheckType, ComplianceResult } from '../entities/broker-compliance-check.entity';
+     - import { Broker } from '../entities/broker.entity';
+
+12. modules/brokers/services/integration.service.ts
+   Entities used: BrokerIntegration, IntegrationType, IntegrationStatus, Broker
+   Imports commented: 2
+     - import { BrokerIntegration, IntegrationType, IntegrationStatus } from '../entities/broker-integration.entity';
+     - import { Broker } from '../entities/broker.entity';
+
+13. modules/market-aggregation/services/pricing-engine.service.ts
+   Entities used: Symbol, Price, PriceInterval, Order
+   Imports commented: 3
+     - import { Symbol } from '../entities/symbol.entity';
+     - import { Price, PriceInterval } from '../entities/price.entity';
+     - import { Order } from '../entities/order.entity';
+
+14. modules/sponsorship/services/broker-sponsorship.service.ts
+   Entities used: Sponsorship, SponsorshipStatus, SponsorshipTier, SponsorshipAgreement
+   Imports commented: 2
+     - import { Sponsorship, SponsorshipStatus, SponsorshipTier } from '../entities/sponsorship.entity';
+     - import { SponsorshipAgreement } from '../entities/sponsorship-agreement.entity';
+
+15. modules/brokers/dto/broker-response.dto.ts
+   Entities used: BrokerVerification, VerificationStatus, BrokerBill
+   Imports commented: 2
+     - import { BrokerVerification, VerificationStatus } from '../entities/broker-verification.entity';
+     - import { BrokerBill } from '../entities/broker-bill.entity';
+
+16. modules/brokers/processors/broker-compliance.processor.ts
+   Entities used: ComplianceCheckType, ComplianceResult, Broker
+   Imports commented: 2
+     - import { ComplianceCheckType, ComplianceResult } from '../entities/broker-compliance-check.entity';
+     - import { Broker } from '../entities/broker.entity';
+
+17. modules/brokers/services/analytics.service.ts
+   Entities used: ApiMethod, BillStatus, Broker
+   Imports commented: 4
+     - import { BrokerApiUsage, ApiMethod } from '../entities/broker-api-usage.entity';
+     - import { BrokerMarketingAnalytics } from '../entities/broker-marketing-analytics.entity';
+     - import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
+     - import { Broker } from '../entities/broker.entity';
+
+18. modules/crm/services/contract.service.ts
+   Entities used: Contract, ContractStatus, ContractType
+   Imports commented: 2
+     - import { Contract, ContractStatus, ContractType } from '../entities/contract.entity';
+     - import { Opportunity } from '../entities/opportunity.entity';
+
+19. modules/crm/services/pipeline.service.ts
+   Entities used: PipelineStage, BrokerDeal, DealActivity
+   Imports commented: 3
+     - import { PipelineStage } from '../entities/pipeline-stage.entity';
+     - import { BrokerDeal } from '../entities/broker-deal.entity';
+     - import { DealActivity } from '../entities/deal-activity.entity';
+
+20. modules/market-aggregation/services/market-data.service.ts
+   Entities used: Symbol, Price, PriceInterval
+   Imports commented: 2
+     - import { Symbol } from '../entities/symbol.entity';
+     - import { Price, PriceInterval } from '../entities/price.entity';
+
+21. modules/support/controllers/ticket.controller.ts
+   Entities used: Ticket, TicketStatus, TicketPriority
+   Imports commented: 1
+     - import { Ticket, TicketStatus, TicketPriority } from '../entities/ticket.entity';
+
+22. modules/support/processors/support.processor.ts
+   Entities used: Ticket, TicketStatus, TicketMessage
+   Imports commented: 3
+     - import { Ticket, TicketStatus } from '../entities/ticket.entity';
+     - import { TicketMessage } from '../entities/ticket-message.entity';
+     - import { TicketSLA } from '../entities/ticket-sla.entity';
+
+23. modules/brokers/controllers/billing.controller.ts
+   Entities used: BrokerBill, BillStatus
+   Imports commented: 1
+     - import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
+
+24. modules/brokers/dto/client-attribution.dto.ts
+   Entities used: AttributionType, ClientStatus
+   Imports commented: 1
+     - import { AttributionType, ClientStatus } from '../entities/broker-client.entity';
+
+25. modules/brokers/guards/broker-roles.guard.ts
+   Entities used: Broker, BrokerTier
+   Imports commented: 2
+     - import { Broker } from '../entities/broker.entity';
+     - import { BrokerTier } from '../entities/broker.entity';
+
+26. modules/brokers/middleware/broker-rate-limit.middleware.ts
+   Entities used: Broker, BrokerTier
+   Imports commented: 2
+     - import { Broker } from '../entities/broker.entity';
+     - import { BrokerTier } from '../entities/broker.entity';
+
+27. modules/brokers/schedulers/analytics.scheduler.ts
+   Entities used: Broker, BrokerStatus
+   Imports commented: 1
+     - import { Broker, BrokerStatus } from '../entities/broker.entity';
+
+28. modules/brokers/services/client-dashboard.service.ts
+   Entities used: BrokerClient, ClientStatus
+   Imports commented: 1
+     - import { BrokerClient, ClientStatus } from '../entities/broker-client.entity';
+
+29. modules/brokers/services/revenue-sharing.service.ts
+   Entities used: Broker, BillStatus
+   Imports commented: 3
+     - import { BrokerClient } from '../entities/broker-client.entity';
+     - import { Broker } from '../entities/broker.entity';
+     - import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
+
+30. modules/crm/processors/crm-onboarding.processor.ts
+   Entities used: BrokerAccount, BrokerSubscription
+   Imports commented: 5
+     - import { BrokerAccount } from '../entities/broker-account.entity';
+     - import { BrokerNote } from '../entities/broker-note.entity';
+     - import { BrokerDocument } from '../entities/broker-document.entity';
+     - import { BrokerSubscription } from '../entities/broker-subscription.entity';
+     - import { BrokerInvoice } from '../entities/broker-invoice.entity';
+
+31. modules/crm/processors/crm-payments.processor.ts
+   Entities used: BrokerPayment, BrokerInvoice
+   Imports commented: 2
+     - import { BrokerPayment } from '../entities/broker-payment.entity';
+     - import { BrokerInvoice } from '../entities/broker-invoice.entity';
+
+32. modules/crm/processors/crm-ticket-sla.processor.ts
+   Entities used: Ticket, User
+   Imports commented: 4
+     - import { Ticket } from '../entities/ticket.entity';
+     - import { TicketMessage } from '../entities/ticket-message.entity';
+     - import { TicketAssignment } from '../entities/ticket-assignment.entity';
+     - import { User } from '../../../database/entities/user.entity';
+
+33. modules/crm/services/activity.service.ts
+   Entities used: ActivityStatus, ActivityType
+   Imports commented: 1
+     - import { ActivityStatus, ActivityType } from '../entities/activity.entity';
+
+34. modules/crm/services/clients.service.ts
+   Entities used: ClientRecord, ClientInteraction
+   Imports commented: 2
+     - import { ClientRecord } from '../entities/client-record.entity';
+     - import { ClientInteraction } from '../entities/client-interaction.entity';
+
+35. modules/crm/services/lead.service.ts
+   Entities used: Lead, LeadStatus
+   Imports commented: 1
+     - import { Lead, LeadStatus } from '../entities/lead.entity';
+
+36. modules/crm/services/opportunity.service.ts
+   Entities used: Opportunity, OpportunityStage
+   Imports commented: 1
+     - import { Opportunity, OpportunityStage } from '../entities/opportunity.entity';
+
+37. modules/crm/services/payment-webhook.service.ts
+   Entities used: BrokerInvoice, BrokerPayment
+   Imports commented: 2
+     - import { BrokerInvoice } from '../entities/broker-invoice.entity';
+     - import { BrokerPayment } from '../entities/broker-payment.entity';
+
+38. modules/market-aggregation/processors/order.processor.ts
+   Entities used: Order, Portfolio
+   Imports commented: 2
+     - import { Order } from '../entities/order.entity';
+     - import { Portfolio } from '../entities/portfolio.entity';
+
+39. modules/market-aggregation/services/market-aggregation.service.ts
+   Entities used: Symbol, Price
+   Imports commented: 3
+     - import { Symbol } from '../entities/symbol.entity';
+     - import { Price } from '../entities/price.entity';
+     - import { Portfolio } from '../entities/portfolio.entity';
+
+40. modules/monitoring/services/monitoring.service.ts
+   Entities used: SystemMetric, Alert
+   Imports commented: 2
+     - import { SystemMetric } from '../entities/metric.entity';
+     - import { Alert } from '../entities/alert.entity';
+
+41. modules/support/dto/ticket-filter.dto.ts
+   Entities used: TicketPriority, TicketStatus
+   Imports commented: 1
+     - import { TicketPriority, TicketStatus } from '../entities/ticket.entity';
+
+42. modules/support/services/support.service.ts
+   Entities used: Ticket, TicketStatus
+   Imports commented: 5
+     - import { Ticket, TicketStatus } from '../entities/ticket.entity';
+     - import { TicketMessage } from '../entities/ticket-message.entity';
+     - import { TicketCategory } from '../entities/ticket-category.entity';
+     - import { KnowledgeBaseArticle } from '../entities/knowledge-base-article.entity';
+     - import { TicketSLA } from '../entities/ticket-sla.entity';
+
+43. modules/analytics/schedulers/analytics.scheduler.ts
+   Entities used: DataInterval
+   Imports commented: 1
+     - import { DataInterval } from '../../../database/entities/market-data.entity';
+
+44. modules/assets/services/asset-update.service.ts
+   Entities used: ViralAsset
+   Imports commented: 1
+     - import { ViralAsset, SocialPlatform } from '../entities/viral-asset.entity';
+
+45. modules/betting/exceptions/bet-status-transition.error.ts
+   Entities used: BetStatus
+   Imports commented: 1
+     - import { BetStatus } from '../entities/bet.entity';
+
+46. modules/brokers/dto/create-broker.dto.ts
+   Entities used: BrokerType
+   Imports commented: 1
+     - import { BrokerType } from '../entities/broker.entity';
+
+47. modules/brokers/dto/create-integration.dto.ts
+   Entities used: IntegrationType
+   Imports commented: 1
+     - import { IntegrationType } from '../entities/broker-integration.entity';
+
+48. modules/brokers/dto/payment.dto.ts
+   Entities used: PaymentMethod
+   Imports commented: 1
+     - import { PaymentMethod } from '../entities/broker-bill.entity';
+
+49. modules/brokers/dto/update-broker.dto.ts
+   Entities used: BrokerStatus
+   Imports commented: 1
+     - import { BrokerStatus } from '../entities/broker.entity';
+
+50. modules/brokers/services/oauth.service.ts
+   Entities used: Broker
+   Imports commented: 1
+     - import { Broker } from '../entities/broker.entity';
+
+51. modules/brokers/services/white-label.service.ts
+   Entities used: Broker
+   Imports commented: 1
+     - import { Broker } from '../entities/broker.entity';
+
+52. modules/crm/dto/create-contract.dto.ts
+   Entities used: ContractType
+   Imports commented: 1
+     - import { ContractType } from '../entities/contract.entity';
+
+53. modules/crm/dto/create-lead.dto.ts
+   Entities used: LeadSource
+   Imports commented: 1
+     - import { LeadSource } from '../entities/lead.entity';
+
+54. modules/crm/dto/create-opportunity.dto.ts
+   Entities used: OpportunityStage
+   Imports commented: 1
+     - import { OpportunityStage } from '../entities/opportunity.entity';
+
+55. modules/crm/processors/crm-support.processor.ts
+   Entities used: Ticket
+   Imports commented: 3
+     - import { Ticket } from '../entities/ticket.entity';
+     - import { TicketMessage } from '../entities/ticket-message.entity';
+     - import { TicketAssignment } from '../entities/ticket-assignment.entity';
+
+56. modules/market-aggregation/controllers/order.controller.ts
+   Entities used: Order
+   Imports commented: 1
+     - import { Order } from '../entities/order.entity';
+
+57. modules/market-aggregation/controllers/portfolio.controller.ts
+   Entities used: Portfolio
+   Imports commented: 1
+     - import { Portfolio } from '../entities/portfolio.entity';
+
+58. modules/market-aggregation/processors/market.processor.ts
+   Entities used: Symbol
+   Imports commented: 1
+     - import { Symbol } from '../entities/symbol.entity';
+
+59. modules/market-aggregation/schedulers/market-update.scheduler.ts
+   Entities used: Symbol
+   Imports commented: 1
+     - import { Symbol } from '../entities/symbol.entity';
+
+60. modules/moderation/services/moderation.service.ts
+   Entities used: Trend
+   Imports commented: 1
+     - import { Trend } from '../entities/trend.entity';
+
+61. modules/support/controllers/knowledge-base.controller.ts
+   Entities used: ArticleStatus
+   Imports commented: 1
+     - import { KnowledgeBaseArticle, ArticleStatus } from '../entities/knowledge-base-article.entity';
+
+62. modules/support/dto/article-filter.dto.ts
+   Entities used: ArticleStatus
+   Imports commented: 1
+     - import { ArticleStatus } from '../entities/knowledge-base-article.entity';
+
+63. modules/support/dto/create-article.dto.ts
+   Entities used: ArticleStatus
+   Imports commented: 1
+     - import { ArticleStatus } from '../entities/knowledge-base-article.entity';
+
+64. modules/support/dto/create-ticket.dto.ts
+   Entities used: TicketPriority
+   Imports commented: 1
+     - import { TicketPriority } from '../entities/ticket.entity';
+
+65. modules/support/dto/update-article.dto.ts
+   Entities used: ArticleStatus
+   Imports commented: 1
+     - import { ArticleStatus } from '../entities/knowledge-base-article.entity';
+
+66. modules/support/dto/update-ticket-status.dto.ts
+   Entities used: TicketStatus
+   Imports commented: 1
+     - import { TicketStatus } from '../entities/ticket.entity';
+
+67. modules/support/dto/update-ticket.dto.ts
+   Entities used: TicketPriority
+   Imports commented: 1
+     - import { TicketPriority } from '../entities/ticket.entity';
+
+68. modules/wallet/dto/transaction-response.dto.ts
+   Entities used: Transaction
+   Imports commented: 1
+     - import { Transaction } from '../entities/transaction.entity';
+
+69. modules/wallet/dto/wallet-response.dto.ts
+   Entities used: Wallet
+   Imports commented: 1
+     - import { Wallet } from '../entities/wallet.entity';
+
+70. modules/wallet/services/withdrawal.service.ts
+   Entities used: Transaction
+   Imports commented: 1
+     - import { Transaction } from '../entities/transaction.entity';
+
+================================================================================
+ALL FILES WITH COMMENTED IMPORTS
+================================================================================
+
+  - modules/analytics/schedulers/analytics.scheduler.ts
+  - modules/assets/services/asset-classification.service.ts
+  - modules/assets/services/asset-update.service.ts
+  - modules/betting/exceptions/bet-status-transition.error.ts
+  - modules/brokers/controllers/billing.controller.ts
+  - modules/brokers/dto/broker-response.dto.ts
+  - modules/brokers/dto/client-attribution.dto.ts
+  - modules/brokers/dto/create-broker.dto.ts
+  - modules/brokers/dto/create-integration.dto.ts
+  - modules/brokers/dto/payment.dto.ts
+  - modules/brokers/dto/update-broker.dto.ts
+  - modules/brokers/guards/broker-roles.guard.ts
+  - modules/brokers/middleware/broker-rate-limit.middleware.ts
+  - modules/brokers/processors/broker-billing.processor.ts
+  - modules/brokers/processors/broker-compliance.processor.ts
+  - modules/brokers/processors/broker-verification.processor.ts
+  - modules/brokers/schedulers/analytics.scheduler.ts
+  - modules/brokers/services/analytics.service.ts
+  - modules/brokers/services/billing.service.ts
+  - modules/brokers/services/brokers.service.ts
+  - modules/brokers/services/client-attribution.service.ts
+  - modules/brokers/services/client-dashboard.service.ts
+  - modules/brokers/services/compliance.service.ts
+  - modules/brokers/services/fsca.service.ts
+  - modules/brokers/services/integration.service.ts
+  - modules/brokers/services/oauth.service.ts
+  - modules/brokers/services/revenue-sharing.service.ts
+  - modules/brokers/services/white-label.service.ts
+  - modules/crm/dto/create-contract.dto.ts
+  - modules/crm/dto/create-lead.dto.ts
+  - modules/crm/dto/create-opportunity.dto.ts
+  - modules/crm/processors/crm-billing.processor.ts
+  - modules/crm/processors/crm-docs.processor.ts
+  - modules/crm/processors/crm-onboarding.processor.ts
+  - modules/crm/processors/crm-payments.processor.ts
+  - modules/crm/processors/crm-support.processor.ts
+  - modules/crm/processors/crm-ticket-sla.processor.ts
+  - modules/crm/services/activity.service.ts
+  - modules/crm/services/clients.service.ts
+  - modules/crm/services/contract.service.ts
+  - modules/crm/services/crm.service.ts
+  - modules/crm/services/lead.service.ts
+  - modules/crm/services/opportunity.service.ts
+  - modules/crm/services/payment-webhook.service.ts
+  - modules/crm/services/pipeline.service.ts
+  - modules/crm/services/support.service.ts
+  - modules/market-aggregation/controllers/order.controller.ts
+  - modules/market-aggregation/controllers/portfolio.controller.ts
+  - modules/market-aggregation/processors/market.processor.ts
+  - modules/market-aggregation/processors/order.processor.ts
+  - modules/market-aggregation/schedulers/market-update.scheduler.ts
+  - modules/market-aggregation/services/market-aggregation.service.ts
+  - modules/market-aggregation/services/market-data.service.ts
+  - modules/market-aggregation/services/pricing-engine.service.ts
+  - modules/moderation/services/moderation.service.ts
+  - modules/monitoring/services/monitoring.service.ts
+  - modules/notifications/services/notification.service.ts
+  - modules/sponsorship/services/broker-sponsorship.service.ts
+  - modules/support/controllers/knowledge-base.controller.ts
+  - modules/support/controllers/ticket.controller.ts
+  - modules/support/dto/article-filter.dto.ts
+  - modules/support/dto/create-article.dto.ts
+  - modules/support/dto/create-ticket.dto.ts
+  - modules/support/dto/ticket-filter.dto.ts
+  - modules/support/dto/update-article.dto.ts
+  - modules/support/dto/update-ticket-status.dto.ts
+  - modules/support/dto/update-ticket.dto.ts
+  - modules/support/processors/support.processor.ts
+  - modules/support/services/support.service.ts
+  - modules/support/services/ticket.service.ts
+  - modules/wallet/dto/transaction-response.dto.ts
+  - modules/wallet/dto/wallet-response.dto.ts
+  - modules/wallet/services/withdrawal.service.ts

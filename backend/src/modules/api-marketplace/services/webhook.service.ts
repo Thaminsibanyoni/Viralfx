@@ -1,11 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { HttpService } from '@nestjs/axios';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { CreateWebhookDto, UpdateWebhookDto, TestWebhookDto } from '../dto/create-webhook.dto';
 import { ApiWebhook, WebhookDelivery } from '../interfaces/api-marketplace.interface';
-import { RedisService } from '../../redis/redis.service';
+import { RedisService } from "../../redis/redis.service";
 import { randomBytes } from 'crypto';
 import * as crypto from 'crypto';
 import { WebhookDeliveryStatus } from '@prisma/client';
@@ -21,8 +21,7 @@ export class WebhookService {
     private prisma: PrismaService,
     private httpService: HttpService,
     private redis: RedisService,
-    @InjectQueue('api-webhooks') private webhooksQueue: Queue,
-  ) {}
+    @InjectQueue('api-webhooks') private webhooksQueue: Queue) {}
 
   async createWebhook(userId: string, dto: CreateWebhookDto): Promise<ApiWebhook> {
     // Validate events
@@ -50,8 +49,8 @@ export class WebhookService {
         url: dto.url,
         events: dto.events,
         secret,
-        isActive: dto.isActive ?? true,
-      },
+        isActive: dto.isActive ?? true
+      }
     });
 
     return webhook;
@@ -59,7 +58,7 @@ export class WebhookService {
 
   async updateWebhook(id: string, userId: string, dto: UpdateWebhookDto): Promise<ApiWebhook> {
     const webhook = await this.prisma.apiWebhook.findFirst({
-      where: { id, userId },
+      where: { id, userId }
     });
 
     if (!webhook) {
@@ -87,7 +86,7 @@ export class WebhookService {
 
     const updated = await this.prisma.apiWebhook.update({
       where: { id },
-      data: dto,
+      data: dto
     });
 
     return updated;
@@ -95,7 +94,7 @@ export class WebhookService {
 
   async deleteWebhook(id: string, userId: string): Promise<void> {
     const webhook = await this.prisma.apiWebhook.findFirst({
-      where: { id, userId },
+      where: { id, userId }
     });
 
     if (!webhook) {
@@ -103,14 +102,14 @@ export class WebhookService {
     }
 
     await this.prisma.apiWebhook.delete({
-      where: { id },
+      where: { id }
     });
   }
 
   async listWebhooks(userId: string): Promise<ApiWebhook[]> {
     const webhooks = await this.prisma.apiWebhook.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' }
     });
 
     return webhooks;
@@ -119,14 +118,13 @@ export class WebhookService {
   async triggerWebhook(
     event: string,
     payload: any,
-    specificUserId?: string,
-  ): Promise<void> {
+    specificUserId?: string): Promise<void> {
     // Find all webhooks that should receive this event
     const where: any = {
       isActive: true,
       events: {
-        has: event,
-      },
+        has: event
+      }
     };
 
     if (specificUserId) {
@@ -143,26 +141,24 @@ export class WebhookService {
           webhookId: webhook.id,
           event,
           payload,
-          attemptCount: 0,
+          attemptCount: 0
         },
         {
           attempts: this.MAX_RETRIES,
           backoff: {
             type: 'exponential',
-            delay: this.RETRY_DELAY_BASE,
+            delay: this.RETRY_DELAY_BASE
           },
           removeOnComplete: 100,
-          removeOnFail: 50,
-        },
-      );
+          removeOnFail: 50
+        });
     }
   }
 
   async verifyWebhookSignature(
     payload: string,
     signature: string,
-    secret: string,
-  ): boolean {
+    secret: string): boolean {
     const expectedSignature = crypto
       .createHmac('sha256', secret)
       .update(payload)
@@ -170,8 +166,7 @@ export class WebhookService {
 
     return crypto.timingSafeEqual(
       Buffer.from(signature, 'hex'),
-      Buffer.from(expectedSignature, 'hex'),
-    );
+      Buffer.from(expectedSignature, 'hex'));
   }
 
   async testWebhook(id: string, userId: string, dto?: TestWebhookDto): Promise<{
@@ -180,7 +175,7 @@ export class WebhookService {
     error?: string;
   }> {
     const webhook = await this.prisma.apiWebhook.findFirst({
-      where: { id, userId },
+      where: { id, userId }
     });
 
     if (!webhook) {
@@ -191,7 +186,7 @@ export class WebhookService {
     const testPayload = dto?.data || {
       event: testEvent,
       timestamp: new Date().toISOString(),
-      message: 'Test webhook from ViralFX API Marketplace',
+      message: 'Test webhook from ViralFX API Marketplace'
     };
 
     try {
@@ -205,23 +200,22 @@ export class WebhookService {
             'Content-Type': 'application/json',
             'X-Webhook-Signature': signature,
             'X-Webhook-Event': testEvent,
-            'User-Agent': 'ViralFX-Webhooks/1.0',
+            'User-Agent': 'ViralFX-Webhooks/1.0'
           },
-          timeout: this.TIMEOUT,
-        },
-      );
+          timeout: this.TIMEOUT
+        });
 
       return {
         success: true,
         response: {
           status: response.status,
-          data: response.data,
-        },
+          data: response.data
+        }
       };
     } catch (error: any) {
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -236,10 +230,9 @@ export class WebhookService {
       endDate?: Date;
       page?: number;
       limit?: number;
-    } = {},
-  ) {
+    } = {}) {
     const webhook = await this.prisma.apiWebhook.findFirst({
-      where: { id, userId },
+      where: { id, userId }
     });
 
     if (!webhook) {
@@ -252,7 +245,7 @@ export class WebhookService {
 
     // Build where clause for filters
     const whereClause: any = {
-      webhookId: id,
+      webhookId: id
     };
 
     if (filters.event) {
@@ -275,17 +268,17 @@ export class WebhookService {
 
     // Get total count for pagination
     const total = await this.prisma.webhookDeliveryLog.count({
-      where: whereClause,
+      where: whereClause
     });
 
     // Get logs with pagination
     const logs = await this.prisma.webhookDeliveryLog.findMany({
       where: whereClause,
       orderBy: {
-        createdAt: 'desc',
+        createdAt: 'desc'
       },
       skip,
-      take: limit,
+      take: limit
     });
 
     return {
@@ -306,14 +299,14 @@ export class WebhookService {
         completedAt: log.completedAt,
         processingTime: log.processingTime,
         createdAt: log.createdAt,
-        updatedAt: log.updatedAt,
+        updatedAt: log.updatedAt
       })),
       pagination: {
         page,
         limit,
         total,
-        pages: Math.ceil(total / limit),
-      },
+        pages: Math.ceil(total / limit)
+      }
     };
   }
 
@@ -330,11 +323,10 @@ export class WebhookService {
         payload,
         WebhookDeliveryStatus.PROCESSING,
         { startTime },
-        attemptCount + 1,
-      );
+        attemptCount + 1);
 
       const webhook = await this.prisma.apiWebhook.findUnique({
-        where: { id: webhookId },
+        where: { id: webhookId }
       });
 
       if (!webhook || !webhook.isActive) {
@@ -344,7 +336,7 @@ export class WebhookService {
             status: WebhookDeliveryStatus.CANCELLED,
             errorMessage: 'Webhook not found or inactive',
             errorType: 'WEBHOOK_INACTIVE',
-            completedAt: new Date(),
+            completedAt: new Date()
           });
         }
         return; // Skip inactive/deleted webhooks
@@ -352,7 +344,7 @@ export class WebhookService {
 
       // Update log with request details
       await this.updateWebhookLog(logId, {
-        requestUrl: webhook.url,
+        requestUrl: webhook.url
       });
 
       const signature = this.generateSignature(JSON.stringify(payload), webhook.secret);
@@ -361,7 +353,7 @@ export class WebhookService {
         webhookId,
         event,
         timestamp: new Date().toISOString(),
-        attemptCount: attemptCount + 1,
+        attemptCount: attemptCount + 1
       };
 
       const response = await this.httpService.axiosRef.post(
@@ -372,11 +364,10 @@ export class WebhookService {
             'Content-Type': 'application/json',
             'X-Webhook-Signature': signature,
             'X-Webhook-Event': event,
-            'User-Agent': 'ViralFX-Webhooks/1.0',
+            'User-Agent': 'ViralFX-Webhooks/1.0'
           },
-          timeout: this.TIMEOUT,
-        },
-      );
+          timeout: this.TIMEOUT
+        });
 
       const responseTime = Date.now() - startTime;
 
@@ -390,7 +381,7 @@ export class WebhookService {
         signature,
         deliveredAt: new Date(),
         completedAt: new Date(),
-        processingTime: responseTime,
+        processingTime: responseTime
       });
 
       this.logger.log(`Webhook delivered successfully: ${webhookId}, attempt: ${attemptCount + 1}, response time: ${responseTime}ms`);
@@ -427,7 +418,7 @@ export class WebhookService {
           retryCount: attemptCount,
           maxRetries: this.MAX_RETRIES,
           nextRetryAt: attemptCount < this.MAX_RETRIES ? new Date(Date.now() + this.RETRY_DELAY_BASE * Math.pow(2, attemptCount)) : null,
-          processingTime: responseTime,
+          processingTime: responseTime
         });
       }
 
@@ -441,7 +432,7 @@ export class WebhookService {
       if (failureCount >= 10) {
         await this.prisma.apiWebhook.update({
           where: { id: webhookId },
-          data: { isActive: false },
+          data: { isActive: false }
         });
 
         this.logger.warn(`Webhook disabled due to too many failures: ${webhookId}`);
@@ -475,8 +466,7 @@ export class WebhookService {
     responseHeaders?: any,
     errorCode?: string,
     errorMessage?: string,
-    errorType?: string,
-  ): Promise<string> {
+    errorType?: string): Promise<string> {
     try {
       const logEntry = await this.prisma.webhookDeliveryLog.create({
         data: {
@@ -497,12 +487,12 @@ export class WebhookService {
           signature: details.signature || null,
           metadata: {
             payload,
-            ...details,
+            ...details
           },
           deliveredAt: status === WebhookDeliveryStatus.SUCCESS ? new Date() : null,
           completedAt: [WebhookDeliveryStatus.SUCCESS, WebhookDeliveryStatus.PERMANENTLY_FAILED, WebhookDeliveryStatus.CANCELLED].includes(status) ? new Date() : null,
-          processingTime: responseTime || null,
-        },
+          processingTime: responseTime || null
+        }
       });
 
       this.logger.log(`Webhook delivery log created: ${logEntry.id} for webhook ${webhookId}, status: ${status}`);
@@ -517,7 +507,7 @@ export class WebhookService {
     try {
       await this.prisma.webhookDeliveryLog.update({
         where: { id: logId },
-        data: updateData,
+        data: updateData
       });
     } catch (error) {
       this.logger.error(`Failed to update webhook delivery log ${logId}:`, error);
@@ -544,13 +534,13 @@ export class WebhookService {
 
   async getWebhook(id: string, userId: string): Promise<ApiWebhook | null> {
     return this.prisma.apiWebhook.findFirst({
-      where: { id, userId },
+      where: { id, userId }
     });
   }
 
   async toggleWebhook(id: string, userId: string, isActive: boolean): Promise<ApiWebhook> {
     const webhook = await this.prisma.apiWebhook.findFirst({
-      where: { id, userId },
+      where: { id, userId }
     });
 
     if (!webhook) {
@@ -559,17 +549,16 @@ export class WebhookService {
 
     return this.prisma.apiWebhook.update({
       where: { id },
-      data: { isActive },
+      data: { isActive }
     });
   }
 
   async getWebhookStats(
     id: string,
     userId: string,
-    dateRange?: { start: Date; end: Date },
-  ): Promise<any> {
+    dateRange?: { start: Date; end: Date }): Promise<any> {
     const webhook = await this.prisma.apiWebhook.findFirst({
-      where: { id, userId },
+      where: { id, userId }
     });
 
     if (!webhook) {
@@ -578,13 +567,13 @@ export class WebhookService {
 
     // Build where clause for date range filtering
     const whereClause: any = {
-      webhookId: id,
+      webhookId: id
     };
 
     if (dateRange) {
       whereClause.createdAt = {
         gte: dateRange.start,
-        lte: dateRange.end,
+        lte: dateRange.end
       };
     }
 
@@ -605,7 +594,7 @@ export class WebhookService {
       this.prisma.webhookDeliveryLog.findFirst({
         where: whereClause,
         orderBy: { createdAt: 'desc' },
-        select: { createdAt: true },
+        select: { createdAt: true }
       }),
     ]);
 
@@ -616,7 +605,7 @@ export class WebhookService {
       successfulDeliveries,
       failedDeliveries,
       successRate: Math.round(successRate * 100) / 100,
-      lastDelivery: lastDelivery?.createdAt || null,
+      lastDelivery: lastDelivery?.createdAt || null
     };
   }
 
@@ -626,50 +615,50 @@ export class WebhookService {
         id: 'usage.threshold',
         name: 'Usage Threshold',
         description: 'Triggered when API usage reaches a threshold',
-        category: 'usage',
+        category: 'usage'
       },
       {
         id: 'invoice.paid',
         name: 'Invoice Paid',
         description: 'Triggered when an invoice is paid',
-        category: 'billing',
+        category: 'billing'
       },
       {
         id: 'invoice.failed',
         name: 'Invoice Payment Failed',
         description: 'Triggered when invoice payment fails',
-        category: 'billing',
+        category: 'billing'
       },
       {
         id: 'key.created',
         name: 'API Key Created',
         description: 'Triggered when a new API key is created',
-        category: 'keys',
+        category: 'keys'
       },
       {
         id: 'key.revoked',
         name: 'API Key Revoked',
         description: 'Triggered when an API key is revoked',
-        category: 'keys',
+        category: 'keys'
       },
       {
         id: 'quota.exceeded',
         name: 'Quota Exceeded',
         description: 'Triggered when API quota is exceeded',
-        category: 'usage',
+        category: 'usage'
       },
       {
         id: 'quota.reset',
         name: 'Quota Reset',
         description: 'Triggered when API quota is reset',
-        category: 'usage',
+        category: 'usage'
       },
     ];
   }
 
   async rotateWebhookSecret(id: string, userId: string): Promise<string> {
     const webhook = await this.prisma.apiWebhook.findFirst({
-      where: { id, userId },
+      where: { id, userId }
     });
 
     if (!webhook) {
@@ -680,7 +669,7 @@ export class WebhookService {
 
     await this.prisma.apiWebhook.update({
       where: { id },
-      data: { secret: newSecret },
+      data: { secret: newSecret }
     });
 
     return newSecret;
@@ -689,20 +678,20 @@ export class WebhookService {
   async getDeliveryOverview(userId: string, dateRange?: { start: Date; end: Date }): Promise<any> {
     const webhooks = await this.prisma.apiWebhook.findMany({
       where: { userId },
-      select: { id: true, isActive: true },
+      select: { id: true, isActive: true }
     });
 
     const webhookIds = webhooks.map(w => w.id);
 
     // Build where clause for filtering
     const whereClause: any = {
-      webhookId: { in: webhookIds },
+      webhookId: { in: webhookIds }
     };
 
     if (dateRange) {
       whereClause.createdAt = {
         gte: dateRange.start,
-        lte: dateRange.end,
+        lte: dateRange.end
       };
     }
 
@@ -729,7 +718,7 @@ export class WebhookService {
       failedDeliveries,
       successRate: Math.round(successRate * 100) / 100,
       totalWebhooks: webhooks.length,
-      activeWebhooks: webhooks.filter(w => w.isActive).length,
+      activeWebhooks: webhooks.filter(w => w.isActive).length
     };
   }
 }

@@ -6,5 +6,5 @@ export default registerAs('s3', () => ({
   secretAccessKey: process.env.AWS_S3_SECRET_KEY || process.env.AWS_SECRET_ACCESS_KEY,
   bucket: process.env.AWS_S3_BUCKET || process.env.S3_BUCKET,
   region: process.env.AWS_S3_REGION || process.env.S3_REGION || 'us-east-1',
-  forcePathStyle: process.env.AWS_S3_FORCE_PATH_STYLE === undefined ? true : process.env.AWS_S3_FORCE_PATH_STYLE === 'true',
+  forcePathStyle: process.env.AWS_S3_FORCE_PATH_STYLE === undefined ? true : process.env.AWS_S3_FORCE_PATH_STYLE === 'true'
 }));

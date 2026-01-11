@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
-import { ValidatorNodeModule } from './modules/validators/validator-node.module';
+import { ValidatorNodeModule } from "./modules/validators/validator-node.module";
 import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
@@ -13,14 +13,13 @@ async function bootstrap() {
     new ValidationPipe({
       transform: true,
       whitelist: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
+      forbidNonWhitelisted: true
+    }));
 
   // Enable CORS
   app.enableCors({
     origin: true,
-    credentials: true,
+    credentials: true
   });
 
   const port = configService.get<number>('VALIDATOR_PORT', 3000);

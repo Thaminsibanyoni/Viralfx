@@ -6,7 +6,7 @@ export class UpdateProfileDto {
   @ApiPropertyOptional({
     description: 'First name of the user',
     example: 'John',
-    maxLength: 50,
+    maxLength: 50
   })
   @IsOptional()
   @IsString()
@@ -17,7 +17,7 @@ export class UpdateProfileDto {
   @ApiPropertyOptional({
     description: 'Last name of the user',
     example: 'Doe',
-    maxLength: 50,
+    maxLength: 50
   })
   @IsOptional()
   @IsString()
@@ -27,7 +27,7 @@ export class UpdateProfileDto {
 
   @ApiPropertyOptional({
     description: 'Email address of the user',
-    example: 'john.doe@example.com',
+    example: 'john.doe@example.com'
   })
   @IsOptional()
   @IsEmail()
@@ -38,7 +38,7 @@ export class UpdateProfileDto {
     description: 'Username of the user',
     example: 'johndoe',
     minLength: 3,
-    maxLength: 30,
+    maxLength: 30
   })
   @IsOptional()
   @IsString()
@@ -49,7 +49,7 @@ export class UpdateProfileDto {
   @ApiPropertyOptional({
     description: 'Phone number in international format',
     example: '+27123456789',
-    maxLength: 20,
+    maxLength: 20
   })
   @IsOptional()
   @IsString()
@@ -59,7 +59,7 @@ export class UpdateProfileDto {
 
   @ApiPropertyOptional({
     description: 'Date of birth of the user',
-    example: '1990-01-01',
+    example: '1990-01-01'
   })
   @IsOptional()
   @IsDateString()
@@ -69,7 +69,7 @@ export class UpdateProfileDto {
     description: 'Country code of the user',
     example: 'ZA',
     minLength: 2,
-    maxLength: 2,
+    maxLength: 2
   })
   @IsOptional()
   @IsString()
@@ -80,7 +80,7 @@ export class UpdateProfileDto {
   @ApiPropertyOptional({
     description: 'Bio or description of the user',
     example: 'Passionate trader and tech enthusiast',
-    maxLength: 500,
+    maxLength: 500
   })
   @IsOptional()
   @IsString()
@@ -90,7 +90,7 @@ export class UpdateProfileDto {
 
   @ApiPropertyOptional({
     description: 'Avatar URL of the user',
-    example: 'https://example.com/avatar.jpg',
+    example: 'https://example.com/avatar.jpg'
   })
   @IsOptional()
   @IsUrl()
@@ -99,7 +99,7 @@ export class UpdateProfileDto {
   @ApiPropertyOptional({
     description: 'Time zone of the user',
     example: 'Africa/Johannesburg',
-    maxLength: 50,
+    maxLength: 50
   })
   @IsOptional()
   @IsString()
@@ -111,7 +111,7 @@ export class UpdateProfileDto {
     description: 'Language preference of the user',
     example: 'en',
     minLength: 2,
-    maxLength: 5,
+    maxLength: 5
   })
   @IsOptional()
   @IsString()
@@ -125,13 +125,13 @@ export class UpdateProfileDto {
       notifications: {
         email: true,
         push: false,
-        sms: false,
+        sms: false
       },
       marketing: {
         newsletter: true,
-        promotions: false,
-      },
-    },
+        promotions: false
+      }
+    }
   })
   @IsOptional()
   preferences?: Record<string, any>;

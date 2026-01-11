@@ -17,7 +17,7 @@ export class StorageService {
       secretAccessKey: this.configService.get<string>('AWS_SECRET_ACCESS_KEY'),
       region: this.configService.get<string>('S3_REGION') || 'us-east-1',
       endpoint: this.configService.get<string>('S3_ENDPOINT'), // For MinIO
-      s3ForcePathStyle: !!this.configService.get<string>('S3_ENDPOINT'), // Required for MinIO
+      s3ForcePathStyle: !!this.configService.get<string>('S3_ENDPOINT') // Required for MinIO
     });
   }
 
@@ -27,15 +27,14 @@ export class StorageService {
     options: {
       contentType?: string;
       metadata?: Record<string, string>;
-    } = {},
-  ): Promise<string> {
+    } = {}): Promise<string> {
     try {
       const params: S3.PutObjectRequest = {
         Bucket: this.bucketName,
         Key: path,
         Body: buffer,
         ContentType: options.contentType || 'application/octet-stream',
-        Metadata: options.metadata || {},
+        Metadata: options.metadata || {}
       };
 
       const result = await this.s3.upload(params).promise();
@@ -53,7 +52,7 @@ export class StorageService {
     try {
       const params: S3.GetObjectRequest = {
         Bucket: this.bucketName,
-        Key: path,
+        Key: path
       };
 
       const result = await this.s3.getObject(params).promise();
@@ -71,7 +70,7 @@ export class StorageService {
     try {
       const params: S3.DeleteObjectRequest = {
         Bucket: this.bucketName,
-        Key: path,
+        Key: path
       };
 
       await this.s3.deleteObject(params).promise();
@@ -89,7 +88,7 @@ export class StorageService {
       const params: S3.GetSignedUrlRequest = {
         Bucket: this.bucketName,
         Key: path,
-        Expires: expiresIn,
+        Expires: expiresIn
       };
 
       const url = await this.s3.getSignedUrlPromise('getObject', params);
@@ -107,7 +106,7 @@ export class StorageService {
     try {
       const params: S3.ListObjectsV2Request = {
         Bucket: this.bucketName,
-        Prefix: prefix,
+        Prefix: prefix
       };
 
       const result = await this.s3.listObjectsV2(params).promise();
@@ -115,7 +114,7 @@ export class StorageService {
       const files = (result.Contents || []).map(obj => ({
         key: obj.Key!,
         lastModified: obj.LastModified!,
-        size: obj.Size!,
+        size: obj.Size!
       }));
 
       this.logger.log(`Listed ${files.length} files with prefix: ${prefix}`);
@@ -131,7 +130,7 @@ export class StorageService {
     try {
       const params: S3.HeadObjectRequest = {
         Bucket: this.bucketName,
-        Key: path,
+        Key: path
       };
 
       await this.s3.headObject(params).promise();
@@ -150,7 +149,7 @@ export class StorageService {
     try {
       const params: S3.HeadObjectRequest = {
         Bucket: this.bucketName,
-        Key: path,
+        Key: path
       };
 
       const result = await this.s3.headObject(params).promise();
@@ -160,7 +159,7 @@ export class StorageService {
         contentLength: result.ContentLength!.toString(),
         lastModified: result.LastModified!.toISOString(),
         etag: result.ETag!,
-        ...result.Metadata,
+        ...result.Metadata
       };
 
     } catch (error) {

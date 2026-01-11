@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 
 interface MergeCandidate {
@@ -34,17 +34,16 @@ export class TopicMergingService {
     private readonly prisma: PrismaService,
     @InjectQueue('topic-processing')
     private readonly topicQueue: Queue,
-    private readonly redis: Redis,
-  ) {}
+    private readonly redis: Redis) {}
 
   async detectDuplicates(limit: number = 100): Promise<MergeProposal[]> {
     const topics = await this.prisma.topic.findMany({
       where: {
         isActive: true,
-        deletedAt: null,
+        deletedAt: null
       },
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' }
     });
 
     const proposals: MergeProposal[] = [];
@@ -67,11 +66,11 @@ export class TopicMergingService {
           primaryTopic: {
             id: primaryTopic.id,
             name: primaryTopic.name,
-            slug: primaryTopic.slug,
+            slug: primaryTopic.slug
           },
           duplicateTopics: duplicates.filter(d => d.id !== primaryTopic.id),
           confidence: this.calculateMergeConfidence(duplicates),
-          reason: this.generateMergeReason(duplicates),
+          reason: this.generateMergeReason(duplicates)
         };
 
         proposals.push(proposal);
@@ -89,10 +88,10 @@ export class TopicMergingService {
           select: {
             ingestEvents: true,
             markets: true,
-            viralSnapshots: true,
-          },
-        },
-      },
+            viralSnapshots: true
+          }
+        }
+      }
     });
 
     if (!primaryTopic) {
@@ -103,17 +102,17 @@ export class TopicMergingService {
       where: {
         id: { in: duplicateTopicIds },
         isActive: true,
-        deletedAt: null,
+        deletedAt: null
       },
       include: {
         _count: {
           select: {
             ingestEvents: true,
             markets: true,
-            viralSnapshots: true,
-          },
-        },
-      },
+            viralSnapshots: true
+          }
+        }
+      }
     });
 
     if (duplicateTopics.length !== duplicateTopicIds.length) {
@@ -132,7 +131,7 @@ export class TopicMergingService {
           slug: duplicate.slug,
           category: duplicate.category,
           similarityScore: similarity,
-          reason: this.getSimilarityReason(primaryTopic, duplicate, similarity),
+          reason: this.getSimilarityReason(primaryTopic, duplicate, similarity)
         });
       }
     }
@@ -141,11 +140,11 @@ export class TopicMergingService {
       primaryTopic: {
         id: primaryTopic.id,
         name: primaryTopic.name,
-        slug: primaryTopic.slug,
+        slug: primaryTopic.slug
       },
       duplicateTopics: candidates,
       confidence: this.calculateMergeConfidence(candidates),
-      reason: this.generateMergeReason(candidates),
+      reason: this.generateMergeReason(candidates)
     };
   }
 
@@ -164,8 +163,8 @@ export class TopicMergingService {
         confidence: proposal.confidence,
         reason: proposal.reason,
         executedBy: executorId,
-        status: 'IN_PROGRESS',
-      },
+        status: 'IN_PROGRESS'
+      }
     });
 
     // Queue merge operation
@@ -173,7 +172,7 @@ export class TopicMergingService {
       mergeId: mergeRecord.id,
       primaryTopicId: primaryTopic.id,
       duplicateTopicIds: duplicateTopics.map(t => t.id),
-      executorId,
+      executorId
     });
 
     this.logger.log(`Queued merge operation: ${primaryTopic.id} <- [${duplicateTopics.map(t => t.id).join(', ')}]`);
@@ -181,13 +180,13 @@ export class TopicMergingService {
     return {
       mergeId: mergeRecord.id,
       status: 'QUEUED',
-      message: 'Merge operation has been queued for processing',
+      message: 'Merge operation has been queued for processing'
     };
   }
 
   async rollbackMerge(mergeId: string, reason?: string): Promise<any> {
     const mergeRecord = await this.prisma.topicMerge.findUnique({
-      where: { id: mergeId },
+      where: { id: mergeId }
     });
 
     if (!mergeRecord) {
@@ -203,7 +202,7 @@ export class TopicMergingService {
       mergeId,
       reason,
       primaryTopicId: mergeRecord.primaryTopicId,
-      duplicateTopicIds: mergeRecord.duplicateTopicIds,
+      duplicateTopicIds: mergeRecord.duplicateTopicIds
     });
 
     // Update merge record status
@@ -212,8 +211,8 @@ export class TopicMergingService {
       data: {
         status: 'ROLLING_BACK',
         rollbackReason: reason,
-        rolledBackAt: new Date(),
-      },
+        rolledBackAt: new Date()
+      }
     });
 
     this.logger.log(`Queued rollback operation for merge: ${mergeId}`);
@@ -221,7 +220,7 @@ export class TopicMergingService {
     return {
       mergeId,
       status: 'QUEUED_FOR_ROLLBACK',
-      message: 'Rollback operation has been queued for processing',
+      message: 'Rollback operation has been queued for processing'
     };
   }
 
@@ -231,10 +230,10 @@ export class TopicMergingService {
         OR: [
           { primaryTopicId: topicId },
           { duplicateTopicIds: { has: topicId } },
-        ],
+        ]
       },
       orderBy: { createdAt: 'desc' },
-      take: 10,
+      take: 10
     });
 
     return mergeHistory.map(merge => ({
@@ -247,7 +246,7 @@ export class TopicMergingService {
       createdAt: merge.createdAt,
       completedAt: merge.completedAt,
       rolledBackAt: merge.rolledBackAt,
-      rollbackReason: merge.rollbackReason,
+      rollbackReason: merge.rollbackReason
     }));
   }
 
@@ -264,7 +263,7 @@ export class TopicMergingService {
           slug: otherTopic.slug,
           category: otherTopic.category,
           similarityScore: similarity,
-          reason: this.getSimilarityReason(topic, otherTopic, similarity),
+          reason: this.getSimilarityReason(topic, otherTopic, similarity)
         });
       }
     }
@@ -331,8 +330,7 @@ export class TopicMergingService {
           matrix[i][j] = Math.min(
             matrix[i - 1][j - 1] + 1,
             matrix[i][j - 1] + 1,
-            matrix[i - 1][j] + 1,
-          );
+            matrix[i - 1][j] + 1);
         }
       }
     }

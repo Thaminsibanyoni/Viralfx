@@ -1,9 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { PipelineStage } from '../entities/pipeline-stage.entity';
-import { BrokerDeal } from '../entities/broker-deal.entity';
-import { DealActivity } from '../entities/deal-activity.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { PipelineStage } from '../entities/pipeline-stage.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerDeal } from '../entities/broker-deal.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { DealActivity } from '../entities/deal-activity.entity';
 import { CreateDealDto } from '../dto/create-deal.dto';
 import { UpdateDealDto } from '../dto/update-deal.dto';
 import { CreateDealActivityDto } from '../dto/create-deal-activity.dto';
@@ -12,13 +10,7 @@ import { CreatePipelineStageDto } from '../dto/create-pipeline-stage.dto';
 @Injectable()
 export class PipelineService {
   constructor(
-    @InjectRepository(PipelineStage)
-    private pipelineStageRepository: Repository<PipelineStage>,
-    @InjectRepository(BrokerDeal)
-    private brokerDealRepository: Repository<BrokerDeal>,
-    @InjectRepository(DealActivity)
-    private dealActivityRepository: Repository<DealActivity>,
-  ) {}
+        ) {}
 
   async initializePipeline(): Promise<PipelineStage[]> {
     const defaultStages = [
@@ -35,13 +27,13 @@ export class PipelineService {
     const stages: PipelineStage[] = [];
 
     for (const stageData of defaultStages) {
-      const existingStage = await this.pipelineStageRepository.findOne({
-        where: { name: stageData.name },
+      const existingStage = await this.prisma.pipelineStage.findFirst({
+        where: { name: stageData.name }
       });
 
       if (!existingStage) {
-        const stage = this.pipelineStageRepository.create(stageData);
-        stages.push(await this.pipelineStageRepository.save(stage));
+        const stage = this.prisma.pipelineStage.create(stageData);
+        stages.push(await this.prisma.pipelineStage.upsert(stage));
       } else {
         stages.push(existingStage);
       }
@@ -51,40 +43,40 @@ export class PipelineService {
   }
 
   async getPipelineStages(): Promise<PipelineStage[]> {
-    return await this.pipelineStageRepository.find({
+    return await this.prisma.pipelineStage.findMany({
       where: { isActive: true },
       order: { stageOrder: 'ASC' },
-      relations: ['deals'],
+      relations: ['deals']
     });
   }
 
   async createPipelineStage(createDto: CreatePipelineStageDto): Promise<PipelineStage> {
-    const stage = this.pipelineStageRepository.create(createDto);
-    return await this.pipelineStageRepository.save(stage);
+    const stage = this.prisma.pipelineStage.create(createDto);
+    return await this.prisma.pipelineStage.upsert(stage);
   }
 
   async createDeal(createDto: CreateDealDto): Promise<BrokerDeal> {
     // Get the first stage as default
-    const defaultStage = await this.pipelineStageRepository.findOne({
-      where: { stageOrder: 1 },
+    const defaultStage = await this.prisma.pipelineStage.findFirst({
+      where: { stageOrder: 1 }
     });
 
     if (!defaultStage) {
       throw new BadRequestException('Pipeline stages not initialized');
     }
 
-    const deal = this.brokerDealRepository.create({
+    const deal = this.prisma.brokerDeal.create({
       ...createDto,
       stageId: defaultStage.id,
       probability: defaultStage.defaultProbability,
-      weightedValue: (createDto.value * defaultStage.defaultProbability) / 100,
+      weightedValue: (createDto.value * defaultStage.defaultProbability) / 100
     });
 
-    return await this.brokerDealRepository.save(deal);
+    return await this.prisma.brokerDeal.upsert(deal);
   }
 
   async getDeal(dealId: string): Promise<BrokerDeal> {
-    const deal = await this.brokerDealRepository.findOne({
+    const deal = await this.prisma.brokerDeal.findFirst({
       where: { id: dealId },
       relations: [
         'broker',
@@ -92,7 +84,7 @@ export class PipelineService {
         'assignedTo',
         'activities',
         'activities.author',
-      ],
+      ]
     });
 
     if (!deal) {
@@ -116,7 +108,7 @@ export class PipelineService {
       assignedToId,
       status,
       page = 1,
-      limit = 20,
+      limit = 20
     } = filters;
 
     const where: any = {};
@@ -125,12 +117,12 @@ export class PipelineService {
     if (assignedToId) where.assignedToId = assignedToId;
     if (status) where.status = status;
 
-    const [deals, total] = await this.brokerDealRepository.findAndCount({
+    const [deals, total] = await this.prisma.findAndCount({
       where,
       relations: ['broker', 'stage', 'assignedTo'],
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
-      take: limit,
+      take: limit
     });
 
     return { deals, total };
@@ -141,8 +133,8 @@ export class PipelineService {
 
     // If stage is changing, update probability
     if (updateDto.stageId && updateDto.stageId !== deal.stageId) {
-      const newStage = await this.pipelineStageRepository.findOne({
-        where: { id: updateDto.stageId },
+      const newStage = await this.prisma.pipelineStage.findFirst({
+        where: { id: updateDto.stageId }
       });
 
       if (newStage) {
@@ -164,13 +156,13 @@ export class PipelineService {
     }
 
     Object.assign(deal, updateDto);
-    return await this.brokerDealRepository.save(deal);
+    return await this.prisma.brokerDeal.upsert(deal);
   }
 
   async moveDealToStage(dealId: string, stageId: string, assignedToId?: string): Promise<BrokerDeal> {
     const deal = await this.getDeal(dealId);
-    const stage = await this.pipelineStageRepository.findOne({
-      where: { id: stageId },
+    const stage = await this.prisma.pipelineStage.findFirst({
+      where: { id: stageId }
     });
 
     if (!stage) {
@@ -185,28 +177,27 @@ export class PipelineService {
       deal.assignedToId = assignedToId;
     }
 
-    return await this.brokerDealRepository.save(deal);
+    return await this.prisma.brokerDeal.upsert(deal);
   }
 
   async createDealActivity(
     dealId: string,
     createDto: CreateDealActivityDto,
-    authorId: string,
-  ): Promise<DealActivity> {
-    const activity = this.dealActivityRepository.create({
+    authorId: string): Promise<DealActivity> {
+    const activity = this.prisma.dealActivity.create({
       ...createDto,
       dealId,
-      authorId,
+      authorId
     });
 
-    return await this.dealActivityRepository.save(activity);
+    return await this.prisma.dealActivity.upsert(activity);
   }
 
   async getDealActivities(dealId: string): Promise<DealActivity[]> {
-    return await this.dealActivityRepository.find({
+    return await this.prisma.dealActivity.findMany({
       where: { dealId },
       relations: ['author'],
-      order: { createdAt: 'DESC' },
+      order: { createdAt: 'DESC' }
     });
   }
 
@@ -215,8 +206,8 @@ export class PipelineService {
     const metrics = [];
 
     for (const stage of stages) {
-      const dealCount = await this.brokerDealRepository.count({
-        where: { stageId: stage.id, status: 'OPEN' },
+      const dealCount = await this.prisma.count({
+        where: { stageId: stage.id, status: 'OPEN' }
       });
 
       const totalValue = await this.brokerDealRepository
@@ -239,15 +230,15 @@ export class PipelineService {
         dealCount,
         totalValue: totalValue?.total || 0,
         weightedValue: weightedValue?.total || 0,
-        probability: stage.defaultProbability,
+        probability: stage.defaultProbability
       });
     }
 
     // Overall metrics
     const [totalDeals, wonDeals, lostDeals] = await Promise.all([
-      this.brokerDealRepository.count({ where: { status: 'OPEN' } }),
-      this.brokerDealRepository.count({ where: { status: 'WON' } }),
-      this.brokerDealRepository.count({ where: { status: 'LOST' } }),
+      this.prisma.count({ where: { status: 'OPEN' } }),
+      this.prisma.count({ where: { status: 'WON' } }),
+      this.prisma.count({ where: { status: 'LOST' } }),
     ]);
 
     const totalPipelineValue = await this.brokerDealRepository
@@ -271,7 +262,7 @@ export class PipelineService {
       totalWeightedValue: totalWeightedValue?.total || 0,
       winRate: totalDeals + wonDeals + lostDeals > 0
         ? (wonDeals / (totalDeals + wonDeals + lostDeals)) * 100
-        : 0,
+        : 0
     };
   }
 
@@ -283,22 +274,22 @@ export class PipelineService {
       const endDate = new Date(year, month + 1, 0);
 
       const [createdDeals, wonDeals, totalValue] = await Promise.all([
-        this.brokerDealRepository.count({
+        this.prisma.count({
           where: {
             createdAt: {
               $gte: startDate,
-              $lte: endDate,
-            },
-          },
+              $lte: endDate
+            }
+          }
         }),
-        this.brokerDealRepository.count({
+        this.prisma.count({
           where: {
             status: 'WON',
             actualCloseDate: {
               $gte: startDate,
-              $lte: endDate,
-            },
-          },
+              $lte: endDate
+            }
+          }
         }),
         this.brokerDealRepository
           .createQueryBuilder('deal')
@@ -306,7 +297,7 @@ export class PipelineService {
           .where('deal.status = :status', { status: 'WON' })
           .andWhere('deal.actualCloseDate BETWEEN :start AND :end', {
             start: startDate,
-            end: endDate,
+            end: endDate
           })
           .getRawOne(),
       ]);
@@ -315,7 +306,7 @@ export class PipelineService {
         month: month + 1,
         createdDeals,
         wonDeals,
-        wonValue: totalValue?.total || 0,
+        wonValue: totalValue?.total || 0
       });
     }
 
@@ -324,7 +315,7 @@ export class PipelineService {
 
   async deleteDeal(dealId: string): Promise<void> {
     const deal = await this.getDeal(dealId);
-    await this.brokerDealRepository.remove(deal);
+    await this.prisma.remove(deal);
   }
 
   // Additional methods needed by PipelineController
@@ -337,8 +328,8 @@ export class PipelineService {
   }
 
   async updateStage(stageId: string, updateDto: any): Promise<PipelineStage> {
-    const stage = await this.pipelineStageRepository.findOne({
-      where: { id: stageId },
+    const stage = await this.prisma.pipelineStage.findFirst({
+      where: { id: stageId }
     });
 
     if (!stage) {
@@ -346,12 +337,12 @@ export class PipelineService {
     }
 
     Object.assign(stage, updateDto);
-    return await this.pipelineStageRepository.save(stage);
+    return await this.prisma.pipelineStage.upsert(stage);
   }
 
   async deleteStage(stageId: string): Promise<void> {
-    const stage = await this.pipelineStageRepository.findOne({
-      where: { id: stageId },
+    const stage = await this.prisma.pipelineStage.findFirst({
+      where: { id: stageId }
     });
 
     if (!stage) {
@@ -359,15 +350,15 @@ export class PipelineService {
     }
 
     // Check if there are deals in this stage
-    const dealCount = await this.brokerDealRepository.count({
-      where: { stageId },
+    const dealCount = await this.prisma.count({
+      where: { stageId }
     });
 
     if (dealCount > 0) {
       throw new BadRequestException('Cannot delete stage with existing deals');
     }
 
-    await this.pipelineStageRepository.remove(stage);
+    await this.prisma.remove(stage);
   }
 
   async getDealById(dealId: string): Promise<BrokerDeal> {
@@ -378,7 +369,7 @@ export class PipelineService {
     // Create activity for the move
     await this.createDealActivity(dealId, {
       type: 'STAGE_CHANGE',
-      description: `Moved to stage ${targetStageId}: ${notes}`,
+      description: `Moved to stage ${targetStageId}: ${notes}`
     }, 'system'); // This would be replaced with actual user ID
 
     return this.moveDealToStage(dealId, targetStageId);
@@ -395,14 +386,14 @@ export class PipelineService {
     await this.createDealActivity(dealId, {
       type: 'DEAL_WON',
       description: `Deal won: ${notes}`,
-      scheduledFor: new Date(),
+      scheduledFor: new Date()
     }, 'system'); // This would be replaced with actual user ID
 
     // Update deal status
     return this.updateDeal(dealId, {
       status: 'WON',
       actualCloseValue,
-      actualCloseDate: new Date(),
+      actualCloseDate: new Date()
     });
   }
 
@@ -413,14 +404,14 @@ export class PipelineService {
     await this.createDealActivity(dealId, {
       type: 'DEAL_LOST',
       description: `Deal lost: ${lossReason}. ${notes}`,
-      scheduledFor: new Date(),
+      scheduledFor: new Date()
     }, 'system'); // This would be replaced with actual user ID
 
     // Update deal status
     return this.updateDeal(dealId, {
       status: 'LOST',
       lossReason,
-      actualCloseDate: new Date(),
+      actualCloseDate: new Date()
     });
   }
 
@@ -432,16 +423,16 @@ export class PipelineService {
     const { startDate, endDate, groupBy = 'month' } = filters;
 
     // Get deals that are projected to close within the date range
-    const projectedDeals = await this.brokerDealRepository.find({
+    const projectedDeals = await this.prisma.brokerDeal.findMany({
       where: {
         status: 'OPEN',
         projectedCloseDate: {
           $gte: startDate || new Date(),
-          $lte: endDate || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // Default 90 days
-        },
+          $lte: endDate || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // Default 90 days
+        }
       },
       relations: ['stage'],
-      order: { projectedCloseDate: 'ASC' },
+      order: { projectedCloseDate: 'ASC' }
     });
 
     // Group by the specified period
@@ -469,7 +460,7 @@ export class PipelineService {
           projectedValue: 0,
           weightedValue: 0,
           dealCount: 0,
-          deals: [],
+          deals: []
         };
       }
 
@@ -481,7 +472,7 @@ export class PipelineService {
         title: deal.title,
         value: deal.value,
         probability: deal.probability,
-        projectedCloseDate: deal.projectedCloseDate,
+        projectedCloseDate: deal.projectedCloseDate
       });
     });
 
@@ -490,7 +481,7 @@ export class PipelineService {
       ...period,
       averageProbability: period.dealCount > 0 ?
         period.deals.reduce((sum, deal) => sum + deal.probability, 0) / period.dealCount : 0,
-      confidence: period.weightedValue / period.projectedValue * 100 || 0,
+      confidence: period.weightedValue / period.projectedValue * 100 || 0
     }));
   }
 
@@ -501,7 +492,7 @@ export class PipelineService {
   }): Promise<any> {
     const { startDate, endDate, ownerId } = filters;
 
-    const baseQuery = this.brokerDealRepository.createQueryBuilder('deal')
+    const baseQuery = this.prisma.createQueryBuilder('deal')
       .leftJoinAndSelect('deal.stage', 'stage')
       .leftJoinAndSelect('deal.assignedTo', 'assignedTo');
 
@@ -563,14 +554,14 @@ export class PipelineService {
         openDeals,
         averageDealSize,
         conversionRate,
-        averageSalesCycle: Math.round(averageSalesCycle * 10) / 10, // Round to 1 decimal
+        averageSalesCycle: Math.round(averageSalesCycle * 10) / 10 // Round to 1 decimal
       },
       stagePerformance: Object.entries(stagePerformance).map(([stage, data]: [string, any]) => ({
         stage,
         ...data,
         winRate: data.count > 0 ? (data.won / data.count) * 100 : 0,
-        averageValue: data.count > 0 ? data.value / data.count : 0,
-      })),
+        averageValue: data.count > 0 ? data.value / data.count : 0
+      }))
     };
   }
 
@@ -586,14 +577,14 @@ export class PipelineService {
     // Get deals for each stage
     const kanbanData = await Promise.all(
       stages.map(async (stage) => {
-        const deals = await this.brokerDealRepository.find({
+        const deals = await this.prisma.brokerDeal.findMany({
           where: {
             stageId: stage.id,
             ...(ownerId && { assignedToId: ownerId }),
-            ...(status && { status }),
+            ...(status && { status })
           },
           relations: ['broker', 'assignedTo'],
-          order: { createdAt: 'ASC' },
+          order: { createdAt: 'ASC' }
         });
 
         return {
@@ -613,14 +604,14 @@ export class PipelineService {
             projectedCloseDate: deal.projectedCloseDate,
             broker: deal.broker ? {
               id: deal.broker.id,
-              companyName: deal.broker.companyName,
+              companyName: deal.broker.companyName
             } : null,
             assignedTo: deal.assignedTo ? {
               id: deal.assignedTo.id,
               firstName: deal.assignedTo.firstName,
-              lastName: deal.assignedTo.lastName,
-            } : null,
-          })),
+              lastName: deal.assignedTo.lastName
+            } : null
+          }))
         };
       })
     );

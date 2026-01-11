@@ -1,8 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BullModule, getQueueToken } from '@nestjs/bull';
-import { Queue, Job } from 'bull';
+import { BullModule, getQueueToken } from '@nestjs/bullmq';
+import { Queue, Job } from 'bullmq';
 import { ConfigModule } from '@nestjs/config';
-import { PrismaModule } from '../../../prisma/prisma.module';
 
 import { EmailProcessor } from '../email.processor';
 import { PushProcessor } from '../push.processor';
@@ -62,9 +61,7 @@ describe('Notification Queue Integration Tests', () => {
           { name: 'notifications:email' },
           { name: 'notifications:push' },
           { name: 'notifications:sms' },
-          { name: 'notifications:in-app' },
-        ),
-        PrismaModule,
+          { name: 'notifications:in-app' }),
       ],
       providers: [
         EmailProcessor,

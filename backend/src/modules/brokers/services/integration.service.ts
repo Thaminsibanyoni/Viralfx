@@ -1,14 +1,13 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import { BrokerIntegration, IntegrationType, IntegrationStatus } from '../entities/broker-integration.entity';
-import { Broker } from '../entities/broker.entity';
+import { IntegrationType } from '../enums/broker.enum';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerIntegration, IntegrationType, IntegrationStatus } from '../entities/broker-integration.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Broker } from '../entities/broker.entity';
 import { CreateIntegrationDto } from '../dto/create-integration.dto';
 import { IntegrationTestResult } from '../interfaces/broker.interface';
-import { WebSocketGateway } from '../../../modules/websocket/gateways/websocket.gateway';
+import { WebSocketGatewayHandler } from "../../../modules/websocket/gateways/websocket.gateway";
 
 @Injectable()
 export class IntegrationService {
@@ -16,26 +15,21 @@ export class IntegrationService {
   private readonly defaultTimeout = 30000; // 30 seconds
 
   constructor(
-    @InjectRepository(BrokerIntegration)
-    private integrationRepository: Repository<BrokerIntegration>,
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-    private configService: ConfigService,
+        private configService: ConfigService,
     private httpService: HttpService,
-    private webSocketGateway: WebSocketGateway,
-  ) {}
+    private webSocketGateway: WebSocketGatewayHandler) {}
 
   async createIntegration(brokerId: string, createIntegrationDto: CreateIntegrationDto): Promise<BrokerIntegration> {
     this.logger.log(`Creating ${createIntegrationDto.integrationType} integration for broker ${brokerId}`);
 
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     if (!broker) {
       throw new NotFoundException(`Broker not found: ${brokerId}`);
     }
 
     // Check if integration of same type already exists
-    const existingIntegration = await this.integrationRepository.findOne({
-      where: { brokerId, integrationType: createIntegrationDto.integrationType },
+    const existingIntegration = await this.prisma.integrationrepository.findFirst({
+      where: { brokerId, integrationType: createIntegrationDto.integrationType }
     });
 
     if (existingIntegration) {
@@ -43,14 +37,14 @@ export class IntegrationService {
     }
 
     // Create integration record
-    const integration = this.integrationRepository.create({
+    const integration = this.prisma.integrationrepository.create({
       brokerId,
       integrationType: createIntegrationDto.integrationType,
       status: IntegrationStatus.PENDING,
-      configuration: this.sanitizeConfiguration(createIntegrationDto.integrationType, createIntegrationDto.configuration),
+      configuration: this.sanitizeConfiguration(createIntegrationDto.integrationType, createIntegrationDto.configuration)
     });
 
-    const savedIntegration = await this.integrationRepository.save(integration);
+    const savedIntegration = await this.prisma.integrationrepository.upsert(integration);
 
     // Auto-test the integration
     await this.testIntegration(savedIntegration.id);
@@ -62,9 +56,9 @@ export class IntegrationService {
   async testIntegration(integrationId: string): Promise<IntegrationTestResult> {
     this.logger.log(`Testing integration ${integrationId}`);
 
-    const integration = await this.integrationRepository.findOne({
+    const integration = await this.prisma.integrationrepository.findFirst({
       where: { id: integrationId },
-      relations: ['broker'],
+      relations: ['broker']
     });
 
     if (!integration) {
@@ -95,7 +89,7 @@ export class IntegrationService {
     integration.testResults = testResult;
     integration.lastTestDate = new Date();
 
-    await this.integrationRepository.save(integration);
+    await this.prisma.integrationrepository.upsert(integration);
 
     // Send notification about test result
     await this.webSocketGateway.broadcastIntegrationTestResult(integration.brokerId, testResult);
@@ -111,7 +105,7 @@ export class IntegrationService {
       return {
         success: false,
         errors: ['Missing required configuration: baseUrl and apiKey'],
-        timestamp: new Date(),
+        timestamp: new Date()
       };
     }
 
@@ -126,9 +120,9 @@ export class IntegrationService {
           headers: {
             'Authorization': `Bearer ${apiKey}`,
             'X-API-Version': version,
-            'User-Agent': 'ViralFX-Integration-Test/1.0',
+            'User-Agent': 'ViralFX-Integration-Test/1.0'
           },
-          timeout,
+          timeout
         })
       );
 
@@ -149,9 +143,9 @@ export class IntegrationService {
         this.httpService.get(marketDataUrl, {
           headers: {
             'Authorization': `Bearer ${apiKey}`,
-            'X-API-Version': version,
+            'X-API-Version': version
           },
-          timeout,
+          timeout
         })
       );
 
@@ -167,27 +161,27 @@ export class IntegrationService {
           responseTime,
           testData: {
             healthCheck: response.data,
-            marketData: Array.isArray(marketDataResponse.data) ? marketDataResponse.data.length : 0,
+            marketData: Array.isArray(marketDataResponse.data) ? marketDataResponse.data.length : 0
           },
           validation: {
             schemaValid: true,
             responseFormat: 'JSON',
-            requiredFields: ['status', 'timestamp'],
-          },
+            requiredFields: ['status', 'timestamp']
+          }
         },
         metrics: {
           totalRequests: 2,
           successRate: errors.length === 0 ? 100 : 50,
           averageResponseTime: responseTime,
-          dataFreshness: 0, // Would calculate from actual data timestamps
-        },
+          dataFreshness: 0 // Would calculate from actual data timestamps
+        }
       };
     } catch (error) {
       return {
         success: false,
         errors: [`Connection failed: ${error.message}`],
         latency: Date.now() - startTime,
-        timestamp: new Date(),
+        timestamp: new Date()
       };
     }
   }
@@ -199,7 +193,7 @@ export class IntegrationService {
       return {
         success: false,
         errors: ['Missing required configuration: wsUrl'],
-        timestamp: new Date(),
+        timestamp: new Date()
       };
     }
 
@@ -211,8 +205,8 @@ export class IntegrationService {
       const WebSocket = require('ws');
       const ws = new WebSocket(wsUrl, {
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
-        },
+          'Authorization': `Bearer ${apiKey}`
+        }
       });
 
       const connectionPromise = new Promise<void>((resolve, reject) => {
@@ -237,7 +231,7 @@ export class IntegrationService {
       if (events && events.length > 0) {
         ws.send(JSON.stringify({
           action: 'subscribe',
-          channels: events.slice(0, 3), // Limit to 3 events for testing
+          channels: events.slice(0, 3) // Limit to 3 events for testing
         }));
       }
 
@@ -258,27 +252,27 @@ export class IntegrationService {
           responseTime,
           testData: {
             subscribedEvents: events ? events.slice(0, 3) : [],
-            connectionEstablished: true,
+            connectionEstablished: true
           },
           validation: {
             schemaValid: true,
             responseFormat: 'WEBSOCKET',
-            requiredFields: ['action', 'channels'],
-          },
+            requiredFields: ['action', 'channels']
+          }
         },
         metrics: {
           totalRequests: 1,
           successRate: 100,
           averageResponseTime: responseTime,
-          dataFreshness: 0,
-        },
+          dataFreshness: 0
+        }
       };
     } catch (error) {
       return {
         success: false,
         errors: [`WebSocket connection failed: ${error.message}`],
         latency: Date.now() - startTime,
-        timestamp: new Date(),
+        timestamp: new Date()
       };
     }
   }
@@ -290,7 +284,7 @@ export class IntegrationService {
       return {
         success: false,
         errors: ['Missing required configuration: webhookUrl'],
-        timestamp: new Date(),
+        timestamp: new Date()
       };
     }
 
@@ -308,9 +302,9 @@ export class IntegrationService {
           side: 'BUY',
           amount: 0.01,
           price: 500000,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString()
         },
-        signature: secret ? this.generateSignature(JSON.stringify(testPayload.data), secret) : undefined,
+        signature: secret ? this.generateSignature(JSON.stringify(testPayload.data), secret) : undefined
       };
 
       // Send test webhook
@@ -320,9 +314,9 @@ export class IntegrationService {
             'Content-Type': 'application/json',
             'X-Webhook-Signature': testPayload.signature,
             'X-Event-Type': testPayload.event,
-            'User-Agent': 'ViralFX-Webhook-Test/1.0',
+            'User-Agent': 'ViralFX-Webhook-Test/1.0'
           },
-          timeout: this.defaultTimeout,
+          timeout: this.defaultTimeout
         })
       );
 
@@ -345,27 +339,27 @@ export class IntegrationService {
           responseTime,
           testData: {
             payload: testPayload,
-            response: response.data,
+            response: response.data
           },
           validation: {
             schemaValid: true,
             responseFormat: 'HTTP',
-            requiredFields: ['event', 'data'],
-          },
+            requiredFields: ['event', 'data']
+          }
         },
         metrics: {
           totalRequests: 1,
           successRate: errors.length === 0 ? 100 : 0,
           averageResponseTime: responseTime,
-          dataFreshness: 100, // Real-time delivery
-        },
+          dataFreshness: 100 // Real-time delivery
+        }
       };
     } catch (error) {
       return {
         success: false,
         errors: [`Webhook delivery failed: ${error.message}`],
         latency: Date.now() - startTime,
-        timestamp: new Date(),
+        timestamp: new Date()
       };
     }
   }
@@ -377,7 +371,7 @@ export class IntegrationService {
       return {
         success: false,
         errors: ['Missing required configuration: platform'],
-        timestamp: new Date(),
+        timestamp: new Date()
       };
     }
 
@@ -421,28 +415,28 @@ export class IntegrationService {
           validation: {
             schemaValid: testResult.valid,
             responseFormat: 'SDK',
-            requiredFields: ['version', 'platform'],
-          },
+            requiredFields: ['version', 'platform']
+          }
         },
         metrics: {
           totalRequests: 1,
           successRate: testResult.success ? 100 : 0,
           averageResponseTime: responseTime,
-          dataFreshness: 0,
-        },
+          dataFreshness: 0
+        }
       };
     } catch (error) {
       return {
         success: false,
         errors: [`SDK test failed: ${error.message}`],
         latency: Date.now() - startTime,
-        timestamp: new Date(),
+        timestamp: new Date()
       };
     }
   }
 
   async updateIntegrationStatus(integrationId: string, status: IntegrationStatus, testResults?: IntegrationTestResult): Promise<void> {
-    const integration = await this.integrationRepository.findOne({ where: { id: integrationId } });
+    const integration = await this.prisma.integrationrepository.findFirst({ where: { id: integrationId } });
     if (!integration) {
       throw new NotFoundException(`Integration not found: ${integrationId}`);
     }
@@ -453,7 +447,7 @@ export class IntegrationService {
       integration.lastTestDate = testResults.timestamp;
     }
 
-    await this.integrationRepository.save(integration);
+    await this.prisma.integrationrepository.upsert(integration);
   }
 
   async getIntegrationLogs(integrationId: string): Promise<any[]> {
@@ -464,40 +458,40 @@ export class IntegrationService {
         timestamp: new Date(Date.now() - 60 * 60 * 1000),
         level: 'INFO',
         message: 'Integration test started',
-        details: { integrationId },
+        details: { integrationId }
       },
       {
         timestamp: new Date(Date.now() - 58 * 60 * 1000),
         level: 'DEBUG',
         message: 'Connecting to endpoint',
-        details: { endpoint: 'https://api.example.com/health' },
+        details: { endpoint: 'https://api.example.com/health' }
       },
       {
         timestamp: new Date(Date.now() - 55 * 60 * 1000),
         level: 'INFO',
         message: 'Connection established',
-        details: { responseTime: 250 },
+        details: { responseTime: 250 }
       },
       {
         timestamp: new Date(Date.now() - 50 * 60 * 1000),
         level: 'INFO',
         message: 'Integration test completed successfully',
-        details: { success: true },
+        details: { success: true }
       },
     ];
   }
 
   async getBrokerIntegrations(brokerId: string): Promise<BrokerIntegration[]> {
-    return this.integrationRepository.find({
+    return this.prisma.integrationrepository.findMany({
       where: { brokerId },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: 'DESC' }
     });
   }
 
   async getIntegration(integrationId: string): Promise<BrokerIntegration> {
-    const integration = await this.integrationRepository.findOne({
+    const integration = await this.prisma.integrationrepository.findFirst({
       where: { id: integrationId },
-      relations: ['broker'],
+      relations: ['broker']
     });
 
     if (!integration) {
@@ -508,12 +502,12 @@ export class IntegrationService {
   }
 
   async deleteIntegration(integrationId: string): Promise<void> {
-    const integration = await this.integrationRepository.findOne({ where: { id: integrationId } });
+    const integration = await this.prisma.integrationrepository.findFirst({ where: { id: integrationId } });
     if (!integration) {
       throw new NotFoundException(`Integration not found: ${integrationId}`);
     }
 
-    await this.integrationRepository.remove(integration);
+    await this.prisma.remove(integration);
     this.logger.log(`Deleted integration ${integrationId}`);
   }
 
@@ -557,9 +551,9 @@ export class IntegrationService {
       data: {
         version: '1.0.0',
         platform: 'javascript',
-        features: ['market-data', 'order-execution', 'account-management'],
+        features: ['market-data', 'order-execution', 'account-management']
       },
-      errors: [],
+      errors: []
     };
   }
 
@@ -571,9 +565,9 @@ export class IntegrationService {
       data: {
         version: '1.0.0',
         platform: 'python',
-        features: ['market-data', 'order-execution', 'account-management', 'backtesting'],
+        features: ['market-data', 'order-execution', 'account-management', 'backtesting']
       },
-      errors: [],
+      errors: []
     };
   }
 
@@ -585,9 +579,9 @@ export class IntegrationService {
       data: {
         version: '1.0.0',
         platform: 'java',
-        features: ['market-data', 'order-execution', 'account-management'],
+        features: ['market-data', 'order-execution', 'account-management']
       },
-      errors: [],
+      errors: []
     };
   }
 
@@ -599,9 +593,9 @@ export class IntegrationService {
       data: {
         version: '1.0.0',
         platform: 'csharp',
-        features: ['market-data', 'order-execution', 'account-management'],
+        features: ['market-data', 'order-execution', 'account-management']
       },
-      errors: [],
+      errors: []
     };
   }
 }

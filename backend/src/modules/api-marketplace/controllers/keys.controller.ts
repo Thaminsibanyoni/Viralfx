@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Post,
@@ -11,14 +11,13 @@ import {
   HttpStatus,
   ParseUUIDPipe,
   ValidationPipe,
-  Request,
-} from '@nestjs/common';
+  Request, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { KeysService } from '../services/keys.service';
 import { CreateKeyDto, UpdateKeyDto } from '../dto/create-key.dto';
 import { ApiKeyWithDetails } from '../interfaces/api-marketplace.interface';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { UsageService } from '../services/usage.service';
 
 @ApiTags('API Marketplace - Keys')
@@ -27,8 +26,7 @@ import { UsageService } from '../services/usage.service';
 export class KeysController {
   constructor(
     private readonly keysService: KeysService,
-    private readonly usageService: UsageService,
-  ) {}
+    private readonly usageService: UsageService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -37,8 +35,7 @@ export class KeysController {
   @ApiResponse({ status: 201, description: 'API key created successfully' })
   async createKey(
     @Body(ValidationPipe) dto: CreateKeyDto,
-    @Request() req: any,
-  ): Promise<{ key: string; apiKey: ApiKeyWithDetails }> {
+    @Req() req: any): Promise<{ key: string; apiKey: ApiKeyWithDetails }> {
     const userId = req.user?.id;
     const brokerId = req.user?.brokerId;
 
@@ -50,7 +47,7 @@ export class KeysController {
   @Throttle(50, 60) // 50 requests per minute
   @ApiOperation({ summary: 'List user API keys' })
   @ApiResponse({ status: 200, description: 'API keys retrieved successfully' })
-  async listKeys(@Request() req: any): Promise<ApiKeyWithDetails[]> {
+  async listKeys(@Req() req: any): Promise<ApiKeyWithDetails[]> {
     const userId = req.user?.id;
     const brokerId = req.user?.brokerId;
 
@@ -65,8 +62,7 @@ export class KeysController {
   @ApiResponse({ status: 404, description: 'API key not found' })
   async getKey(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ): Promise<ApiKeyWithDetails | null> {
+    @Req() req: any): Promise<ApiKeyWithDetails | null> {
     const userId = req.user?.id;
     const brokerId = req.user?.brokerId;
     const keys = await this.keysService.listKeys(userId, brokerId);
@@ -82,8 +78,7 @@ export class KeysController {
   async updateKey(
     @Param('id', ParseUUIDPipe) id: string,
     @Body(ValidationPipe) dto: UpdateKeyDto,
-    @Request() req: any,
-  ): Promise<ApiKeyWithDetails> {
+    @Req() req: any): Promise<ApiKeyWithDetails> {
     const userId = req.user?.id;
     const brokerId = req.user?.brokerId;
 
@@ -98,8 +93,7 @@ export class KeysController {
   @ApiResponse({ status: 404, description: 'API key not found' })
   async revokeKey(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ): Promise<{ message: string }> {
+    @Req() req: any): Promise<{ message: string }> {
     const userId = req.user?.id;
     const brokerId = req.user?.brokerId;
 
@@ -115,8 +109,7 @@ export class KeysController {
   @ApiResponse({ status: 404, description: 'API key not found' })
   async rotateKey(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ): Promise<{ key: string; apiKey: ApiKeyWithDetails }> {
+    @Req() req: any): Promise<{ key: string; apiKey: ApiKeyWithDetails }> {
     const userId = req.user?.id;
     const brokerId = req.user?.brokerId;
 
@@ -132,13 +125,12 @@ export class KeysController {
     @Param('id', ParseUUIDPipe) id: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('groupBy') groupBy: 'hour' | 'day' | 'month' = 'day',
-  ): Promise<any> {
+    @Query('groupBy') groupBy: 'hour' | 'day' | 'month' = 'day'): Promise<any> {
     let dateRange;
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
 

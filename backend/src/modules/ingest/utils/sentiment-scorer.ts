@@ -102,7 +102,7 @@ export class SentimentScorer {
       polarity: polarityLabel,
       confidence,
       impactScore,
-      viralPotential,
+      viralPotential
     };
   }
 
@@ -139,7 +139,7 @@ export class SentimentScorer {
       timeliness,
       socialProof,
       authority,
-      engagement,
+      engagement
     };
   }
 
@@ -154,7 +154,7 @@ export class SentimentScorer {
       controversy: 0.15,
       timeliness: 0.15,
       socialProof: 0.1,
-      authority: 0.1,
+      authority: 0.1
     };
 
     // Calculate weighted score (0-1)

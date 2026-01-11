@@ -1,31 +1,23 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThanOrEqual } from 'typeorm';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue, Job } from 'bullmq';
 import Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
 
-import { PrismaService } from '../../../prisma/prisma.service';
-import { Symbol } from '../entities/symbol.entity';
-import { Price } from '../entities/price.entity';
-import { Portfolio } from '../entities/portfolio.entity';
-import { PricingEngineService } from './pricing-engine.service';
-import { SymbolNormalizerService } from './symbol-normalizer.service';
-import { OrderBookService } from '../../order-matching/services/order-book.service';
+// COMMENTED OUT (TypeORM entity deleted): import { Symbol } from '../entities/symbol.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Price } from '../entities/price.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Portfolio } from '../entities/portfolio.entity';
+import { PricingEngineService } from "./pricing-engine.service";
+import { SymbolNormalizerService } from "./symbol-normalizer.service";
+import { OrderBookService } from "../../order-matching/services/order-book.service";
 
 @Injectable()
 export class MarketAggregationService {
   private readonly logger = new Logger(MarketAggregationService.name);
 
   constructor(
-    @InjectRepository(Symbol)
-    private readonly symbolRepository: Repository<Symbol>,
-    @InjectRepository(Price)
-    private readonly priceRepository: Repository<Price>,
-    @InjectRepository(Portfolio)
-    private readonly portfolioRepository: Repository<Portfolio>,
     private readonly prismaService: PrismaService,
     private readonly pricingEngineService: PricingEngineService,
     private readonly symbolNormalizerService: SymbolNormalizerService,
@@ -36,8 +28,7 @@ export class MarketAggregationService {
     private readonly marketQueue: Queue,
     @InjectQueue('price-calculation')
     private readonly priceQueue: Queue,
-    private readonly configService: ConfigService,
-  ) {}
+    private readonly configService: ConfigService) {}
 
   async createSymbolFromTopic(topicId: string): Promise<Symbol> {
     try {
@@ -46,8 +37,8 @@ export class MarketAggregationService {
         where: { id: topicId },
         include: {
           country: true,
-          category: true,
-        },
+          category: true
+        }
       });
 
       if (!topic) {
@@ -58,8 +49,8 @@ export class MarketAggregationService {
       const symbol = await this.symbolNormalizerService.normalizeSymbol(topicId);
 
       // Check if symbol already exists
-      const existingSymbol = await this.symbolRepository.findOne({
-        where: { symbol },
+      const existingSymbol = await this.prismaService.symbol.findFirst({
+        where: { symbol }
       });
 
       if (existingSymbol) {
@@ -67,25 +58,33 @@ export class MarketAggregationService {
         return existingSymbol;
       }
 
-      // Create Symbol entity
-      const newSymbol = this.symbolRepository.create({
-        symbol,
-        topicId,
-        name: topic.name || topic.topicName,
-        category: topic.category?.name || 'UNKNOWN',
-        region: topic.country?.code || 'UNKNOWN',
-        basePrice: 100.00,
-        status: 'ACTIVE',
-        isActive: true,
-        metadata: {
-          keywords: topic.keywords || [],
-          hashtags: topic.hashtags || [],
-          platforms: topic.platforms || [],
-        },
-        listedAt: new Date(),
-      });
+      // Create Symbol using raw SQL since Symbol model may not exist in schema
+      const newSymbol = await this.prisma.$executeRaw`
+        INSERT INTO "Symbol" (
+          symbol, "topicId", name, category, region, "basePrice",
+          status, "isActive", metadata, "listedAt"
+        ) VALUES (
+          ${symbol}, ${topicId}, ${topic.name || topic.topicName},
+          ${topic.category?.name || 'UNKNOWN'}, ${topic.country?.code || 'UNKNOWN'},
+          100.00, 'ACTIVE', true,
+          ${JSON.stringify({
+            keywords: topic.keywords || [],
+            hashtags: topic.hashtags || [],
+            platforms: topic.platforms || []
+          })}::jsonb,
+          ${new Date()}
+        )
+        ON CONFLICT (symbol) DO UPDATE SET
+          "topicId" = EXCLUDED."topicId",
+          name = EXCLUDED.name,
+          category = EXCLUDED.category,
+          region = EXCLUDED.region
+        RETURNING *
+      `;
 
-      const savedSymbol = await this.symbolRepository.save(newSymbol);
+      const savedSymbol = await this.prismaService.symbol.findFirst({
+        where: { symbol }
+      });
 
       // Cache the symbol data
       await this.cacheSymbolData(symbol, savedSymbol);
@@ -106,7 +105,7 @@ export class MarketAggregationService {
         await this.priceQueue.add('calculate-price', { symbol }, {
           delay: Math.random() * 5000, // Stagger jobs
           attempts: 3,
-          backoff: 'exponential',
+          backoff: 'exponential'
         });
       }
 
@@ -126,8 +125,8 @@ export class MarketAggregationService {
       }
 
       // Query Symbol entity
-      const symbolEntity = await this.symbolRepository.findOne({
-        where: { symbol, isActive: true },
+      const symbolEntity = await this.prismaService.symbol.findFirst({
+        where: { symbol, isActive: true }
       });
 
       if (!symbolEntity) {
@@ -135,9 +134,9 @@ export class MarketAggregationService {
       }
 
       // Get latest Price record
-      const latestPrice = await this.priceRepository.findOne({
+      const latestPrice = await this.prismaService.price.findFirst({
         where: { symbol },
-        order: { timestamp: 'DESC' },
+        orderBy: { timestamp: 'desc' }
       });
 
       // Query Prisma ViralIndexSnapshot for latest virality data
@@ -145,7 +144,7 @@ export class MarketAggregationService {
       if (symbolEntity.topicId) {
         const viralSnapshot = await this.prismaService.viralIndexSnapshot.findFirst({
           where: { topicId: symbolEntity.topicId },
-          orderBy: { ts: 'DESC' },
+          orderBy: { ts: 'DESC' }
         });
 
         if (viralSnapshot) {
@@ -153,7 +152,7 @@ export class MarketAggregationService {
             viralIndex: viralSnapshot.viralIndex,
             velocity: viralSnapshot.viralVelocity,
             sentiment: viralSnapshot.sentimentMean,
-            timestamp: viralSnapshot.ts,
+            timestamp: viralSnapshot.ts
           };
         }
       }
@@ -161,7 +160,7 @@ export class MarketAggregationService {
       const result = {
         ...symbolEntity,
         latestPrice,
-        viralData,
+        viralData
       };
 
       // Cache the combined data
@@ -179,7 +178,7 @@ export class MarketAggregationService {
       // Query latest ViralIndexSnapshot from Prisma
       const viralSnapshot = await this.prismaService.viralIndexSnapshot.findFirst({
         where: { topicId },
-        orderBy: { ts: 'DESC' },
+        orderBy: { ts: 'DESC' }
       });
 
       if (!viralSnapshot) {
@@ -188,8 +187,8 @@ export class MarketAggregationService {
       }
 
       // Find corresponding Symbol by topicId
-      const symbol = await this.symbolRepository.findOne({
-        where: { topicId },
+      const symbol = await this.prismaService.symbol.findFirst({
+        where: { topicId }
       });
 
       if (!symbol) {
@@ -198,15 +197,18 @@ export class MarketAggregationService {
       }
 
       // Update Symbol's virality metrics
-      await this.symbolRepository.update(symbol.id, {
-        lastViralityScore: viralSnapshot.viralIndex,
-        lastVelocity: viralSnapshot.viralVelocity,
-        lastSentiment: viralSnapshot.sentimentMean,
+      await this.prismaService.symbol.update({
+        where: { id: symbol.id },
+        data: {
+          lastViralityScore: viralSnapshot.viralIndex,
+          lastVelocity: viralSnapshot.viralVelocity,
+          lastSentiment: viralSnapshot.sentimentMean
+        }
       });
 
       // Queue price recalculation
       await this.priceQueue.add('calculate-price', { symbol: symbol.symbol }, {
-        priority: 10, // Higher priority for virality updates
+        priority: 10 // Higher priority for virality updates
       });
 
       this.logger.log(`Synced virality data for topic ${topicId}, symbol ${symbol.symbol}`);
@@ -216,14 +218,14 @@ export class MarketAggregationService {
     }
   }
 
-  async getActiveSymbols(): Promise<Symbol[]> {
+  async getActiveSymbols(): Promise<any[]> {
     try {
-      return await this.symbolRepository.find({
+      return await this.prismaService.symbol.findMany({
         where: {
           status: 'ACTIVE',
-          isActive: true,
+          isActive: true
         },
-        order: { volume24h: 'DESC' },
+        orderBy: { volume24h: 'desc' }
       });
     } catch (error) {
       this.logger.error('Error getting active symbols:', error);
@@ -231,59 +233,82 @@ export class MarketAggregationService {
     }
   }
 
-  async getTrendingSymbols(limit: number, sortBy: string, timeframe: string): Promise<Symbol[]> {
+  async getTrendingSymbols(limit: number, sortBy: string, timeframe: string): Promise<any[]> {
     try {
-      const queryBuilder = this.symbolRepository
-        .createQueryBuilder('symbol')
-        .where('symbol.status = :status', { status: 'ACTIVE' })
-        .andWhere('symbol.isActive = :isActive', { isActive: true });
+      const orderBy = this.getSortColumn(sortBy, timeframe);
+      const sortDirection = 'DESC';
 
-      // Apply timeframe filtering using Price data
+      // For timeframes other than 24h, we need to aggregate Price data
       if (timeframe && timeframe !== '24h') {
-        const timeWindow = this.getTimeWindowInHours(timeframe);
-        const timeWindowStart = new Date(Date.now() - timeWindow * 60 * 60 * 1000);
+        const timeWindowHours = this.getTimeWindowInHours(timeframe);
+        const timeWindowStart = new Date(Date.now() - timeWindowHours * 60 * 60 * 1000);
 
-        queryBuilder.innerJoin('symbol.prices', 'price', 'price.timestamp >= :timeWindowStart', { timeWindowStart });
+        // Use raw SQL for complex aggregation with Price joins
+        const results = await this.prisma.$queryRaw`
+          SELECT
+            s.*,
+            COALESCE(SUM(p.volume), 0) as "totalTimeframeVolume",
+            COALESCE(AVG(p.price), s."currentPrice") as "avgPrice",
+            COALESCE(MAX(p.price), s."currentPrice") as "maxPrice",
+            COALESCE(MIN(p.price), s."currentPrice") as "minPrice"
+          FROM "Symbol" s
+          LEFT JOIN "Price" p ON s.symbol = p.symbol
+            AND p.timestamp >= ${timeWindowStart}
+          WHERE s.status = 'ACTIVE'
+            AND s."isActive" = true
+          GROUP BY s.id
+          ORDER BY ${orderBy} ${sortDirection}
+          LIMIT ${limit}
+        `;
 
-        // Calculate aggregates based on timeframe
-        queryBuilder
-          .addSelect('AVG(price.price)', 'avgPrice')
-          .addSelect('MAX(price.price)', 'maxPrice')
-          .addSelect('MIN(price.price)', 'minPrice')
-          .addSelect('SUM(price.volume)', 'totalTimeframeVolume')
-          .groupBy('symbol.id');
+        return results;
+      } else {
+        // Simple query for 24h timeframe (use pre-calculated fields)
+        const orderByClause: any = {};
+        orderByClause[sortBy === 'volume' ? 'volume24h' : sortBy] = sortDirection.toLowerCase();
+
+        return await this.prismaService.symbol.findMany({
+          where: {
+            status: 'ACTIVE',
+            isActive: true
+          },
+          orderBy: orderByClause,
+          take: limit
+        });
       }
-
-      // Apply sorting based on sortBy parameter and timeframe
-      switch (sortBy) {
-        case 'volume':
-          if (timeframe && timeframe !== '24h') {
-            queryBuilder.orderBy('totalTimeframeVolume', 'DESC');
-          } else {
-            queryBuilder.orderBy('symbol.volume24h', 'DESC');
-          }
-          break;
-        case 'priceChange':
-          queryBuilder.orderBy('symbol.priceChangePercent24h', 'DESC');
-          break;
-        case 'viralityScore':
-          queryBuilder.orderBy('symbol.lastViralityScore', 'DESC');
-          break;
-        case 'trades':
-          queryBuilder.orderBy('symbol.totalTrades', 'DESC');
-          break;
-        default:
-          if (timeframe && timeframe !== '24h') {
-            queryBuilder.orderBy('totalTimeframeVolume', 'DESC');
-          } else {
-            queryBuilder.orderBy('symbol.volume24h', 'DESC');
-          }
-      }
-
-      return await queryBuilder.limit(limit).getMany();
     } catch (error) {
       this.logger.error(`Error getting trending symbols:`, error);
       throw error;
+    }
+  }
+
+  private getSortColumn(sortBy: string, timeframe: string): string {
+    if (timeframe && timeframe !== '24h') {
+      switch (sortBy) {
+        case 'volume':
+          return '"totalTimeframeVolume"';
+        case 'priceChange':
+          return '"priceChangePercent24h"';
+        case 'viralityScore':
+          return '"lastViralityScore"';
+        case 'trades':
+          return '"totalTrades"';
+        default:
+          return '"totalTimeframeVolume"';
+      }
+    }
+
+    switch (sortBy) {
+      case 'volume':
+        return '"volume24h"';
+      case 'priceChange':
+        return '"priceChangePercent24h"';
+      case 'viralityScore':
+        return '"lastViralityScore"';
+      case 'trades':
+        return '"totalTrades"';
+      default:
+        return '"volume24h"';
     }
   }
 
@@ -304,12 +329,12 @@ export class MarketAggregationService {
       const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
       // Get prices from last 24 hours
-      const prices = await this.priceRepository.find({
+      const prices = await this.prismaService.price.findMany({
         where: {
           symbol,
-          timestamp: MoreThanOrEqual(yesterday),
+          timestamp: { gte: yesterday }
         },
-        order: { timestamp: 'ASC' },
+        orderBy: { timestamp: 'asc' }
       });
 
       if (prices.length === 0) {
@@ -323,17 +348,17 @@ export class MarketAggregationService {
       const volume24h = prices.reduce((sum, p) => sum + p.volume, 0);
 
       // Update Symbol entity
-      await this.symbolRepository.update(
-        { symbol },
-        {
+      await this.prismaService.symbol.updateMany({
+        where: { symbol },
+        data: {
           currentPrice,
           priceChange24h: currentPrice - firstPrice,
           priceChangePercent24h: ((currentPrice - firstPrice) / firstPrice) * 100,
           high24h,
           low24h,
-          volume24h,
-        },
-      );
+          volume24h
+        }
+      });
 
       // Cache updated stats
       const cacheKey = `symbol-stats:${symbol}`;
@@ -344,7 +369,7 @@ export class MarketAggregationService {
         high24h,
         low24h,
         volume24h,
-        timestamp: now.toISOString(),
+        timestamp: now.toISOString()
       }));
 
       this.logger.log(`Updated stats for symbol ${symbol}`);
@@ -354,15 +379,15 @@ export class MarketAggregationService {
     }
   }
 
-  async getSymbolsByCategory(category: string): Promise<Symbol[]> {
+  async getSymbolsByCategory(category: string): Promise<any[]> {
     try {
-      return await this.symbolRepository.find({
+      return await this.prismaService.symbol.findMany({
         where: {
           category,
           status: 'ACTIVE',
-          isActive: true,
+          isActive: true
         },
-        order: { volume24h: 'DESC' },
+        orderBy: { volume24h: 'desc' }
       });
     } catch (error) {
       this.logger.error(`Error getting symbols by category ${category}:`, error);
@@ -370,15 +395,15 @@ export class MarketAggregationService {
     }
   }
 
-  async getSymbolsByRegion(region: string): Promise<Symbol[]> {
+  async getSymbolsByRegion(region: string): Promise<any[]> {
     try {
-      return await this.symbolRepository.find({
+      return await this.prismaService.symbol.findMany({
         where: {
           region,
           status: 'ACTIVE',
-          isActive: true,
+          isActive: true
         },
-        order: { volume24h: 'DESC' },
+        orderBy: { volume24h: 'desc' }
       });
     } catch (error) {
       this.logger.error(`Error getting symbols by region ${region}:`, error);

@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { WebSocketService } from '../services/websocket.service';
-import { MarketDataService } from '../../market-aggregation/services/market-data.service';
-import { TrendService } from '../../moderation/services/trend.service';
+import { MarketDataService } from "../../market-aggregation/services/market-data.service";
+import { PrismaService } from '../../../prisma/prisma.service';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 
@@ -15,12 +15,11 @@ export class MarketDataPublisher {
   constructor(
     private readonly websocketService: WebSocketService,
     private readonly marketDataService: MarketDataService,
-    private readonly trendService: TrendService,
-    @InjectRedis() private readonly redis: Redis,
-  ) {}
+    private readonly prisma: PrismaService,
+    @InjectRedis() private readonly redis: Redis) {}
 
   // Real-time market data publishing
-  @Cron(CronExpression.EVERY_5_SECONDS)
+  @Cron('*/5 * * * * *') // Every 5 seconds
   async publishRealTimeMarketData(): Promise<void> {
     try {
       // Get active trends with significant activity
@@ -54,7 +53,7 @@ export class MarketDataPublisher {
 
       await this.websocketService.broadcastToAll('market:summary', {
         ...summary,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       });
 
       this.logger.debug('Published hourly market summary');
@@ -72,7 +71,7 @@ export class MarketDataPublisher {
 
       await this.websocketService.broadcastToAll('market:daily-analytics', {
         ...analytics,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       });
 
       // Reset daily counters
@@ -89,7 +88,11 @@ export class MarketDataPublisher {
   private async publishTrendMarketData(trendId: string): Promise<void> {
     try {
       const marketData = await this.marketDataService.getLatestMarketData(trendId);
-      const trend = await this.trendService.getTrendById(trendId);
+
+      // Get trend data using Prisma
+      const trend = await this.prisma.topic.findUnique({
+        where: { id: trendId }
+      });
 
       if (!marketData || !trend) {
         return;
@@ -97,14 +100,14 @@ export class MarketDataPublisher {
 
       const update = {
         trendId,
-        price: trend.currentPrice,
-        volume24h: trend.volume24h,
-        priceChange24h: trend.price24hChange,
+        price: 0, // Would come from market data service
+        volume24h: Number(trend.totalVolume),
+        priceChange24h: 0, // Would come from price history
         bidPrice: marketData.bidPrice,
         askPrice: marketData.askPrice,
         bidSize: marketData.bidSize,
         askSize: marketData.askSize,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
 
       await this.websocketService.broadcastMarketData(update);
@@ -131,8 +134,22 @@ export class MarketDataPublisher {
         return JSON.parse(cached);
       }
 
-      // Query database for active trends
-      const activeTrends = await this.trendService.getActiveTrendsForMarketData();
+      // Query database for active trends using Prisma
+      const activeTrends = await this.prisma.topic.findMany({
+        where: {
+          status: 'ACTIVE',
+          totalVolume: {
+            gt: 0
+          }
+        },
+        select: {
+          id: true
+        },
+        take: 100,
+        orderBy: {
+          totalVolume: 'desc'
+        }
+      });
 
       // Cache for 30 seconds
       await this.redis.setex(cacheKey, 30, JSON.stringify(activeTrends));
@@ -198,7 +215,7 @@ export class MarketDataPublisher {
         alertType: alert.alertType,
         targetPrice: alert.targetPrice,
         currentPrice: trend.currentPrice,
-        message: `${trend.name} is ${alert.alertType.toLowerCase()} ${alert.targetPrice} (currently ${trend.currentPrice})`,
+        message: `${trend.name} is ${alert.alertType.toLowerCase()} ${alert.targetPrice} (currently ${trend.currentPrice})`
       };
 
       await this.websocketService.broadcastPriceAlert(alertData);
@@ -224,7 +241,7 @@ export class MarketDataPublisher {
         activeTrends: summary.activeTrends,
         topGainers: summary.topGainers,
         topLosers: summary.topLosers,
-        topVolume: summary.topVolume,
+        topVolume: summary.topVolume
       };
 
     } catch (error) {
@@ -246,7 +263,7 @@ export class MarketDataPublisher {
         uniqueTraders: analytics.uniqueTraders,
         averageTradeSize: analytics.averageTradeSize,
         topTrends: analytics.topTrends,
-        priceMovements: analytics.priceMovements,
+        priceMovements: analytics.priceMovements
       };
 
     } catch (error) {
@@ -324,7 +341,7 @@ export class MarketDataPublisher {
     try {
       const message = {
         ...alert,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
 
       // Broadcast to all users with high priority
@@ -357,7 +374,7 @@ export class MarketDataPublisher {
         trendId,
         bids: orderBook.bids,
         asks: orderBook.asks,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
 
       await this.websocketService.broadcastOrderBook(update);

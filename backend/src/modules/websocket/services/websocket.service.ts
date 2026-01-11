@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Server } from 'socket.io';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
-import { WebSocketGateway } from '../gateways/websocket.gateway';
 
 export interface WebSocketMessage {
   event: string;
@@ -37,9 +36,7 @@ export class WebSocketService {
   private server?: Server;
 
   constructor(
-    @InjectRedis() private readonly redis: Redis,
-    private readonly websocketGateway: WebSocketGateway,
-  ) {}
+    @InjectRedis() private readonly redis: Redis) {}
 
   setServer(server: Server): void {
     this.server = server;
@@ -51,7 +48,7 @@ export class WebSocketService {
       event: 'market-data:update',
       payload: update,
       room: `market:${update.trendId}`,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -62,7 +59,7 @@ export class WebSocketService {
       event: 'orderbook:update',
       payload: update,
       room: `trend:${update.trendId}`,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -80,7 +77,7 @@ export class WebSocketService {
       event: 'price-alert:triggered',
       payload: alert,
       targetUsers: [alert.userId],
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -92,7 +89,7 @@ export class WebSocketService {
       event: 'order:placed',
       payload: order,
       room: `trend:${order.trendId}`,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -103,7 +100,7 @@ export class WebSocketService {
       event: 'order:updated',
       payload: { order, changes },
       room: `trend:${order.trendId}`,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -114,7 +111,7 @@ export class WebSocketService {
       event: 'order:cancelled',
       payload: order,
       room: `trend:${order.trendId}`,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -131,7 +128,7 @@ export class WebSocketService {
       event: 'order:matched',
       payload: match,
       room: `trend:${match.makerOrder.trendId}`,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -140,13 +137,13 @@ export class WebSocketService {
     await this.sendToUser(match.makerOrder.userId, 'order:matched', {
       order: match.makerOrder,
       fill: match.fill,
-      role: 'maker',
+      role: 'maker'
     });
 
     await this.sendToUser(match.takerOrder.userId, 'order:matched', {
       order: match.takerOrder,
       fill: match.fill,
-      role: 'taker',
+      role: 'taker'
     });
   }
 
@@ -156,7 +153,7 @@ export class WebSocketService {
       event: 'wallet:updated',
       payload: { wallet, transaction },
       room: `wallets:${userId}`,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -167,7 +164,7 @@ export class WebSocketService {
       event: 'transaction:created',
       payload: transaction,
       targetUsers: [userId],
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -179,7 +176,7 @@ export class WebSocketService {
       event: 'trend:created',
       payload: trend,
       room: 'trends:all',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -190,7 +187,7 @@ export class WebSocketService {
       event: 'trend:updated',
       payload: { trend, changes },
       room: `trend:${trend.id}`,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -207,9 +204,9 @@ export class WebSocketService {
       payload: {
         trendId,
         ...priceData,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       },
-      room: `trend:${trendId}`,
+      room: `trend:${trendId}`
     };
 
     await this.broadcast(message);
@@ -221,7 +218,7 @@ export class WebSocketService {
       event: 'notification:new',
       payload: notification,
       targetUsers: [userId],
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -239,7 +236,7 @@ export class WebSocketService {
         event: 'notifications:unread-count',
         payload: { count: unreadCount },
         targetUsers: [userId],
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
 
       await this.broadcast(message);
@@ -265,7 +262,7 @@ export class WebSocketService {
       event: 'system:maintenance',
       payload: maintenance,
       room: 'system:all',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -282,7 +279,7 @@ export class WebSocketService {
       payload: alert,
       room: alert.targetUsers ? undefined : 'system:all',
       targetUsers: alert.targetUsers,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -302,7 +299,7 @@ export class WebSocketService {
       event: 'analytics:trading-volume',
       payload: volume,
       room: 'analytics:trading',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -322,7 +319,7 @@ export class WebSocketService {
       event: 'analytics:leaderboard',
       payload: leaderboard,
       room: 'analytics:leaderboard',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -334,7 +331,7 @@ export class WebSocketService {
       event: 'user:online',
       payload: { userId, username },
       room: 'presence:all',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -345,7 +342,7 @@ export class WebSocketService {
       event: 'user:offline',
       payload: { userId },
       room: 'presence:all',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -357,7 +354,7 @@ export class WebSocketService {
       event,
       payload,
       room,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -368,7 +365,7 @@ export class WebSocketService {
       event,
       payload,
       targetUsers: [userId],
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -378,7 +375,7 @@ export class WebSocketService {
     const message: WebSocketMessage = {
       event,
       payload,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
     await this.broadcast(message);
@@ -462,7 +459,7 @@ export class WebSocketService {
         totalConnections: parseInt(metrics[0] || '0', 10),
         messagesPerSecond: parseFloat(metrics[1] || '0'),
         averageLatency: parseFloat(metrics[2] || '0'),
-        errorRate: parseFloat(metrics[3] || '0'),
+        errorRate: parseFloat(metrics[3] || '0')
       };
     } catch (error) {
       this.logger.error('Error getting WebSocket metrics:', error);
@@ -470,7 +467,7 @@ export class WebSocketService {
         totalConnections: 0,
         messagesPerSecond: 0,
         averageLatency: 0,
-        errorRate: 0,
+        errorRate: 0
       };
     }
   }

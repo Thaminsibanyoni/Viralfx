@@ -1,9 +1,10 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bullmq';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { FilesService } from '../services/files.service';
 import { MinioService } from 'nestjs-minio-client';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 
 interface FileProcessingJob {
   type: 'GENERATE_THUMBNAILS' | 'OPTIMIZE_IMAGE' | 'EXTRACT_TEXT' | 'CONVERT_FORMAT' | 'SCAN_VIRUS';
@@ -43,24 +44,44 @@ interface FileBackupJob {
 }
 
 @Processor('file-processing')
-export class FileProcessingProcessor {
+export class FileProcessingProcessor extends WorkerHost {
   private readonly logger = new Logger(FileProcessingProcessor.name);
 
   constructor(
     private readonly filesService: FilesService,
     private readonly minio: MinioService,
-    private readonly prisma: PrismaService,
-  ) {}
+    private readonly prisma: PrismaService) {
+    super();
+}
 
-  @Process('generate-thumbnails')
-  async handleGenerateThumbnails(job: Job<FileProcessingJob>): Promise<void> {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'generate-thumbnails':
+        return this.handleGenerateThumbnails(job);
+      case 'optimize-image':
+        return this.handleOptimizeImage(job);
+      case 'extract-text':
+        return this.handleExtractText(job);
+      case 'convert-format':
+        return this.handleConvertFormat(job);
+      case 'virus-scan':
+        return this.handleVirusScan(job);
+      case 'delete-expired':
+        return this.handleDeleteExpired(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleGenerateThumbnails(job: Job<FileProcessingJob>): Promise<void> {
     const { fileId, userId, options } = job.data;
 
     this.logger.log(`Generating thumbnails for file: ${fileId}`);
 
     try {
       const file = await this.prisma.file.findUnique({
-        where: { id: fileId },
+        where: { id: fileId }
       });
 
       if (!file) {
@@ -107,9 +128,9 @@ export class FileProcessingProcessor {
               acc[size] = `thumbnails/${size}/${fileId}.jpg`;
               return acc;
             }, {}),
-            thumbnailGeneratedAt: new Date().toISOString(),
-          },
-        },
+            thumbnailGeneratedAt: new Date().toISOString()
+          }
+        }
       });
 
       this.logger.log(`Thumbnails generated successfully for file: ${fileId}`);
@@ -122,24 +143,23 @@ export class FileProcessingProcessor {
         data: {
           metadata: {
             thumbnailError: error.message,
-            thumbnailFailedAt: new Date().toISOString(),
-          },
-        },
+            thumbnailFailedAt: new Date().toISOString()
+          }
+        }
       });
 
       throw error;
     }
   }
 
-  @Process('optimize-image')
-  async handleOptimizeImage(job: Job<FileProcessingJob>): Promise<void> {
+  private async handleOptimizeImage(job: Job<FileProcessingJob>): Promise<void> {
     const { fileId, userId, options } = job.data;
 
     this.logger.log(`Optimizing image for file: ${fileId}`);
 
     try {
       const file = await this.prisma.file.findUnique({
-        where: { id: fileId },
+        where: { id: fileId }
       });
 
       if (!file) {
@@ -190,10 +210,10 @@ export class FileProcessingProcessor {
                 optimizedSize: optimizedBuffer.length,
                 sizeReduction: Math.round(sizeReduction * 100) / 100,
                 options,
-                optimizedAt: new Date().toISOString(),
-              },
-            },
-          },
+                optimizedAt: new Date().toISOString()
+              }
+            }
+          }
         });
 
         this.logger.log(`Image optimized successfully for file ${fileId}: ${sizeReduction.toFixed(2)}% reduction`);
@@ -206,15 +226,14 @@ export class FileProcessingProcessor {
     }
   }
 
-  @Process('extract-text')
-  async handleExtractText(job: Job<FileProcessingJob>): Promise<void> {
+  private async handleExtractText(job: Job<FileProcessingJob>): Promise<void> {
     const { fileId, userId } = job.data;
 
     this.logger.log(`Extracting text from file: ${fileId}`);
 
     try {
       const file = await this.prisma.file.findUnique({
-        where: { id: fileId },
+        where: { id: fileId }
       });
 
       if (!file) {
@@ -243,9 +262,9 @@ export class FileProcessingProcessor {
               ...file.metadata,
               extractedText,
               textExtractedAt: new Date().toISOString(),
-              textLength: extractedText.length,
-            },
-          },
+              textLength: extractedText.length
+            }
+          }
         });
 
         this.logger.log(`Text extracted successfully for file ${fileId}: ${extractedText.length} characters`);
@@ -258,15 +277,14 @@ export class FileProcessingProcessor {
     }
   }
 
-  @Process('convert-format')
-  async handleConvertFormat(job: Job<FileProcessingJob>): Promise<void> {
+  private async handleConvertFormat(job: Job<FileProcessingJob>): Promise<void> {
     const { fileId, userId, options } = job.data;
 
     this.logger.log(`Converting file format for file: ${fileId}`);
 
     try {
       const file = await this.prisma.file.findUnique({
-        where: { id: fileId },
+        where: { id: fileId }
       });
 
       if (!file) {
@@ -308,10 +326,10 @@ export class FileProcessingProcessor {
               originalFormat: file.mimeType,
               targetFormat: options.targetFormat,
               convertedSize: convertedBuffer.length,
-              convertedAt: new Date().toISOString(),
-            },
-          },
-        },
+              convertedAt: new Date().toISOString()
+            }
+          }
+        }
       });
 
       this.logger.log(`File format converted successfully for file ${fileId}: ${file.mimeType} -> ${options.targetFormat}`);
@@ -328,7 +346,7 @@ export class FileProcessingProcessor {
     const dimensions = {
       small: { width: 150, height: 150 },
       medium: { width: 300, height: 300 },
-      large: { width: 600, height: 600 },
+      large: { width: 600, height: 600 }
     };
 
     const thumbnails: Record<string, Buffer> = {};
@@ -392,23 +410,23 @@ export class FileProcessingProcessor {
       'webp': 'image/webp',
       'mp4': 'video/mp4',
       'webm': 'video/webm',
-      'pdf': 'application/pdf',
+      'pdf': 'application/pdf'
     };
 
     return mimeTypes[format] || 'application/octet-stream';
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onJobActive(job: Job) {
     this.logger.debug(`File processing job ${job.id} started processing`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onJobCompleted(job: Job, result: any) {
     this.logger.log(`File processing job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onJobFailed(job: Job, error: Error) {
     this.logger.error(`File processing job ${job.id} failed:`, error.message);
   }
@@ -420,18 +438,18 @@ export class FileScanningProcessor {
 
   constructor(
     private readonly filesService: FilesService,
-    private readonly prisma: PrismaService,
-  ) {}
+    private readonly prisma: PrismaService) {
+    super();
+}
 
-  @Process('virus-scan')
-  async handleVirusScan(job: Job<FileScanningJob>): Promise<void> {
+  private async handleVirusScan(job: Job<FileScanningJob>): Promise<void> {
     const { fileId, userId } = job.data;
 
     this.logger.log(`Starting virus scan for file: ${fileId}`);
 
     try {
       const file = await this.prisma.file.findUnique({
-        where: { id: fileId },
+        where: { id: fileId }
       });
 
       if (!file) {
@@ -449,10 +467,10 @@ export class FileScanningProcessor {
             ...file.metadata,
             virusScan: {
               ...scanResult,
-              scannedAt: new Date().toISOString(),
-            },
-          },
-        },
+              scannedAt: new Date().toISOString()
+            }
+          }
+        }
       });
 
       // If threats are detected, take action
@@ -475,7 +493,7 @@ export class FileScanningProcessor {
       isClean: true,
       threats: [],
       scanEngine: 'ClamAV',
-      scanDuration: 1.5,
+      scanDuration: 1.5
     };
   }
 
@@ -487,22 +505,22 @@ export class FileScanningProcessor {
     await this.prisma.file.update({
       where: { id: file.id },
       data: {
-        status: 'QUARANTINED',
-      },
+        status: 'QUARANTINED'
+      }
     });
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onJobActive(job: Job) {
     this.logger.debug(`File scanning job ${job.id} started processing`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onJobCompleted(job: Job, result: any) {
     this.logger.log(`File scanning job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onJobFailed(job: Job, error: Error) {
     this.logger.error(`File scanning job ${job.id} failed:`, error.message);
   }
@@ -514,21 +532,21 @@ export class FileCleanupProcessor {
 
   constructor(
     private readonly minio: MinioService,
-    private readonly prisma: PrismaService,
-  ) {}
+    private readonly prisma: PrismaService) {
+    super();
+}
 
-  @Process('delete-expired')
-  async handleDeleteExpired(job: Job<FileCleanupJob>): Promise<void> {
+  private async handleDeleteExpired(job: Job<FileCleanupJob>): Promise<void> {
     this.logger.log('Starting cleanup of expired files');
 
     try {
       const expiredFiles = await this.prisma.file.findMany({
         where: {
           expiresAt: {
-            lt: new Date(),
+            lt: new Date()
           },
-          status: 'UPLOADED',
-        },
+          status: 'UPLOADED'
+        }
       });
 
       for (const file of expiredFiles) {
@@ -542,7 +560,7 @@ export class FileCleanupProcessor {
         // Update database
         await this.prisma.file.update({
           where: { id: file.id },
-          data: { status: 'DELETED' },
+          data: { status: 'DELETED' }
         });
       }
 
@@ -553,17 +571,17 @@ export class FileCleanupProcessor {
     }
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onJobActive(job: Job) {
     this.logger.debug(`File cleanup job ${job.id} started processing`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onJobCompleted(job: Job, result: any) {
     this.logger.log(`File cleanup job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onJobFailed(job: Job, error: Error) {
     this.logger.error(`File cleanup job ${job.id} failed:`, error.message);
   }

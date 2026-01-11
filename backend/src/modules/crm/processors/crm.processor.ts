@@ -1,14 +1,14 @@
-import { Processor, Process } from '@nestjs/bull';
-import { Job } from 'bull';
+import {Processor, WorkerHost} from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { CrmService } from '../services/crm.service';
 import { LeadService } from '../services/lead.service';
 import { OpportunityService } from '../services/opportunity.service';
 import { ContractService } from '../services/contract.service';
-import { NotificationService } from '../../notifications/services/notification.service';
+import { NotificationService } from "../../notifications/services/notification.service";
 
 @Processor('crm-tasks')
-export class CrmProcessor {
+export class CrmProcessor extends WorkerHost {
   private readonly logger = new Logger(CrmProcessor.name);
 
   constructor(
@@ -16,18 +16,36 @@ export class CrmProcessor {
     private readonly leadService: LeadService,
     private readonly opportunityService: OpportunityService,
     private readonly contractService: ContractService,
-    private readonly notificationService: NotificationService,
-  ) {}
+    private readonly notificationService: NotificationService) {
+    super();
+}
 
-  @Process('score-leads')
-  async handleLeadScoring(job: Job) {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'score-leads':
+        return this.handleLeadScoring(job);
+      case 'send-follow-up-reminders':
+        return this.handleFollowUpReminders(job);
+      case 'update-opportunity-probabilities':
+        return this.handleOpportunityProbabilityUpdate(job);
+      case 'check-contract-renewals':
+        return this.handleContractRenewalCheck(job);
+      case 'send-activity-reminder':
+        return this.handleActivityReminder(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleLeadScoring(job: Job) {
     this.logger.log('Starting lead scoring process');
 
     try {
       // Get all leads that need scoring (unscored or with old scores)
       const leadsToScore = await this.leadService.getLeads({
         limit: 1000,
-        search: '', // Get leads without filter
+        search: '' // Get leads without filter
       });
 
       for (const lead of leadsToScore.leads) {
@@ -46,8 +64,7 @@ export class CrmProcessor {
     }
   }
 
-  @Process('send-follow-up-reminders')
-  async handleFollowUpReminders(job: Job) {
+  private async handleFollowUpReminders(job: Job) {
     this.logger.log('Processing follow-up reminders');
 
     try {
@@ -67,15 +84,14 @@ export class CrmProcessor {
     }
   }
 
-  @Process('update-opportunity-probabilities')
-  async handleOpportunityProbabilityUpdate(job: Job) {
+  private async handleOpportunityProbabilityUpdate(job: Job) {
     this.logger.log('Updating opportunity probabilities');
 
     try {
       // Get opportunities in progress
       const opportunities = await this.opportunityService.getOpportunities({
         page: 1,
-        limit: 1000,
+        limit: 1000
       });
 
       for (const opportunity of opportunities.opportunities) {
@@ -83,7 +99,7 @@ export class CrmProcessor {
 
         if (Math.abs(newProbability - opportunity.probability) > 10) { // Only update if significant change
           await this.opportunityService.updateOpportunity(opportunity.id, {
-            probability: newProbability,
+            probability: newProbability
           });
         }
       }
@@ -95,8 +111,7 @@ export class CrmProcessor {
     }
   }
 
-  @Process('check-contract-renewals')
-  async handleContractRenewalCheck(job: Job) {
+  private async handleContractRenewalCheck(job: Job) {
     this.logger.log('Checking contract renewals');
 
     try {
@@ -114,9 +129,9 @@ export class CrmProcessor {
           data: {
             contractId: contract.id,
             contractNumber: contract.contractNumber,
-            daysUntilExpiry: 30,
+            daysUntilExpiry: 30
           },
-          message: `Contract expiring in 30 days: ${contract.contractNumber}`,
+          message: `Contract expiring in 30 days: ${contract.contractNumber}`
         });
       }
 
@@ -128,9 +143,9 @@ export class CrmProcessor {
           data: {
             contractId: contract.id,
             contractNumber: contract.contractNumber,
-            daysUntilExpiry: 60,
+            daysUntilExpiry: 60
           },
-          message: `Contract expiring in 60 days: ${contract.contractNumber}`,
+          message: `Contract expiring in 60 days: ${contract.contractNumber}`
         });
       }
 
@@ -141,8 +156,7 @@ export class CrmProcessor {
     }
   }
 
-  @Process('send-activity-reminder')
-  async handleActivityReminder(job: Job) {
+  private async handleActivityReminder(job: Job) {
     const { activityId, scheduledAt, assignedTo } = job.data;
 
     try {
@@ -153,9 +167,9 @@ export class CrmProcessor {
           recipientId: assignedTo,
           data: {
             activityId,
-            scheduledAt,
+            scheduledAt
           },
-          message: `Reminder: Activity scheduled for ${new Date(scheduledAt).toLocaleString()}`,
+          message: `Reminder: Activity scheduled for ${new Date(scheduledAt).toLocaleString()}`
         });
       }
     } catch (error) {

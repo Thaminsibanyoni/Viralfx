@@ -1,26 +1,40 @@
-import { Processor, Process, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import {Processor, WorkerHost } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 
 import { LedgerService } from '../services/ledger.service';
 import { WalletService } from '../services/wallet.service';
-import { WebSocketGateway } from '../../websocket/gateways/websocket.gateway';
-import { NotificationService } from '../../notification/services/notification.service';
-import { RecordTransactionParams } from '../../order-matching/interfaces/order-matching.interface';
+import { NotificationService } from "../../notifications/services/notification.service";
+import { RecordTransactionParams } from "../../order-matching/interfaces/order-matching.interface";
 
 @Processor('wallet-transaction')
-export class TransactionProcessor {
+export class TransactionProcessor extends WorkerHost {
   private readonly logger = new Logger(TransactionProcessor.name);
 
   constructor(
     private readonly ledgerService: LedgerService,
     private readonly walletService: WalletService,
-    private readonly webSocketGateway: WebSocketGateway,
-    private readonly notificationService: NotificationService,
-  ) {}
+    private readonly notificationService: NotificationService) {
+    super();
+}
 
-  @Process('process-transaction')
-  async processTransaction(job: Job<RecordTransactionParams>): Promise<void> {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'process-transaction':
+        return this.processTransaction(job);
+      case 'reconcile-wallet':
+        return this.reconcileWallet(job);
+      case 'cleanup-transactions':
+        return this.cleanupTransactions(job);
+      case 'audit-transactions':
+        return this.auditTransactions(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async processTransaction(job: Job<RecordTransactionParams>): Promise<void> {
     try {
       const transactionParams = job.data;
       this.logger.log(`Processing transaction ${transactionParams.type} for wallet ${transactionParams.walletId}`);
@@ -45,8 +59,8 @@ export class TransactionProcessor {
             transactionId: transaction.id,
             amount: transactionParams.amount,
             currency: transactionParams.currency,
-            type: transactionParams.type,
-          },
+            type: transactionParams.type
+          }
         });
       }
 
@@ -57,8 +71,7 @@ export class TransactionProcessor {
     }
   }
 
-  @Process('reconcile-wallet')
-  async reconcileWallet(job: Job<{ walletId: string }>): Promise<void> {
+  private async reconcileWallet(job: Job<{ walletId: string }>): Promise<void> {
     try {
       const { walletId } = job.data;
       this.logger.log(`Reconciling wallet ${walletId}`);
@@ -74,7 +87,7 @@ export class TransactionProcessor {
           title: 'Wallet Reconciliation Failure',
           message: `Wallet ${walletId} reconciliation failed with discrepancy of ${result.discrepancy}`,
           metadata: result,
-          priority: 'high',
+          priority: 'high'
         });
       } else {
         this.logger.log(`Wallet ${walletId} reconciled successfully`);
@@ -85,8 +98,7 @@ export class TransactionProcessor {
     }
   }
 
-  @Process('cleanup-transactions')
-  async cleanupTransactions(): Promise<void> {
+  private async cleanupTransactions(): Promise<void> {
     try {
       this.logger.log('Starting transaction cleanup');
 
@@ -100,8 +112,7 @@ export class TransactionProcessor {
     }
   }
 
-  @Process('audit-transactions')
-  async auditTransactions(job: Job<{ userId?: string; dateFrom?: Date; dateTo?: Date }>): Promise<void> {
+  private async auditTransactions(job: Job<{ userId?: string; dateFrom?: Date; dateTo?: Date }>): Promise<void> {
     try {
       const { userId, dateFrom, dateTo } = job.data;
       this.logger.log(`Starting transaction audit for user ${userId || 'all'}`);
@@ -116,7 +127,7 @@ export class TransactionProcessor {
     }
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   async onQueueFailed(job: Job, error: Error): Promise<void> {
     this.logger.error(`Transaction job ${job.id} failed:`, error);
 
@@ -127,7 +138,7 @@ export class TransactionProcessor {
         jobId: job.id,
         error: error.message,
         data: job.data,
-        critical: true,
+        critical: true
       });
     }
   }
@@ -138,7 +149,7 @@ export class TransactionProcessor {
       DEPOSIT: 10000,
       WITHDRAWAL: 5000,
       TRADE_BUY: 50000,
-      TRADE_SELL: 50000,
+      TRADE_SELL: 50000
     };
 
     const threshold = significantAmounts[params.type] || 0;
@@ -156,7 +167,7 @@ export class TransactionProcessor {
       BET_PAYOUT: 'Bet Payout',
       BET_STAKE: 'Bet Placed',
       FEE: 'Fee Charged',
-      COMMISSION: 'Commission Charged',
+      COMMISSION: 'Commission Charged'
     };
 
     return titles[params.type] || 'Transaction Processed';
@@ -174,7 +185,7 @@ export class TransactionProcessor {
         title: 'Transaction Processing Failure',
         message: `Critical transaction processing failure: ${notification.error}`,
         metadata: notification,
-        priority: 'high',
+        priority: 'high'
       });
 
       this.logger.warn(`Admin notification sent: ${JSON.stringify(notification)}`);

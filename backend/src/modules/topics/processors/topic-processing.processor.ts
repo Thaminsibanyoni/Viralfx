@@ -1,10 +1,11 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bullmq';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { TopicsService } from '../services/topics.service';
 import { TopicMergingService } from '../services/topic-merging.service';
 import { TrendingService } from '../services/trending.service';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 
 interface TopicProcessingJob {
   topicId?: string;
@@ -26,18 +27,38 @@ interface RollbackJob {
 }
 
 @Processor('topic-processing')
-export class TopicProcessingProcessor {
+export class TopicProcessingProcessor extends WorkerHost {
   private readonly logger = new Logger(TopicProcessingProcessor.name);
 
   constructor(
     private readonly topicsService: TopicsService,
     private readonly topicMergingService: TopicMergingService,
     private readonly trendingService: TrendingService,
-    private readonly prisma: PrismaService,
-  ) {}
+    private readonly prisma: PrismaService) {
+    super();
+}
 
-  @Process('topic-creation')
-  async handleTopicCreation(job: Job<TopicProcessingJob>) {
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'topic-creation':
+        return this.handleTopicCreation(job);
+      case 'topic-merge':
+        return this.handleTopicMerge(job);
+      case 'rollback-merge':
+        return this.handleRollbackMerge(job);
+      case 'trending-calculation':
+        return this.handleTrendingCalculation(job);
+      case 'canonical-update':
+        return this.handleCanonicalUpdate(job);
+      case 'topic-cleanup':
+        return this.handleTopicCleanup(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async handleTopicCreation(job: Job<TopicProcessingJob>) {
     const { topicId, data } = job.data;
 
     try {
@@ -56,8 +77,7 @@ export class TopicProcessingProcessor {
     }
   }
 
-  @Process('topic-merge')
-  async handleTopicMerge(job: Job<MergeJob>) {
+  private async handleTopicMerge(job: Job<MergeJob>) {
     const { mergeId, primaryTopicId, duplicateTopicIds, executorId } = job.data;
 
     try {
@@ -68,8 +88,8 @@ export class TopicProcessingProcessor {
         where: { id: mergeId },
         data: {
           status: 'PROCESSING',
-          startedAt: new Date(),
-        },
+          startedAt: new Date()
+        }
       });
 
       // Execute the merge
@@ -84,9 +104,9 @@ export class TopicProcessingProcessor {
           result: {
             mergedTopicId: primaryTopicId,
             duplicateTopicIds,
-            finalSnapshot: result,
-          },
-        },
+            finalSnapshot: result
+          }
+        }
       });
 
       // Invalidate caches
@@ -106,16 +126,15 @@ export class TopicProcessingProcessor {
         data: {
           status: 'FAILED',
           error: error.message,
-          completedAt: new Date(),
-        },
+          completedAt: new Date()
+        }
       });
 
       throw error;
     }
   }
 
-  @Process('rollback-merge')
-  async handleRollbackMerge(job: Job<RollbackJob>) {
+  private async handleRollbackMerge(job: Job<RollbackJob>) {
     const { mergeId, reason, primaryTopicId, duplicateTopicIds } = job.data;
 
     try {
@@ -126,20 +145,20 @@ export class TopicProcessingProcessor {
         where: { id: mergeId },
         data: {
           status: 'ROLLING_BACK',
-          rollbackStartedAt: new Date(),
-        },
+          rollbackStartedAt: new Date()
+        }
       });
 
       // Re-activate duplicate topics
       await this.prisma.topic.updateMany({
         where: {
-          id: { in: duplicateTopicIds },
+          id: { in: duplicateTopicIds }
         },
         data: {
           isActive: true,
           deletedAt: null,
-          mergedInto: null,
-        },
+          mergedInto: null
+        }
       });
 
       // This is a simplified rollback - in practice, you'd need to:
@@ -152,8 +171,8 @@ export class TopicProcessingProcessor {
         where: { id: mergeId },
         data: {
           status: 'ROLLED_BACK',
-          rollbackCompletedAt: new Date(),
-        },
+          rollbackCompletedAt: new Date()
+        }
       });
 
       // Invalidate caches
@@ -173,16 +192,15 @@ export class TopicProcessingProcessor {
         data: {
           status: 'ROLLBACK_FAILED',
           rollbackError: error.message,
-          rollbackCompletedAt: new Date(),
-        },
+          rollbackCompletedAt: new Date()
+        }
       });
 
       throw error;
     }
   }
 
-  @Process('trending-calculation')
-  async handleTrendingCalculation(job: Job<TopicProcessingJob>) {
+  private async handleTrendingCalculation(job: Job<TopicProcessingJob>) {
     const { data } = job.data;
 
     try {
@@ -207,8 +225,7 @@ export class TopicProcessingProcessor {
     }
   }
 
-  @Process('canonical-update')
-  async handleCanonicalUpdate(job: Job<TopicProcessingJob>) {
+  private async handleCanonicalUpdate(job: Job<TopicProcessingJob>) {
     const { topicId, data } = job.data;
 
     try {
@@ -225,7 +242,7 @@ export class TopicProcessingProcessor {
 
       // Update topic
       await this.topicsService.updateTopic(topicId, {
-        canonical: updatedCanonical,
+        canonical: updatedCanonical
       });
 
       // Update cache
@@ -239,8 +256,7 @@ export class TopicProcessingProcessor {
     }
   }
 
-  @Process('topic-cleanup')
-  async handleTopicCleanup(job: Job<TopicProcessingJob>) {
+  private async handleTopicCleanup(job: Job<TopicProcessingJob>) {
     const { data } = job.data;
 
     try {
@@ -252,17 +268,17 @@ export class TopicProcessingProcessor {
       const deletedTopics = await this.prisma.topic.findMany({
         where: {
           isActive: false,
-          deletedAt: { lte: thirtyDaysAgo },
+          deletedAt: { lte: thirtyDaysAgo }
         },
-        select: { id: true },
+        select: { id: true }
       });
 
       if (deletedTopics.length > 0) {
         // Permanently delete old topics
         await this.prisma.topic.deleteMany({
           where: {
-            id: { in: deletedTopics.map(t => t.id) },
-          },
+            id: { in: deletedTopics.map(t => t.id) }
+          }
         });
 
         this.logger.log(`Permanently deleted ${deletedTopics.length} old topics`);
@@ -274,8 +290,8 @@ export class TopicProcessingProcessor {
       await this.prisma.topicMerge.deleteMany({
         where: {
           completedAt: { lte: ninetyDaysAgo },
-          status: { in: ['COMPLETED', 'ROLLED_BACK'] },
-        },
+          status: { in: ['COMPLETED', 'ROLLED_BACK'] }
+        }
       });
 
       return { success: true, deletedTopics: deletedTopics.length };
@@ -285,17 +301,17 @@ export class TopicProcessingProcessor {
     }
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onActive(job: Job) {
     this.logger.log(`Processing topic job ${job.id} of type ${job.name}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job, result: any) {
     this.logger.log(`Completed topic job ${job.id} of type ${job.name}`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job, error: Error) {
     this.logger.error(`Failed topic job ${job.id} of type ${job.name}:`, error);
   }
@@ -353,8 +369,7 @@ export class TopicProcessingProcessor {
     mergeId: string,
     primaryTopicId: string,
     duplicateTopicIds: string[],
-    executorId: string,
-  ): Promise<void> {
+    executorId: string): Promise<void> {
     // Send notification for merge completion
     this.logger.log(`Notified merge completion for ${mergeId}`);
   }
@@ -374,7 +389,7 @@ export class TopicProcessingProcessor {
     const merged = {
       hashtags: [...new Set([...(existing?.hashtags || []), ...(updates.hashtags || [])])],
       keywords: [...new Set([...(existing?.keywords || []), ...(updates.keywords || [])])],
-      entities: [...(existing?.entities || []), ...(updates.entities || [])],
+      entities: [...(existing?.entities || []), ...(updates.entities || [])]
     };
 
     // Remove duplicates from entities based on type and value

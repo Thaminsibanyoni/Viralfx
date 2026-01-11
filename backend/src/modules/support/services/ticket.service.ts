@@ -1,30 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, Like } from 'typeorm';
-import { Ticket, TicketStatus, TicketPriority } from '../entities/ticket.entity';
-import { TicketMessage } from '../entities/ticket-message.entity';
-import { TicketCategory } from '../entities/ticket-category.entity';
-import { TicketSLA } from '../entities/ticket-sla.entity';
-import { SLA } from '../entities/sla.entity';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { TicketStatus, TicketPriority } from '../enums/support.enum';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class TicketService {
   constructor(
-    @InjectRepository(Ticket)
-    private readonly ticketRepository: Repository<Ticket>,
-    @InjectRepository(TicketMessage)
-    private readonly ticketMessageRepository: Repository<TicketMessage>,
-    @InjectRepository(TicketCategory)
-    private readonly ticketCategoryRepository: Repository<TicketCategory>,
-    @InjectRepository(TicketSLA)
-    private readonly ticketSLARepository: Repository<TicketSLA>,
-    @InjectRepository(SLA)
-    private readonly slaRepository: Repository<SLA>,
+    private readonly prisma: PrismaService,
     @InjectQueue('support-tickets')
-    private readonly supportQueue: Queue,
-  ) {}
+    private readonly supportQueue: Queue) {}
 
   async getTickets(filters: {
     page?: number;
@@ -46,55 +31,59 @@ export class TicketService {
       userId,
       brokerId,
       categoryId,
-      dateRange,
+      dateRange
     } = filters;
 
-    const queryBuilder = this.ticketRepository
-      .createQueryBuilder('ticket')
-      .leftJoinAndSelect('ticket.category', 'category')
-      .leftJoinAndSelect('ticket.assignedTo', 'assignedUser')
-      .leftJoinAndSelect('ticket.user', 'user')
-      .leftJoinAndSelect('ticket.broker', 'broker')
-      .leftJoinAndSelect('ticket.ticketSLA', 'ticketSLA')
-      .leftJoinAndSelect('ticketSLA.sla', 'sla')
-      .where('1 = 1');
+    const where: any = {};
 
     if (status) {
-      queryBuilder.andWhere('ticket.status = :status', { status });
+      where.status = status;
     }
 
     if (priority) {
-      queryBuilder.andWhere('ticket.priority = :priority', { priority });
+      where.priorityId = priority;
     }
 
     if (assignedTo) {
-      queryBuilder.andWhere('ticket.assignedTo = :assignedTo', { assignedTo });
+      where.assignedToId = assignedTo;
     }
 
     if (userId) {
-      queryBuilder.andWhere('ticket.userId = :userId', { userId });
+      where.userId = userId;
     }
 
     if (brokerId) {
-      queryBuilder.andWhere('ticket.brokerId = :brokerId', { brokerId });
+      where.brokerId = brokerId;
     }
 
     if (categoryId) {
-      queryBuilder.andWhere('ticket.categoryId = :categoryId', { categoryId });
+      where.categoryId = categoryId;
     }
 
     if (dateRange) {
-      queryBuilder.andWhere('ticket.createdAt BETWEEN :start AND :end', {
-        start: dateRange.start,
-        end: dateRange.end,
-      });
+      where.createdAt = {
+        gte: dateRange.start,
+        lte: dateRange.end
+      };
     }
 
-    const [tickets, total] = await queryBuilder
-      .orderBy('ticket.createdAt', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
+    const [tickets, total] = await Promise.all([
+      this.prisma.ticket.findMany({
+        where,
+        include: {
+          category: true,
+          assignedTo: true,
+          user: true,
+          broker: true
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        skip: (page - 1) * limit,
+        take: limit
+      }),
+      this.prisma.ticket.count({ where })
+    ]);
 
     return {
       tickets,
@@ -102,25 +91,29 @@ export class TicketService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limit)
       },
-      filters,
+      filters
     };
   }
 
-  async getTicketById(id: string): Promise<Ticket> {
-    return await this.ticketRepository.findOne({
+  async getTicketById(id: string) {
+    return await this.prisma.ticket.findUnique({
       where: { id },
-      relations: [
-        'category',
-        'messages',
-        'messages.author',
-        'ticketSLA',
-        'ticketSLA.sla',
-        'user',
-        'broker',
-        'assignedTo',
-      ],
+      include: {
+        category: true,
+        messages: {
+          include: {
+            author: true
+          },
+          orderBy: {
+            createdAt: 'asc'
+          }
+        },
+        user: true,
+        broker: true,
+        assignedTo: true
+      }
     });
   }
 
@@ -128,7 +121,7 @@ export class TicketService {
     subject: string;
     description: string;
     categoryId: string;
-    priority?: TicketPriority;
+    priority?: string;
     userId?: string;
     brokerId?: string;
     tags?: string[];
@@ -140,9 +133,11 @@ export class TicketService {
     }>;
     metadata?: Record<string, any>;
   }) {
-    const category = await this.ticketCategoryRepository.findOne({
+    const category = await this.prisma.ticketCategory.findUnique({
       where: { id: createTicketDto.categoryId },
-      relations: ['sla'],
+      include: {
+        sla: true
+      }
     });
 
     if (!category) {
@@ -152,51 +147,50 @@ export class TicketService {
     // Generate unique ticket number
     const ticketNumber = await this.generateTicketNumber();
 
-    const ticket = this.ticketRepository.create({
-      ticketNumber,
-      subject: createTicketDto.subject,
-      description: createTicketDto.description,
-      categoryId: createTicketDto.categoryId,
-      priority: createTicketDto.priority || category.defaultPriority || TicketPriority.MEDIUM,
-      userId: createTicketDto.userId,
-      brokerId: createTicketDto.brokerId,
-      assignedTo: category.defaultAssignedTo,
-      tags: createTicketDto.tags,
-      attachments: createTicketDto.attachments,
-      metadata: createTicketDto.metadata,
+    // Calculate SLA due date based on category default
+    const slaDueDate = new Date();
+    slaDueDate.setHours(slaDueDate.getHours() + category.defaultSlaHours);
+
+    const ticket = await this.prisma.ticket.create({
+      data: {
+        ticketNumber,
+        subject: createTicketDto.subject,
+        description: createTicketDto.description,
+        categoryId: createTicketDto.categoryId,
+        priorityId: createTicketDto.priority || 'MEDIUM',
+        userId: createTicketDto.userId,
+        brokerId: createTicketDto.brokerId,
+        slaDueDate,
+        tags: createTicketDto.tags || [],
+        customFields: {
+          attachments: createTicketDto.attachments,
+          metadata: createTicketDto.metadata
+        }
+      },
+      include: {
+        category: true
+      }
     });
-
-    const savedTicket = await this.ticketRepository.save(ticket);
-
-    // Create SLA tracking if category has SLA
-    if (category.sla) {
-      await this.createTicketSLA(savedTicket.id, category.sla);
-    }
-
-    // Assign ticket if default assignee is set
-    if (category.defaultAssignedTo) {
-      await this.supportQueue.add('assign-ticket', {
-        ticketId: savedTicket.id,
-        assignedTo: category.defaultAssignedTo,
-      });
-    }
 
     // Send notifications
     await this.supportQueue.add('send-ticket-confirmation', {
-      ticketId: savedTicket.id,
+      ticketId: ticket.id
     });
 
-    return savedTicket;
+    return ticket;
   }
 
-  async updateTicket(id: string, updateTicketDto: Partial<Ticket>) {
-    await this.ticketRepository.update(id, updateTicketDto);
+  async updateTicket(id: string, updateTicketDto: any) {
+    await this.prisma.ticket.update({
+      where: { id },
+      data: updateTicketDto
+    });
     return this.getTicketById(id);
   }
 
   async updateTicketStatus(
     id: string,
-    status: TicketStatus,
+    status: string,
     notes?: string,
     authorId?: string
   ) {
@@ -207,11 +201,22 @@ export class TicketService {
     }
 
     const previousStatus = ticket.status;
-    await this.ticketRepository.update(id, {
+    const updateData: any = {
       status,
-      updatedAt: new Date(),
-      ...(status === TicketStatus.RESOLVED && { resolvedAt: new Date() }),
-      ...(status === TicketStatus.CLOSED && { closedAt: new Date() }),
+      updatedAt: new Date()
+    };
+
+    if (status === TicketStatus.RESOLVED) {
+      updateData.resolvedAt = new Date();
+    }
+
+    if (status === TicketStatus.CLOSED) {
+      updateData.closedAt = new Date();
+    }
+
+    await this.prisma.ticket.update({
+      where: { id },
+      data: updateData
     });
 
     // Add status change message
@@ -219,7 +224,7 @@ export class TicketService {
       await this.addTicketMessage(id, {
         content: notes || `Status changed from ${previousStatus} to ${status}`,
         isInternal: !authorId,
-        authorId,
+        authorId
       });
     }
 
@@ -228,7 +233,7 @@ export class TicketService {
       ticketId: id,
       previousStatus,
       newStatus: status,
-      notes,
+      notes
     });
 
     return this.getTicketById(id);
@@ -241,9 +246,12 @@ export class TicketService {
       throw new Error('Ticket not found');
     }
 
-    await this.ticketRepository.update(ticketId, {
-      assignedTo,
-      updatedAt: new Date(),
+    await this.prisma.ticket.update({
+      where: { id: ticketId },
+      data: {
+        assignedToId: assignedTo,
+        updatedAt: new Date()
+      }
     });
 
     // Add assignment message
@@ -251,7 +259,7 @@ export class TicketService {
       await this.addTicketMessage(ticketId, {
         content: `Ticket assigned to support agent`,
         isInternal: true,
-        authorId: assignedBy,
+        authorId: assignedBy
       });
     }
 
@@ -259,7 +267,7 @@ export class TicketService {
     await this.supportQueue.add('ticket-assigned', {
       ticketId,
       assignedTo,
-      assignedBy,
+      assignedBy
     });
 
     return this.getTicketById(ticketId);
@@ -276,40 +284,49 @@ export class TicketService {
       type: string;
     }>;
   }) {
-    const message = this.ticketMessageRepository.create({
-      ticketId,
-      content: messageData.content,
-      isInternal: messageData.isInternal,
-      authorId: messageData.authorId,
-      attachments: messageData.attachments,
+    const message = await this.prisma.ticketMessage.create({
+      data: {
+        ticketId,
+        content: messageData.content,
+        isInternal: messageData.isInternal,
+        authorId: messageData.authorId,
+        attachments: messageData.attachments
+      }
     });
-
-    const savedMessage = await this.ticketMessageRepository.save(message);
 
     // Update ticket first response time if this is the first public response
     const ticket = await this.getTicketById(ticketId);
     if (ticket && !ticket.firstResponseAt && !messageData.isInternal) {
-      await this.ticketRepository.update(ticketId, {
-        firstResponseAt: new Date(),
+      await this.prisma.ticket.update({
+        where: { id: ticketId },
+        data: {
+          firstResponseAt: new Date()
+        }
       });
     }
 
     // Queue message notification
     await this.supportQueue.add('new-ticket-message', {
       ticketId,
-      messageId: savedMessage.id,
-      isInternal: messageData.isInternal,
+      messageId: message.id,
+      isInternal: messageData.isInternal
     });
 
-    return savedMessage;
+    return message;
   }
 
   async getTicketMessages(ticketId: string, includeInternal = false) {
-    return await this.ticketMessageRepository.find({
-      where: { ticketId },
-      ...(includeInternal ? {} : { where: { isInternal: false } }),
-      relations: ['author'],
-      order: { createdAt: 'ASC' },
+    return await this.prisma.ticketMessage.findMany({
+      where: {
+        ticketId,
+        ...(includeInternal ? {} : { isInternal: false })
+      },
+      include: {
+        author: true
+      },
+      orderBy: {
+        createdAt: 'asc'
+      }
     });
   }
 
@@ -332,6 +349,11 @@ export class TicketService {
         break;
     }
 
+    const dateFilter = {
+      gte: startDate,
+      lte: now
+    };
+
     const [
       totalTickets,
       newTickets,
@@ -342,43 +364,39 @@ export class TicketService {
       ticketsByPriority,
       avgResolutionTime,
     ] = await Promise.all([
-      this.ticketRepository.count({ where: { createdAt: Between(startDate, now) } }),
-      this.ticketRepository.count({
+      this.prisma.ticket.count({ where: { createdAt: dateFilter } }),
+      this.prisma.ticket.count({
         where: {
-          createdAt: Between(startDate, now),
-          status: TicketStatus.NEW,
-        },
+          createdAt: dateFilter,
+          status: TicketStatus.NEW
+        }
       }),
-      this.ticketRepository.count({
+      this.prisma.ticket.count({
         where: {
-          createdAt: Between(startDate, now),
-          status: TicketStatus.OPEN,
-        },
+          createdAt: dateFilter,
+          status: TicketStatus.OPEN
+        }
       }),
-      this.ticketRepository.count({
+      this.prisma.ticket.count({
         where: {
-          resolvedAt: Between(startDate, now),
-        },
+          resolvedAt: dateFilter
+        }
       }),
-      this.ticketRepository.count({
+      this.prisma.ticket.count({
         where: {
-          closedAt: Between(startDate, now),
-        },
+          closedAt: dateFilter
+        }
       }),
-      this.ticketRepository
-        .createQueryBuilder('ticket')
-        .select('ticket.status', 'status')
-        .addSelect('COUNT(*)', 'count')
-        .where('ticket.createdAt BETWEEN :start AND :end', { start: startDate, end: now })
-        .groupBy('ticket.status')
-        .getRawMany(),
-      this.ticketRepository
-        .createQueryBuilder('ticket')
-        .select('ticket.priority', 'priority')
-        .addSelect('COUNT(*)', 'count')
-        .where('ticket.createdAt BETWEEN :start AND :end', { start: startDate, end: now })
-        .groupBy('ticket.priority')
-        .getRawMany(),
+      this.prisma.ticket.groupBy({
+        by: ['status'],
+        where: { createdAt: dateFilter },
+        _count: { id: true }
+      }),
+      this.prisma.ticket.groupBy({
+        by: ['priorityId'],
+        where: { createdAt: dateFilter },
+        _count: { id: true }
+      }),
       this.getAverageResolutionTime(startDate, now),
     ]);
 
@@ -389,9 +407,15 @@ export class TicketService {
       openTickets,
       resolvedTickets,
       closedTickets,
-      ticketsByStatus,
-      ticketsByPriority,
-      avgResolutionTime,
+      ticketsByStatus: ticketsByStatus.map(item => ({
+        status: item.status,
+        count: item._count.id
+      })),
+      ticketsByPriority: ticketsByPriority.map(item => ({
+        priority: item.priorityId,
+        count: item._count.id
+      })),
+      avgResolutionTime
     };
   }
 
@@ -400,11 +424,15 @@ export class TicketService {
     const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
 
     // Find the last ticket number for today
-    const lastTicket = await this.ticketRepository.findOne({
+    const lastTicket = await this.prisma.ticket.findFirst({
       where: {
-        ticketNumber: Like(`TICKET-${dateStr}-%`),
+        ticketNumber: {
+          startsWith: `TICKET-${dateStr}-`
+        }
       },
-      order: { ticketNumber: 'DESC' },
+      orderBy: {
+        ticketNumber: 'desc'
+      }
     });
 
     let sequence = 1;
@@ -416,26 +444,42 @@ export class TicketService {
     return `TICKET-${dateStr}-${sequence.toString().padStart(4, '0')}`;
   }
 
-  private async createTicketSLA(ticketId: string, sla: SLA) {
-    const ticketSLA = this.ticketSLARepository.create({
-      ticketId,
-      slaId: sla.id,
-      responseDueAt: new Date(Date.now() + sla.responseTime * 60 * 1000),
-      resolutionDueAt: new Date(Date.now() + sla.resolutionTime * 60 * 1000),
+  private async createTicketSLA(ticketId: string, sla: any) {
+    await this.prisma.ticketSLA.create({
+      data: {
+        ticketId,
+        slaId: sla.id,
+        responseDueAt: new Date(Date.now() + sla.firstResponseMinutes * 60 * 1000),
+        resolutionDueAt: new Date(Date.now() + sla.resolutionMinutes * 60 * 1000)
+      }
     });
-
-    await this.ticketSLARepository.save(ticketSLA);
   }
 
   private async getAverageResolutionTime(startDate: Date, endDate: Date): Promise<number> {
-    const result = await this.ticketRepository
-      .createQueryBuilder('ticket')
-      .select('AVG(EXTRACT(EPOCH FROM (ticket.resolvedAt - ticket.createdAt)) / 60)', 'avgMinutes')
-      .where('ticket.resolvedAt BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .andWhere('ticket.status = :status', { status: TicketStatus.RESOLVED })
-      .getRawOne();
+    const tickets = await this.prisma.ticket.findMany({
+      where: {
+        resolvedAt: {
+          gte: startDate,
+          lte: endDate
+        },
+        status: TicketStatus.RESOLVED
+      },
+      select: {
+        resolvedAt: true,
+        createdAt: true
+      }
+    });
 
-    return Math.round(parseFloat(result?.avgMinutes || 0));
+    if (tickets.length === 0) {
+      return 0;
+    }
+
+    const totalMinutes = tickets.reduce((sum, ticket) => {
+      const resolutionTime = ticket.resolvedAt.getTime() - ticket.createdAt.getTime();
+      return sum + resolutionTime / (1000 * 60);
+    }, 0);
+
+    return Math.round(totalMinutes / tickets.length);
   }
 
   async exportTickets(filters: any) {
@@ -456,11 +500,11 @@ export class TicketService {
         ticket.ticketNumber,
         ticket.subject,
         ticket.status,
-        ticket.priority,
+        ticket.priorityId,
         ticket.category?.name || '',
         ticket.createdAt.toISOString(),
         ticket.resolvedAt?.toISOString() || '',
-        ticket.assignedTo?.name || '',
+        ticket.assignedTo?.firstName + ' ' + ticket.assignedTo?.lastName || '',
       ]),
     ];
 
@@ -474,11 +518,14 @@ export class TicketService {
     }
 
     // Delete related records first due to foreign key constraints
-    await this.ticketMessageRepository.delete({ ticketId: id });
-    await this.ticketSLARepository.delete({ ticketId: id });
+    await this.prisma.ticketMessage.deleteMany({
+      where: { ticketId: id }
+    });
 
     // Delete the ticket
-    await this.ticketRepository.delete(id);
+    await this.prisma.ticket.delete({
+      where: { id }
+    });
 
     return { success: true, message: 'Ticket deleted successfully' };
   }

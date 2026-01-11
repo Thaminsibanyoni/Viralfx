@@ -9,8 +9,7 @@ import {
   Request,
   NotFoundException,
   ForbiddenException,
-  InjectRepository,
-  Logger,
+  Logger
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -18,12 +17,11 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
-  ApiQuery,
+  ApiQuery
 } from '@nestjs/swagger';
-import { Repository } from 'typeorm';
 
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { CurrentUser } from "../../auth/decorators/current-user.decorator";
 
 import { WalletService } from '../services/wallet.service';
 import { DepositService } from '../services/deposit.service';
@@ -35,8 +33,6 @@ import { WithdrawalDto } from '../dto/withdrawal.dto';
 import { TransferDto } from '../dto/transfer.dto';
 import { WalletResponseDto } from '../dto/wallet-response.dto';
 import { TransactionResponseDto } from '../dto/transaction-response.dto';
-import { Wallet } from '../entities/wallet.entity';
-import { Transaction } from '../entities/transaction.entity';
 
 @ApiTags('Wallets')
 @ApiBearerAuth()
@@ -49,12 +45,7 @@ export class WalletController {
     private readonly walletService: WalletService,
     private readonly depositService: DepositService,
     private readonly withdrawalService: WithdrawalService,
-    private readonly ledgerService: LedgerService,
-    @InjectRepository(Transaction)
-    private readonly transactionRepository: Repository<Transaction>,
-    @InjectRepository(Wallet)
-    private readonly walletRepository: Repository<Wallet>,
-  ) {}
+    private readonly ledgerService: LedgerService) {}
 
   @Post()
   @Throttle(10, 60) // 10 requests per minute
@@ -64,8 +55,7 @@ export class WalletController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async createWallet(
     @Body() createWalletDto: CreateWalletDto,
-    @CurrentUser() user: { id: string },
-  ): Promise<WalletResponseDto> {
+    @CurrentUser() user: { id: string }): Promise<WalletResponseDto> {
     const wallet = await this.walletService.createWallet(
       user.id,
       createWalletDto.currency,
@@ -90,8 +80,7 @@ export class WalletController {
   @ApiResponse({ status: 404, description: 'Wallet not found' })
   async getWallet(
     @Param('id') id: string,
-    @CurrentUser() user: { id: string },
-  ): Promise<WalletResponseDto> {
+    @CurrentUser() user: { id: string }): Promise<WalletResponseDto> {
     const wallet = await this.walletService.getWallet(id);
     if (wallet.userId !== user.id) {
       throw new Error('Wallet does not belong to user');
@@ -117,8 +106,7 @@ export class WalletController {
     @Query('type') type?: string,
     @Query('status') status?: string,
     @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ): Promise<{ items: TransactionResponseDto[]; total: number; page: number; limit: number; totalPages: number }> {
+    @Query('dateTo') dateTo?: string): Promise<{ items: TransactionResponseDto[]; total: number; page: number; limit: number; totalPages: number }> {
     const wallet = await this.walletService.getWallet(id);
     if (wallet.userId !== user.id) {
       throw new Error('Wallet does not belong to user');
@@ -131,13 +119,13 @@ export class WalletController {
         type,
         status,
         dateFrom: dateFrom ? new Date(dateFrom) : undefined,
-        dateTo: dateTo ? new Date(dateTo) : undefined,
-      },
+        dateTo: dateTo ? new Date(dateTo) : undefined
+      }
     });
 
     return {
       ...result,
-      items: result.items.map(transaction => TransactionResponseDto.toDTO(transaction)),
+      items: result.items.map(transaction => TransactionResponseDto.toDTO(transaction))
     };
   }
 
@@ -148,8 +136,7 @@ export class WalletController {
   @ApiResponse({ status: 400, description: 'Bad request' })
   async initiateDeposit(
     @Body() depositDto: DepositDto,
-    @CurrentUser() user: { id: string },
-  ): Promise<{
+    @CurrentUser() user: { id: string }): Promise<{
     success: boolean;
     transactionId?: string;
     checkoutUrl?: string;
@@ -170,12 +157,12 @@ export class WalletController {
         transactionId: result.transactionId,
         checkoutUrl: result.checkoutUrl,
         reference: result.reference,
-        estimatedProcessingTime: result.estimatedProcessingTime,
+        estimatedProcessingTime: result.estimatedProcessingTime
       };
     } catch (error) {
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -187,8 +174,7 @@ export class WalletController {
   @ApiResponse({ status: 400, description: 'Bad request' })
   async initiateWithdrawal(
     @Body() withdrawalDto: WithdrawalDto,
-    @CurrentUser() user: { id: string },
-  ): Promise<{
+    @CurrentUser() user: { id: string }): Promise<{
     success: boolean;
     transactionId?: string;
     estimatedProcessingTime?: number;
@@ -208,12 +194,12 @@ export class WalletController {
         success: true,
         transactionId: result.transactionId,
         estimatedProcessingTime: result.estimatedProcessingTime,
-        requirements: result.requirements,
+        requirements: result.requirements
       };
     } catch (error) {
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -225,8 +211,7 @@ export class WalletController {
   @ApiResponse({ status: 400, description: 'Bad request' })
   async transferFunds(
     @Body() transferDto: TransferDto,
-    @CurrentUser() user: { id: string },
-  ): Promise<{
+    @CurrentUser() user: { id: string }): Promise<{
     success: boolean;
     fromAmount?: number;
     toAmount?: number;
@@ -258,12 +243,12 @@ export class WalletController {
         toAmount: result.toAmount,
         exchangeRate: result.exchangeRate,
         fee: result.fee,
-        transactionIds: result.transactions.map(tx => tx.id),
+        transactionIds: result.transactions.map(tx => tx.id)
       };
     } catch (error) {
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -275,8 +260,7 @@ export class WalletController {
   @ApiQuery({ name: 'targetCurrency', required: false, type: String, description: 'Target currency for valuation' })
   async getPortfolioValue(
     @CurrentUser() user: { id: string },
-    @Query('targetCurrency') targetCurrency: string = 'ZAR',
-  ): Promise<{
+    @Query('targetCurrency') targetCurrency: string = 'ZAR'): Promise<{
     totalValueZAR: number;
     totalValueUSD: number;
     wallets: Array<{
@@ -297,8 +281,7 @@ export class WalletController {
   @ApiResponse({ status: 200, description: 'Balance retrieved successfully' })
   async getBalance(
     @Param('id') id: string,
-    @CurrentUser() user: { id: string },
-  ): Promise<{
+    @CurrentUser() user: { id: string }): Promise<{
     available: number;
     locked: number;
     total: number;
@@ -312,7 +295,7 @@ export class WalletController {
     const balance = await this.walletService.getBalance(id);
     return {
       ...balance,
-      currency: wallet.currency,
+      currency: wallet.currency
     };
   }
 
@@ -325,29 +308,26 @@ export class WalletController {
   async getTransaction(
     @Param('walletId') walletId: string,
     @Param('transactionId') transactionId: string,
-    @CurrentUser() user: { id: string },
-  ): Promise<TransactionResponseDto> {
+    @CurrentUser() user: { id: string }): Promise<TransactionResponseDto> {
     try {
-      // Use secure query with JOIN to ensure ownership
-      const transaction = await this.transactionRepository
-        .createQueryBuilder('t')
-        .innerJoinAndSelect('t.wallet', 'w')
-        .where('t.id = :transactionId AND w.id = :walletId AND w.userId = :userId', {
-          transactionId,
-          walletId,
-          userId: user.id,
-        })
-        .getOne();
+      // First verify wallet ownership
+      const wallet = await this.walletService.getWallet(walletId);
+      if (wallet.userId !== user.id) {
+        throw new ForbiddenException('Access denied to this wallet');
+      }
+
+      // Get transaction with wallet to ensure ownership
+      const transaction = await this.walletService.getTransaction(walletId, transactionId);
 
       if (!transaction) {
-        throw new NotFoundException('Transaction not found or access denied');
+        throw new NotFoundException('Transaction not found');
       }
 
       this.logger.log(`Retrieved transaction ${transactionId} for user ${user.id}`);
 
       return TransactionResponseDto.toDTO(transaction);
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
         throw error;
       }
 
@@ -363,8 +343,7 @@ export class WalletController {
   @ApiResponse({ status: 400, description: 'Cannot cancel withdrawal' })
   async cancelWithdrawal(
     @Param('id') id: string,
-    @CurrentUser() user: { id: string },
-  ): Promise<{
+    @CurrentUser() user: { id: string }): Promise<{
     success: boolean;
     error?: string;
   }> {
@@ -374,7 +353,7 @@ export class WalletController {
     } catch (error) {
       return {
         success: false,
-        error: error.message,
+        error: error.message
       };
     }
   }

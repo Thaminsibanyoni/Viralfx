@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
 import { CreateKeyDto, UpdateKeyDto } from '../dto/create-key.dto';
 import { ApiKey, ApiKeyWithDetails, RateLimitResult } from '../interfaces/api-marketplace.interface';
 import { randomBytes } from 'crypto';
@@ -15,14 +15,12 @@ export class KeysService {
 
   constructor(
     private prisma: PrismaService,
-    private redis: RedisService,
-  ) {}
+    private redis: RedisService) {}
 
   async generateKey(
     userId: string | null,
     brokerId: string | null,
-    dto: CreateKeyDto,
-  ): Promise<{ key: string; apiKey: ApiKey }> {
+    dto: CreateKeyDto): Promise<{ key: string; apiKey: ApiKey }> {
     // Validate that exactly one of userId or brokerId is provided
     if (!userId && !brokerId) {
       throw new BadRequestException('Either userId or brokerId must be provided');
@@ -34,7 +32,7 @@ export class KeysService {
     // Validate plan exists
     const plan = await this.prisma.apiPlan.findUnique({
       where: { id: dto.planId },
-      include: { product: true },
+      include: { product: true }
     });
 
     if (!plan) {
@@ -62,13 +60,13 @@ export class KeysService {
         isSandbox: dto.isSandbox ?? false,
         metadata: dto.metadata || {},
         quotaResetAt,
-        expiresAt: dto.isSandbox ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null, // 30 days for sandbox
+        expiresAt: dto.isSandbox ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null // 30 days for sandbox
       },
       include: {
         plan: {
-          include: { product: true },
-        },
-      },
+          include: { product: true }
+        }
+      }
     });
 
     // Invalidate product cache
@@ -96,29 +94,29 @@ export class KeysService {
         ],
         // Look for keys that might contain this identifier
         key: {
-          contains: keyIdentifier,
-        },
+          contains: keyIdentifier
+        }
       },
       include: {
         plan: {
-          include: { product: true },
+          include: { product: true }
         },
         user: {
           select: {
             id: true,
             email: true,
             firstName: true,
-            lastName: true,
-          },
+            lastName: true
+          }
         },
         broker: {
           select: {
             id: true,
             companyName: true,
-            contactEmail: true,
-          },
-        },
-      },
+            contactEmail: true
+          }
+        }
+      }
     });
 
     // Check each key hash (much smaller subset now)
@@ -128,7 +126,7 @@ export class KeysService {
         // Update last used timestamp
         await this.prisma.apiKey.update({
           where: { id: apiKey.id },
-          data: { lastUsedAt: new Date() },
+          data: { lastUsedAt: new Date() }
         });
 
         return apiKey as ApiKeyWithDetails;
@@ -142,10 +140,9 @@ export class KeysService {
     id: string,
     userId: string | undefined,
     brokerId: string | undefined,
-    dto: UpdateKeyDto,
-  ): Promise<ApiKeyWithDetails> {
+    dto: UpdateKeyDto): Promise<ApiKeyWithDetails> {
     const apiKey = await this.prisma.apiKey.findUnique({
-      where: { id },
+      where: { id }
     });
 
     if (!apiKey) {
@@ -165,28 +162,28 @@ export class KeysService {
       data: {
         label: dto.label,
         ipWhitelist: dto.ipWhitelist,
-        metadata: dto.metadata,
+        metadata: dto.metadata
       },
       include: {
         plan: {
-          include: { product: true },
+          include: { product: true }
         },
         user: {
           select: {
             id: true,
             email: true,
             firstName: true,
-            lastName: true,
-          },
+            lastName: true
+          }
         },
         broker: {
           select: {
             id: true,
             companyName: true,
-            contactEmail: true,
-          },
-        },
-      },
+            contactEmail: true
+          }
+        }
+      }
     });
 
     return updated as ApiKeyWithDetails;
@@ -197,9 +194,9 @@ export class KeysService {
       where: { id },
       include: {
         plan: {
-          include: { product: true },
-        },
-      },
+          include: { product: true }
+        }
+      }
     });
 
     if (!apiKey) {
@@ -216,7 +213,7 @@ export class KeysService {
 
     await this.prisma.apiKey.update({
       where: { id },
-      data: { revoked: true },
+      data: { revoked: true }
     });
 
     // Clear from cache
@@ -233,9 +230,9 @@ export class KeysService {
       where: { id },
       include: {
         plan: {
-          include: { product: true },
-        },
-      },
+          include: { product: true }
+        }
+      }
     });
 
     if (!apiKey) {
@@ -258,13 +255,13 @@ export class KeysService {
       where: { id },
       data: {
         key: keyHash,
-        lastUsedAt: new Date(),
+        lastUsedAt: new Date()
       },
       include: {
         plan: {
-          include: { product: true },
-        },
-      },
+          include: { product: true }
+        }
+      }
     });
 
     // Clear old key from cache
@@ -288,28 +285,28 @@ export class KeysService {
       where,
       include: {
         plan: {
-          include: { product: true },
+          include: { product: true }
         },
         user: {
           select: {
             id: true,
             email: true,
             firstName: true,
-            lastName: true,
-          },
+            lastName: true
+          }
         },
         broker: {
           select: {
             id: true,
             companyName: true,
-            contactEmail: true,
-          },
+            contactEmail: true
+          }
         },
         _count: {
-          select: { apiUsage: true },
-        },
+          select: { apiUsage: true }
+        }
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' }
     });
 
     return apiKeys as ApiKeyWithDetails[];
@@ -318,7 +315,7 @@ export class KeysService {
   async checkRateLimit(apiKeyId: string): Promise<RateLimitResult> {
     const apiKey = await this.prisma.apiKey.findUnique({
       where: { id: apiKeyId },
-      include: { plan: true },
+      include: { plan: true }
     });
 
     if (!apiKey) {
@@ -354,7 +351,7 @@ export class KeysService {
           allowed: false,
           remaining: 0,
           resetAt: new Date(currentMinute + 60000),
-          retryAfter: this.BURST_TTL,
+          retryAfter: this.BURST_TTL
         };
       }
     }
@@ -363,7 +360,7 @@ export class KeysService {
       allowed,
       remaining,
       resetAt: new Date(currentMinute + 60000),
-      retryAfter: allowed ? undefined : 60,
+      retryAfter: allowed ? undefined : 60
     };
   }
 
@@ -372,8 +369,8 @@ export class KeysService {
       where: { id: apiKeyId },
       data: {
         usageCount: { increment: 1 },
-        lastUsedAt: new Date(),
-      },
+        lastUsedAt: new Date()
+      }
     });
   }
 
@@ -385,8 +382,8 @@ export class KeysService {
       where: { id: apiKeyId },
       data: {
         usageCount: 0,
-        quotaResetAt: nextMonth,
-      },
+        quotaResetAt: nextMonth
+      }
     });
 
     // Clear usage cache
@@ -396,7 +393,7 @@ export class KeysService {
   async getRemainingQuota(apiKeyId: string): Promise<number> {
     const apiKey = await this.prisma.apiKey.findUnique({
       where: { id: apiKeyId },
-      include: { plan: true },
+      include: { plan: true }
     });
 
     if (!apiKey) {

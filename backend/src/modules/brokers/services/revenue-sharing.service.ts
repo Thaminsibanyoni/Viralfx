@@ -1,15 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, LessThan, MoreThan } from 'typeorm';
-import { BrokerClient } from '../entities/broker-client.entity';
-import { Broker } from '../entities/broker.entity';
-import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { PaymentGatewayService } from '../../payments/services/payment-gateway.service';
-import { NotificationService } from '../../notifications/services/notification.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerClient } from '../entities/broker-client.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Broker } from '../entities/broker.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
+import { PaymentGatewayService } from "../../payment/services/payment-gateway.service";
+import { NotificationService } from "../../notifications/services/notification.service";
 import { ConfigService } from '@nestjs/config';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 export interface PayoutCalculation {
   brokerId: string;
@@ -87,22 +85,15 @@ export class RevenueSharingService {
   private readonly commissionStructure: CommissionStructure;
 
   constructor(
-    @InjectRepository(BrokerClient)
-    private brokerClientRepository: Repository<BrokerClient>,
-    @InjectRepository(Broker)
-    private brokerRepository: Repository<Broker>,
-    @InjectRepository(BrokerBill)
-    private billRepository: Repository<BrokerBill>,
-    private prismaService: PrismaService,
+        private prismaService: PrismaService,
     private paymentGatewayService: PaymentGatewayService,
     private notificationService: NotificationService,
     private configService: ConfigService,
-    @InjectQueue('payout-processing') private payoutQueue: Queue,
-  ) {
+    @InjectQueue('payout-processing') private payoutQueue: Queue) {
     this.commissionStructure = {
       defaultSplit: {
         platform: this.configService.get<number>('PLATFORM_COMMISSION_RATE', 0.7),
-        broker: this.configService.get<number>('BROKER_COMMISSION_RATE', 0.3),
+        broker: this.configService.get<number>('BROKER_COMMISSION_RATE', 0.3)
       },
       volumeDiscounts: [
         { minVolume: 1000000, discount: 0.02 },    // 2% discount for R1M+
@@ -118,8 +109,8 @@ export class RevenueSharingService {
       tierMultipliers: {
         STARTER: 1.0,
         PROFESSIONAL: 1.05,
-        ENTERPRISE: 1.10,
-      },
+        ENTERPRISE: 1.10
+      }
     };
   }
 
@@ -130,7 +121,7 @@ export class RevenueSharingService {
     const endDate = new Date(year, month, 0, 23, 59, 59);
 
     // Get broker details
-    const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+    const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
     if (!broker) {
       throw new Error(`Broker not found: ${brokerId}`);
     }
@@ -142,9 +133,9 @@ export class RevenueSharingService {
         status: 'FILLED',
         createdAt: {
           gte: startDate,
-          lte: endDate,
-        },
-      },
+          lte: endDate
+        }
+      }
     });
 
     // Get unique clients
@@ -194,10 +185,10 @@ export class RevenueSharingService {
         commissionRevenue,
         referralRevenue,
         bonusRevenue,
-        adjustments,
+        adjustments
       },
       transactionCount: orders.length,
-      clientCount,
+      clientCount
     };
   }
 
@@ -223,14 +214,14 @@ export class RevenueSharingService {
     this.logger.log(`Processing monthly payouts for ${year}-${month}`);
 
     // Get all active brokers
-    const brokers = await this.brokerRepository.find({ where: { isActive: true } });
+    const brokers = await this.prisma.broker.findMany({ where: { isActive: true } });
 
     const payoutPromises = brokers.map(async (broker) => {
       try {
         const payout = await this.calculateMonthlyPayout(broker.id, year, month);
 
         // Create bill record
-        const bill = this.billRepository.create({
+        const bill = this.prisma.billrepository.create({
           brokerId: broker.id,
           period: new Date(year, month - 1, 1),
           baseFee: 0, // No base fee, pure revenue sharing
@@ -239,16 +230,16 @@ export class RevenueSharingService {
           vat: 0, // VAT handled separately
           total: payout.platformShare,
           status: BillStatus.PENDING,
-          dueDate: new Date(year, month, 15), // Due on 15th of next month
+          dueDate: new Date(year, month, 15) // Due on 15th of next month
         });
 
-        await this.billRepository.save(bill);
+        await this.prisma.billrepository.upsert(bill);
 
         // Queue payout processing
         await this.payoutQueue.add('process-broker-payout', {
           brokerId: broker.id,
           payout,
-          billId: bill.id,
+          billId: bill.id
         });
 
         this.logger.log(`Payout processed for broker ${broker.id}: R${payout.netPayout.toFixed(2)}`);
@@ -269,9 +260,9 @@ export class RevenueSharingService {
         status: 'FILLED',
         createdAt: {
           gte: startDate,
-          lte: endDate,
-        },
-      },
+          lte: endDate
+        }
+      }
     });
 
     // Group by broker
@@ -289,7 +280,7 @@ export class RevenueSharingService {
             broker: null, // Will be populated later
             revenue: 0,
             transactionCount: 0,
-            clientIds: new Set(),
+            clientIds: new Set()
           });
         }
 
@@ -303,7 +294,7 @@ export class RevenueSharingService {
     // Get broker details and calculate payouts
     const brokerBreakdown = await Promise.all(
       Array.from(brokerRevenue.entries()).map(async ([brokerId, data]) => {
-        const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+        const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
         data.broker = broker;
 
         const payoutCalculation = await this.calculateMonthlyPayout(
@@ -320,7 +311,7 @@ export class RevenueSharingService {
           payout: payoutCalculation.netPayout,
           platformShare: payoutCalculation.platformShare,
           clientCount: data.clientIds.size,
-          transactionCount: data.transactionCount,
+          transactionCount: data.transactionCount
         };
       })
     );
@@ -352,7 +343,7 @@ export class RevenueSharingService {
       monthlyRevenue.push({
         month: monthStart.toLocaleDateString('en-US', { year: 'numeric', month: 'short' }),
         revenue: monthRevenue,
-        payouts: monthPayouts,
+        payouts: monthPayouts
       });
     }
 
@@ -367,9 +358,9 @@ export class RevenueSharingService {
         growthMetrics: {
           revenueGrowth: this.calculateGrowthRate(monthlyRevenue, 'revenue'),
           payoutGrowth: this.calculateGrowthRate(monthlyRevenue, 'payouts'),
-          clientGrowth: this.calculateClientGrowth(brokerBreakdown),
-        },
-      },
+          clientGrowth: this.calculateClientGrowth(brokerBreakdown)
+        }
+      }
     };
   }
 
@@ -392,7 +383,7 @@ export class RevenueSharingService {
     this.logger.log(`Initiating payout for broker ${brokerId}: R${payout.netPayout.toFixed(2)}`);
 
     try {
-      const broker = await this.brokerRepository.findOne({ where: { id: brokerId } });
+      const broker = await this.prisma.broker.findFirst({ where: { id: brokerId } });
       if (!broker) {
         throw new Error(`Broker not found: ${brokerId}`);
       }
@@ -408,13 +399,13 @@ export class RevenueSharingService {
           brokerId,
           period: payout.period,
           transactionCount: payout.transactionCount,
-          clientCount: payout.clientCount,
-        },
+          clientCount: payout.clientCount
+        }
       });
 
       if (payoutResult.success) {
         // Update bill status
-        await this.billRepository.update(
+        await this.prisma.billrepository.update(
           { brokerId, period: payout.period.start },
           { status: BillStatus.PAID }
         );
@@ -423,7 +414,7 @@ export class RevenueSharingService {
         await this.notificationService.sendBrokerPayoutConfirmation(brokerId, {
           amount: payout.netPayout,
           period: payout.period,
-          transactionId: payoutResult.transactionId,
+          transactionId: payoutResult.transactionId
         });
 
         this.logger.log(`Payout successfully processed for broker ${brokerId}`);
@@ -445,10 +436,10 @@ export class RevenueSharingService {
     processedDate?: Date;
     transactionId?: string;
   }>> {
-    const bills = await this.billRepository.find({
+    const bills = await this.prisma.billrepository.findMany({
       where: { brokerId },
       order: { period: 'DESC' },
-      take: limit,
+      take: limit
     });
 
     return bills.map(bill => ({
@@ -456,7 +447,7 @@ export class RevenueSharingService {
       amount: bill.transactionFees, // This represents the platform share
       status: bill.status,
       processedDate: bill.updatedAt,
-      transactionId: bill.paymentTransactionId,
+      transactionId: bill.paymentTransactionId
     }));
   }
 
@@ -508,7 +499,7 @@ export class RevenueSharingService {
     return {
       isValid: errors.length === 0,
       errors,
-      warnings,
+      warnings
     };
   }
 }

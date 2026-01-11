@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Wallet } from '../entities/wallet.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Wallet } from '../entities/wallet.entity';
 
 export class WalletResponseDto {
   @ApiProperty({ description: 'Wallet ID' })
@@ -111,7 +111,7 @@ export class WalletResponseDto {
       dailyLimitRemaining: wallet.daily_limit_remaining,
       monthlyLimitRemaining: wallet.monthly_limit_remaining,
       isDailyLimitExceeded: wallet.is_daily_limit_exceeded,
-      isMonthlyLimitExceeded: wallet.is_monthly_limit_exceeded,
+      isMonthlyLimitExceeded: wallet.is_monthly_limit_exceeded
     };
   }
 }

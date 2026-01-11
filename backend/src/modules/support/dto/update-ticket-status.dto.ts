@@ -1,6 +1,6 @@
 import { IsString, IsEnum, IsOptional, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TicketStatus } from '../entities/ticket.entity';
+import { TicketStatus } from '../enums/support.enum';
 
 export class UpdateTicketStatusDto {
   @ApiProperty({

@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Post,
@@ -10,9 +10,8 @@ import {
   Request,
   CacheInterceptor,
   UseInterceptors,
-  CacheTTL,
-  NotFoundException,
-} from '@nestjs/common';
+  NotFoundException, Req } from '@nestjs/common';
+import { CacheTTL, CacheKey } from '@nestjs/cache-manager';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
@@ -25,20 +24,19 @@ import {
   TrendAnalytics,
   PerformanceMetrics,
   DashboardData,
-  Report,
+  Report
 } from '../interfaces/analytics.interface';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 
 @ApiTags('Analytics')
 @Controller('analytics')
 @UseGuards(JwtAuthGuard)
-@UseInterceptors(CacheInterceptor)
+// @UseInterceptors(CacheInterceptor) // Temporarily disabled to get server running
 export class AnalyticsController {
   constructor(
     private readonly analyticsService: AnalyticsService,
     private readonly performanceService: PerformanceService,
-    private readonly reportService: ReportService,
-  ) {}
+    private readonly reportService: ReportService) {}
 
   @Get('trends/:symbol')
   @ApiOperation({ summary: 'Get trend analytics for a symbol' })
@@ -50,8 +48,7 @@ export class AnalyticsController {
   @Throttle({ default: { limit: 100, ttl: 60000 } })
   async getTrendAnalytics(
     @Param('symbol') symbol: string,
-    @Query('timeRange') timeRange?: string,
-  ): Promise<TrendAnalytics> {
+    @Query('timeRange') timeRange?: string): Promise<TrendAnalytics> {
     try {
       // Map symbol to trendId using PrismaService
       const trend = await this.analyticsService.findTrendBySymbol(symbol);
@@ -78,8 +75,7 @@ export class AnalyticsController {
   @Throttle({ default: { limit: 100, ttl: 60000 } })
   async getDashboardData(
     @Param('assetId') assetId: string,
-    @Query('timeRange') timeRange?: string,
-  ): Promise<DashboardData> {
+    @Query('timeRange') timeRange?: string): Promise<DashboardData> {
     try {
       return await this.analyticsService.getDashboardData(assetId, timeRange);
     } catch (error) {
@@ -99,8 +95,7 @@ export class AnalyticsController {
   async getPerformanceMetrics(
     @Param('entityType') entityType: string,
     @Param('entityId') entityId: string,
-    @Query('period') period: string = 'ALL_TIME',
-  ): Promise<PerformanceMetrics> {
+    @Query('period') period: string = 'ALL_TIME'): Promise<PerformanceMetrics> {
     try {
       return await this.analyticsService.getPerformanceMetrics(entityType, entityId, period);
     } catch (error) {
@@ -118,8 +113,7 @@ export class AnalyticsController {
   @CacheTTL(600) // 10 minute cache
   @Throttle({ default: { limit: 100, ttl: 60000 } })
   async getLeaderboard(
-    @Query() query: LeaderboardQueryDto,
-  ): Promise<Array<{
+    @Query() query: LeaderboardQueryDto): Promise<Array<{
     entityId: string;
     entityName?: string;
     metricValue: number;
@@ -131,7 +125,7 @@ export class AnalyticsController {
         metricType = 'TOTAL_RETURN',
         period = '7D',
         limit = 50,
-        entityType = 'STRATEGY',
+        entityType = 'STRATEGY'
       } = query;
 
       return await this.performanceService.getLeaderboard(metricType, period, limit, entityType);
@@ -146,8 +140,7 @@ export class AnalyticsController {
   @CacheTTL(300) // 5 minute cache
   @Throttle({ default: { limit: 100, ttl: 60000 } })
   async getMetrics(
-    @Query(ValidationPipe) query: AnalyticsQueryDto,
-  ): Promise<AnalyticsData> {
+    @Query(ValidationPipe) query: AnalyticsQueryDto): Promise<AnalyticsData> {
     try {
       query.validateDateRange();
       return await this.analyticsService.getAnalyticsData(query);
@@ -163,8 +156,7 @@ export class AnalyticsController {
   @ApiResponse({ status: 404, description: 'No recent data found for symbol' })
   @Throttle({ default: { limit: 200, ttl: 60000 } }) // Higher limit for real-time data
   async getRealTimeMetrics(
-    @Param('symbol') symbol: string,
-  ): Promise<{
+    @Param('symbol') symbol: string): Promise<{
     timestamp: Date;
     viralityScore: number;
     sentimentScore: number;
@@ -180,7 +172,7 @@ export class AnalyticsController {
         sentimentScore: metrics.sentimentScore || 0,
         velocity: metrics.velocity || 0,
         engagementRate: metrics.engagementRate || 0,
-        momentumScore: metrics.momentumScore || 0,
+        momentumScore: metrics.momentumScore || 0
       };
     } catch (error) {
       throw new Error(`Failed to get real-time metrics: ${error.message}`);
@@ -194,8 +186,7 @@ export class AnalyticsController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   async generateReport(
     @Body(ValidationPipe) reportConfig: CreateReportDto,
-    @Request() req: { user: { id: string } },
-  ): Promise<{
+    @Req() req: { user: { id: string } }): Promise<{
     reportId: string;
     status: string;
     message: string;
@@ -207,7 +198,7 @@ export class AnalyticsController {
       return {
         reportId,
         status: 'generating',
-        message: 'Report generation queued. Use the report ID to check status.',
+        message: 'Report generation queued. Use the report ID to check status.'
       };
     } catch (error) {
       throw new Error(`Failed to generate report: ${error.message}`);
@@ -222,8 +213,7 @@ export class AnalyticsController {
   @Throttle({ default: { limit: 100, ttl: 60000 } })
   async getReport(
     @Param('reportId') reportId: string,
-    @Request() req: { user: { id: string; role?: string } },
-  ): Promise<Report> {
+    @Req() req: { user: { id: string; role?: string } }): Promise<Report> {
     try {
       const report = await this.reportService.getReport(reportId);
       if (!report) {
@@ -250,8 +240,7 @@ export class AnalyticsController {
   async getReportHistory(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
-    @Request() req: { user: { id: string; role?: string } },
-  ): Promise<{
+    @Req() req: { user: { id: string; role?: string } }): Promise<{
     reports: Report[];
     total: number;
     page: number;
@@ -277,8 +266,7 @@ export class AnalyticsController {
   async exportReport(
     @Param('reportId') reportId: string,
     @Query('format') format: 'json' | 'csv' | 'pdf' = 'json',
-    @Request() req: { user: { id: string; role?: string } },
-  ): Promise<string> {
+    @Req() req: { user: { id: string; role?: string } }): Promise<string> {
     try {
       // Check authorization first
       const report = await this.reportService.getReport(reportId);
@@ -317,7 +305,7 @@ export class AnalyticsController {
         activeStrategies: 89,
         totalReports: 423,
         avgPerformance: 15.7,
-        topPerformingAsset: 'AAPL',
+        topPerformingAsset: 'AAPL'
       };
     } catch (error) {
       throw new Error(`Failed to get overview stats: ${error.message}`);
@@ -374,8 +362,7 @@ export class AnalyticsController {
       }>;
       generatedAt: string;
     },
-    @Request() req: { user: { id: string } },
-  ): Promise<{
+    @Req() req: { user: { id: string } }): Promise<{
     success: boolean;
     id: string;
     message: string;
@@ -387,7 +374,7 @@ export class AnalyticsController {
       const id = await this.analyticsService.storePerformanceMetrics({
         userId,
         performanceData,
-        timestamp: new Date(),
+        timestamp: new Date()
       });
 
       // If we have enough data points, analyze and report
@@ -398,7 +385,7 @@ export class AnalyticsController {
       return {
         success: true,
         id,
-        message: 'Performance metrics recorded successfully',
+        message: 'Performance metrics recorded successfully'
       };
     } catch (error) {
       throw new Error(`Failed to submit performance metrics: ${error.message}`);

@@ -189,7 +189,7 @@ export interface InvoiceWithDetails extends ApiInvoice {
 export const API_CURRENCY_CONFIG = {
   DEFAULT_CURRENCY: 'ZAR',
   SUPPORTED_CURRENCIES: ['ZAR', 'USD', 'EUR', 'GBP'],
-  VAT_RATE: 0.15, // 15% VAT for South Africa
+  VAT_RATE: 0.15 // 15% VAT for South Africa
 } as const;
 
 // Pricing tiers in ZAR
@@ -198,26 +198,26 @@ export const API_PRICING_TIERS = {
     name: 'Starter',
     monthlyFee: 890, // ZAR 890 (~$49)
     quota: 10000,
-    rateLimit: 100,
+    rateLimit: 100
   },
   PRO: {
     name: 'Pro',
     monthlyFee: 8990, // ZAR 8,990 (~$499)
     quota: 1000000,
-    rateLimit: 5000,
+    rateLimit: 5000
   },
   INSTITUTIONAL: {
     name: 'Institutional',
     monthlyFee: 89990, // ZAR 89,990 (~$4,999)
     quota: 10000000,
-    rateLimit: 30000,
+    rateLimit: 30000
   },
   ENTERPRISE: {
     name: 'Enterprise',
     monthlyFee: null, // Custom pricing
     quota: null,
-    rateLimit: null,
-  },
+    rateLimit: null
+  }
 } as const;
 
 // Product categories

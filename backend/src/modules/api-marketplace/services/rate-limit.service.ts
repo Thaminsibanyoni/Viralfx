@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { RedisService } from '../../redis/redis.service';
+import { RedisService } from "../../redis/redis.service";
 import { RateLimitResult } from '../interfaces/api-marketplace.interface';
 
 @Injectable()
@@ -15,8 +15,7 @@ export class RateLimitService {
       rateLimit: number;
       burstLimit?: number;
     },
-    windowMs: number = this.DEFAULT_WINDOW_MS,
-  ): Promise<RateLimitResult> {
+    windowMs: number = this.DEFAULT_WINDOW_MS): Promise<RateLimitResult> {
     const now = Date.now();
     const windowStart = now - windowMs;
 
@@ -55,15 +54,14 @@ export class RateLimitService {
       allowed,
       remaining,
       resetAt,
-      retryAfter: allowed ? undefined : Math.ceil(windowMs / 1000),
+      retryAfter: allowed ? undefined : Math.ceil(windowMs / 1000)
     };
   }
 
   async checkBurstLimit(
     apiKeyId: string,
     burstLimit: number,
-    windowMs: number = this.BURST_WINDOW_MS,
-  ): Promise<RateLimitResult> {
+    windowMs: number = this.BURST_WINDOW_MS): Promise<RateLimitResult> {
     const now = Date.now();
     const windowStart = now - windowMs;
 
@@ -93,7 +91,7 @@ export class RateLimitService {
       allowed,
       remaining,
       resetAt,
-      retryAfter: allowed ? undefined : Math.ceil(windowMs / 1000),
+      retryAfter: allowed ? undefined : Math.ceil(windowMs / 1000)
     };
   }
 
@@ -119,8 +117,7 @@ export class RateLimitService {
       quota?: number;
       rateLimit: number;
       burstLimit?: number;
-    },
-  ): Promise<number> {
+    }): Promise<number> {
     if (!plan.quota) {
       return Infinity; // Unlimited quota
     }
@@ -183,7 +180,7 @@ export class RateLimitService {
     return {
       allowed,
       remaining,
-      resetAt,
+      resetAt
     };
   }
 
@@ -191,8 +188,7 @@ export class RateLimitService {
     apiKeyId: string,
     endpoint: string,
     limit: number,
-    windowMs: number = this.DEFAULT_WINDOW_MS,
-  ): Promise<RateLimitResult> {
+    windowMs: number = this.DEFAULT_WINDOW_MS): Promise<RateLimitResult> {
     const now = Date.now();
     const windowStart = now - windowMs;
     const key = `ratelimit:endpoint:${apiKeyId}:${endpoint}`;
@@ -222,7 +218,7 @@ export class RateLimitService {
       allowed,
       remaining,
       resetAt,
-      retryAfter: allowed ? undefined : Math.ceil(windowMs / 1000),
+      retryAfter: allowed ? undefined : Math.ceil(windowMs / 1000)
     };
   }
 
@@ -261,7 +257,7 @@ export class RateLimitService {
       currentMinute: minute,
       currentHour: hour,
       currentDay: day,
-      endpoints,
+      endpoints
     };
   }
 }

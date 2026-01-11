@@ -9,12 +9,12 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ClientDashboardService } from '../services/client-dashboard.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { BrokerGuard } from '../guards/broker.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { GetUser } from '../../auth/decorators/get-user.decorator';
-import { User } from '../../users/entities/user.entity';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { BrokerAuthGuard } from '../guards/broker-auth.guard';
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
+import { CurrentUser } from "../../auth/decorators/current-user.decorator";
+import { User } from "../../../common/enums/user-role.enum";
 import { IsOptional, IsString, IsEnum, IsUUID, IsDate } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -62,7 +62,7 @@ class ClientListQueryDto extends DashboardQueryDto {
 
 @ApiTags('Client Dashboard')
 @Controller('brokers/client-dashboard')
-@UseGuards(JwtAuthGuard, BrokerGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, BrokerAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class ClientDashboardController {
   constructor(private readonly clientDashboardService: ClientDashboardService) {}
@@ -73,12 +73,12 @@ export class ClientDashboardController {
   @ApiResponse({ status: 200, description: 'Dashboard overview retrieved successfully' })
   async getDashboardOverview(
     @Query(ValidationPipe) query: DashboardQueryDto,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -90,7 +90,7 @@ export class ClientDashboardController {
       return {
         statusCode: HttpStatus.OK,
         message: 'Dashboard overview exported successfully',
-        data: exportData,
+        data: exportData
       };
     }
 
@@ -100,8 +100,8 @@ export class ClientDashboardController {
       data: {
         ...metrics,
         period: query.period || '30d',
-        generatedAt: new Date().toISOString(),
-      },
+        generatedAt: new Date().toISOString()
+      }
     };
   }
 
@@ -111,12 +111,12 @@ export class ClientDashboardController {
   @ApiResponse({ status: 200, description: 'Client list retrieved successfully' })
   async getClientList(
     @Query(ValidationPipe) query: ClientListQueryDto,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -187,7 +187,7 @@ export class ClientDashboardController {
         ...client,
         status: atRiskClient ? 'AT_RISK' : 'ACTIVE',
         riskLevel: atRiskClient ? 'HIGH' : 'LOW',
-        daysSinceLastTrade: atRiskClient?.daysSinceLastTrade || 0,
+        daysSinceLastTrade: atRiskClient?.daysSinceLastTrade || 0
       };
     });
 
@@ -200,15 +200,15 @@ export class ClientDashboardController {
           totalClients: dashboardMetrics.overview.totalClients,
           activeClients: dashboardMetrics.overview.activeClients,
           atRiskClients: dashboardMetrics.performanceMetrics.atRiskClients.length,
-          totalRevenue: dashboardMetrics.overview.totalRevenue,
+          totalRevenue: dashboardMetrics.overview.totalRevenue
         },
         pagination: {
           page: query.page,
           limit: query.limit,
           total: uniqueClients.length,
-          totalPages: Math.ceil(uniqueClients.length / query.limit),
-        },
-      },
+          totalPages: Math.ceil(uniqueClients.length / query.limit)
+        }
+      }
     };
   }
 
@@ -219,12 +219,12 @@ export class ClientDashboardController {
   async getClientDetail(
     @Param('clientId') clientId: string,
     @Query(ValidationPipe) query: DashboardQueryDto,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -236,7 +236,7 @@ export class ClientDashboardController {
       return {
         statusCode: HttpStatus.OK,
         message: 'Client detail exported successfully',
-        data: exportData,
+        data: exportData
       };
     }
 
@@ -246,8 +246,8 @@ export class ClientDashboardController {
       data: {
         ...clientMetrics,
         period: query.period || '30d',
-        generatedAt: new Date().toISOString(),
-      },
+        generatedAt: new Date().toISOString()
+      }
     };
   }
 
@@ -255,11 +255,11 @@ export class ClientDashboardController {
   @Roles('ADMIN', 'BROKER')
   @ApiOperation({ summary: 'Get client acquisition analytics' })
   @ApiResponse({ status: 200, description: 'Acquisition analytics retrieved successfully' })
-  async getAcquisitionAnalytics(@GetUser() user: User) {
+  async getAcquisitionAnalytics(@CurrentUser() user: User) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -270,8 +270,8 @@ export class ClientDashboardController {
       message: 'Acquisition analytics retrieved successfully',
       data: {
         ...dashboardMetrics.acquisitionMetrics,
-        insights: this.generateAcquisitionInsights(dashboardMetrics.acquisitionMetrics),
-      },
+        insights: this.generateAcquisitionInsights(dashboardMetrics.acquisitionMetrics)
+      }
     };
   }
 
@@ -279,11 +279,11 @@ export class ClientDashboardController {
   @Roles('ADMIN', 'BROKER')
   @ApiOperation({ summary: 'Get client retention analytics' })
   @ApiResponse({ status: 200, description: 'Retention analytics retrieved successfully' })
-  async getRetentionAnalytics(@GetUser() user: User) {
+  async getRetentionAnalytics(@CurrentUser() user: User) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -294,8 +294,8 @@ export class ClientDashboardController {
       message: 'Retention analytics retrieved successfully',
       data: {
         ...dashboardMetrics.retentionMetrics,
-        insights: this.generateRetentionInsights(dashboardMetrics.retentionMetrics),
-      },
+        insights: this.generateRetentionInsights(dashboardMetrics.retentionMetrics)
+      }
     };
   }
 
@@ -303,11 +303,11 @@ export class ClientDashboardController {
   @Roles('ADMIN', 'BROKER')
   @ApiOperation({ summary: 'Get client performance analytics' })
   @ApiResponse({ status: 200, description: 'Performance analytics retrieved successfully' })
-  async getPerformanceAnalytics(@GetUser() user: User) {
+  async getPerformanceAnalytics(@CurrentUser() user: User) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -318,8 +318,8 @@ export class ClientDashboardController {
       message: 'Performance analytics retrieved successfully',
       data: {
         ...dashboardMetrics.performanceMetrics,
-        insights: this.generatePerformanceInsights(dashboardMetrics.performanceMetrics),
-      },
+        insights: this.generatePerformanceInsights(dashboardMetrics.performanceMetrics)
+      }
     };
   }
 

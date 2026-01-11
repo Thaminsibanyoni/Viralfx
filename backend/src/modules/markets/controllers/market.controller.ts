@@ -11,6 +11,7 @@ import {
   HttpStatus,
   HttpCode,
   BadRequestException,
+  Req
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -18,12 +19,12 @@ import {
   ApiResponse,
   ApiParam,
   ApiQuery,
-  ApiBearerAuth,
+  ApiBearerAuth
 } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { MarketsService } from '../services/markets.service';
 import { MarketSettlementService } from '../services/market-settlement.service';
 
@@ -34,8 +35,7 @@ import { MarketSettlementService } from '../services/market-settlement.service';
 export class MarketController {
   constructor(
     private readonly marketsService: MarketsService,
-    private readonly settlementService: MarketSettlementService,
-  ) {}
+    private readonly settlementService: MarketSettlementService) {}
 
   @Post()
   @Roles('ADMIN', 'MARKET_CREATOR')
@@ -58,8 +58,7 @@ export class MarketController {
       liquidityPool?: number;
       metadata?: any;
     },
-    @Request() req,
-  ) {
+    @Req() req) {
     const { endDate, ...marketData } = body;
 
     if (!endDate || new Date(endDate) <= new Date()) {
@@ -69,10 +68,9 @@ export class MarketController {
     return this.marketsService.createMarket(
       {
         ...marketData,
-        endDate: new Date(endDate),
+        endDate: new Date(endDate)
       },
-      req.user.userId,
-    );
+      req.user.userId);
   }
 
   @Get()
@@ -90,8 +88,7 @@ export class MarketController {
     @Query('topicId') topicId?: string,
     @Query('createdBy') createdBy?: string,
     @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
-  ) {
+    @Query('limit') limit: number = 20) {
     const validatedLimit = Math.min(Math.max(limit, 1), 100);
 
     return this.marketsService.getMarkets(
@@ -99,10 +96,9 @@ export class MarketController {
         status: status as any,
         category,
         topicId,
-        createdBy,
+        createdBy
       },
-      { page, limit: validatedLimit },
-    );
+      { page, limit: validatedLimit });
   }
 
   @Get(':id')
@@ -155,8 +151,7 @@ export class MarketController {
   @ApiResponse({ status: 400, description: 'Cannot close inactive market' })
   async closeMarket(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { reason?: string },
-  ) {
+    @Body() body: { reason?: string }) {
     const { reason } = body;
     return this.marketsService.closeMarket(id, reason);
   }
@@ -176,11 +171,10 @@ export class MarketController {
       settlementMethod?: 'MANUAL' | 'AUTOMATIC';
       reason?: string;
       settlementData?: any;
-    },
-  ) {
+    }) {
     return this.settlementService.settleMarket({
       marketId: id,
-      ...body,
+      ...body
     });
   }
 
@@ -195,8 +189,7 @@ export class MarketController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: {
       winningOutcomeId: string;
-    },
-  ) {
+    }) {
     return this.settlementService.processPartialSettlement(id, body.winningOutcomeId);
   }
 
@@ -227,8 +220,7 @@ export class MarketController {
   @ApiResponse({ status: 200, description: 'Search results retrieved successfully' })
   async searchMarkets(
     @Query('q') query: string,
-    @Query('limit') limit: number = 10,
-  ) {
+    @Query('limit') limit: number = 10) {
     if (!query || query.trim().length === 0) {
       throw new BadRequestException('Search query is required');
     }
@@ -244,8 +236,7 @@ export class MarketController {
   async getActiveMarkets(@Query('limit') limit: number = 20) {
     return this.marketsService.getMarkets(
       { status: 'ACTIVE' },
-      { page: 1, limit: Math.min(limit, 50) },
-    );
+      { page: 1, limit: Math.min(limit, 50) });
   }
 
   @Get('trending')
@@ -255,12 +246,10 @@ export class MarketController {
   @ApiResponse({ status: 200, description: 'Trending markets retrieved successfully' })
   async getTrendingMarkets(
     @Query('timeWindow') timeWindow: number = 24,
-    @Query('limit') limit: number = 10,
-  ) {
+    @Query('limit') limit: number = 10) {
     return this.marketsService.getMarkets(
       {},
-      { page: 1, limit: Math.min(limit, 25) },
-    );
+      { page: 1, limit: Math.min(limit, 25) });
   }
 
   @Get('categories')
@@ -294,7 +283,7 @@ export class MarketController {
       totalVolume: 0,
       averageMarketSize: 0,
       topCategories: [],
-      recentActivity: [],
+      recentActivity: []
     };
   }
 }

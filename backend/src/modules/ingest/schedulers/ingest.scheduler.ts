@@ -9,8 +9,7 @@ export class IngestScheduler {
 
   constructor(
     private readonly ingestService: IngestService,
-    private readonly configService: ConfigService,
-  ) {}
+    private readonly configService: ConfigService) {}
 
   // Twitter collection every 2 minutes
   @Cron('*/2 * * * *')
@@ -241,10 +240,10 @@ export class IngestScheduler {
         platformBreakdown: status.platforms.reduce((acc, platform) => {
           acc[platform.platform] = {
             collected: platform.totalCollected,
-            failed: platform.totalFailed,
+            failed: platform.totalFailed
           };
           return acc;
-        }, {} as Record<string, { collected: number; failed: number }>),
+        }, {} as Record<string, { collected: number; failed: number }>)
       };
 
       this.logger.log(`Daily statistics summary: ${JSON.stringify(summary)}`);

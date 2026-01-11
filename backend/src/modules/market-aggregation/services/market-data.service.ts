@@ -1,26 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThanOrEqual, LessThan, Between } from 'typeorm';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 
-import { Symbol } from '../entities/symbol.entity';
-import { Price, PriceInterval } from '../entities/price.entity';
-import { OrderBookService } from '../../order-matching/services/order-book.service';
+// COMMENTED OUT (TypeORM entity deleted): import { Symbol } from '../entities/symbol.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Price, PriceInterval } from '../entities/price.entity';
+import { OrderBookService } from "../../order-matching/services/order-book.service";
 
 @Injectable()
 export class MarketDataService {
   private readonly logger = new Logger(MarketDataService.name);
 
   constructor(
-    @InjectRepository(Symbol)
-    private readonly symbolRepository: Repository<Symbol>,
-    @InjectRepository(Price)
-    private readonly priceRepository: Repository<Price>,
+        private prisma: PrismaService,
     private readonly orderBookService: OrderBookService,
     @InjectRedis()
-    private readonly redis: Redis,
-  ) {}
+    private readonly redis: Redis) {}
 
   async getLatestMarketData(trendId: string): Promise<any> {
     try {
@@ -32,8 +27,8 @@ export class MarketDataService {
       }
 
       // Find Symbol by topicId (trendId)
-      const symbol = await this.symbolRepository.findOne({
-        where: { topicId: trendId, isActive: true },
+      const symbol = await this.prisma.symbolrepository.findFirst({
+        where: { topicId: trendId, isActive: true }
       });
 
       if (!symbol) {
@@ -41,9 +36,9 @@ export class MarketDataService {
       }
 
       // Get latest Price record
-      const latestPrice = await this.priceRepository.findOne({
+      const latestPrice = await this.prisma.pricerepository.findFirst({
         where: { symbol: symbol.symbol },
-        order: { timestamp: 'DESC' },
+        order: { timestamp: 'DESC' }
       });
 
       // Get order book
@@ -66,7 +61,7 @@ export class MarketDataService {
         totalTrades: symbol.totalTrades,
         marketCap: symbol.market_cap,
         lastUpdated: latestPrice?.timestamp || symbol.updatedAt,
-        orderBook,
+        orderBook
       };
 
       // Cache the result
@@ -110,8 +105,8 @@ export class MarketDataService {
       }
 
       // Find Symbol by topicId
-      const symbol = await this.symbolRepository.findOne({
-        where: { topicId: trendId, isActive: true },
+      const symbol = await this.prisma.symbolrepository.findFirst({
+        where: { topicId: trendId, isActive: true }
       });
 
       if (!symbol) {
@@ -141,8 +136,8 @@ export class MarketDataService {
       }
 
       // Calculate aggregate market statistics
-      const activeSymbols = await this.symbolRepository.find({
-        where: { status: 'ACTIVE', isActive: true },
+      const activeSymbols = await this.prisma.symbolrepository.findMany({
+        where: { status: 'ACTIVE', isActive: true }
       });
 
       const totalMarketCap = activeSymbols.reduce((sum, symbol) => sum + symbol.market_cap, 0);
@@ -172,21 +167,21 @@ export class MarketDataService {
           symbol: s.symbol,
           name: s.name,
           priceChangePercent24h: s.priceChangePercent24h,
-          currentPrice: s.currentPrice,
+          currentPrice: s.currentPrice
         })),
         topLosers: topLosers.map(s => ({
           symbol: s.symbol,
           name: s.name,
           priceChangePercent24h: s.priceChangePercent24h,
-          currentPrice: s.currentPrice,
+          currentPrice: s.currentPrice
         })),
         topVolume: topVolume.map(s => ({
           symbol: s.symbol,
           name: s.name,
           volume24h: s.volume24h,
-          currentPrice: s.currentPrice,
+          currentPrice: s.currentPrice
         })),
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
 
       // Cache the summary
@@ -214,10 +209,10 @@ export class MarketDataService {
       tomorrow.setDate(tomorrow.getDate() + 1);
 
       // Query daily statistics
-      const dailyPrices = await this.priceRepository.find({
+      const dailyPrices = await this.prisma.pricerepository.findMany({
         where: {
-          timestamp: Between(today, tomorrow),
-        },
+          timestamp: Between(today, tomorrow)
+        }
       });
 
       const totalTrades = dailyPrices.length;
@@ -239,7 +234,7 @@ export class MarketDataService {
         .slice(0, 10)
         .map(([symbol, volume]) => ({
           symbol,
-          volume,
+          volume
         }));
 
       // Calculate price movements
@@ -254,7 +249,7 @@ export class MarketDataService {
         uniqueActiveSymbols: uniqueSymbols,
         topTrends,
         priceMovements,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
 
       // Cache the analytics
@@ -277,9 +272,9 @@ export class MarketDataService {
       }
 
       // Query database
-      const latestPrice = await this.priceRepository.findOne({
+      const latestPrice = await this.prisma.pricerepository.findFirst({
         where: { symbol },
-        order: { timestamp: 'DESC' },
+        order: { timestamp: 'DESC' }
       });
 
       const price = latestPrice?.price;
@@ -348,21 +343,21 @@ export class MarketDataService {
           '15m': PriceInterval.FIFTEEN_MINUTES,
           '1h': PriceInterval.ONE_HOUR,
           '4h': PriceInterval.FOUR_HOURS,
-          '1d': PriceInterval.ONE_DAY,
+          '1d': PriceInterval.ONE_DAY
         };
         intervalEnum = intervalMap[interval] || PriceInterval.ONE_MINUTE;
       } else {
         intervalEnum = interval as PriceInterval;
       }
 
-      const priceHistory = await this.priceRepository.find({
+      const priceHistory = await this.prisma.pricerepository.findMany({
         where: {
           symbol,
           interval: intervalEnum,
-          timestamp: MoreThanOrEqual(startDate),
+          timestamp: MoreThanOrEqual(startDate)
         },
         order: { timestamp: 'DESC' },
-        take: limit,
+        take: limit
       });
 
       // Cache for 30 seconds - serialize dates as ISO strings
@@ -379,8 +374,8 @@ export class MarketDataService {
 
   private async calculatePriceMovements(): Promise<any> {
     try {
-      const activeSymbols = await this.symbolRepository.find({
-        where: { status: 'ACTIVE', isActive: true },
+      const activeSymbols = await this.prisma.symbolrepository.findMany({
+        where: { status: 'ACTIVE', isActive: true }
       });
 
       const movements = {
@@ -389,7 +384,7 @@ export class MarketDataService {
         unchanged: 0,
         averageChange: 0,
         biggestGainer: null,
-        biggestLoser: null,
+        biggestLoser: null
       };
 
       let totalChange = 0;
@@ -411,14 +406,14 @@ export class MarketDataService {
           if (!movements.biggestGainer || symbol.priceChangePercent24h > movements.biggestGainer.change) {
             movements.biggestGainer = {
               symbol: symbol.symbol,
-              change: symbol.priceChangePercent24h,
+              change: symbol.priceChangePercent24h
             };
           }
 
           if (!movements.biggestLoser || symbol.priceChangePercent24h < movements.biggestLoser.change) {
             movements.biggestLoser = {
               symbol: symbol.symbol,
-              change: symbol.priceChangePercent24h,
+              change: symbol.priceChangePercent24h
             };
           }
         }
@@ -435,7 +430,7 @@ export class MarketDataService {
         unchanged: 0,
         averageChange: 0,
         biggestGainer: null,
-        biggestLoser: null,
+        biggestLoser: null
       };
     }
   }

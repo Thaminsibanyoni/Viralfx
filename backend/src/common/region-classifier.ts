@@ -4,7 +4,7 @@
  * © 2025 ViralFX - Global Intelligence System
  */
 
-import { RegionCode } from './symbol-generator';
+import { RegionCode } from "./symbol-generator";
 
 export interface RegionDetection {
   region: RegionCode;
@@ -36,7 +36,7 @@ export class RegionClassifier {
     'hi': [RegionCode.INDIA],
     'pt': [RegionCode.BRAZIL],
     'nl': [RegionCode.NETHERLANDS],
-    'it': [RegionCode.ITALY],
+    'it': [RegionCode.ITALY]
   };
 
   private static readonly LOCATION_KEYWORDS: Record<string, RegionCode> = {
@@ -76,7 +76,7 @@ export class RegionClassifier {
     'sydney': RegionCode.AUSTRALIA,
     'toronto': RegionCode.CANADA,
     'paris': RegionCode.FRANCE,
-    'berlin': RegionCode.GERMANY,
+    'berlin': RegionCode.GERMANY
   };
 
   private static readonly CURRENCY_INDICATORS: Record<string, RegionCode> = {
@@ -97,7 +97,7 @@ export class RegionClassifier {
     'aud': RegionCode.AUSTRALIA,
     'cad': RegionCode.CANADA,
     'cny': RegionCode.CHINA,
-    'inr': RegionCode.INDIA,
+    'inr': RegionCode.INDIA
   };
 
   private static readonly PLATFORM_REGION_MAPPING: Record<string, RegionCode[]> = {
@@ -116,7 +116,7 @@ export class RegionClassifier {
     'punchng.com': [RegionCode.NIGERIA],
     'cnn.com': [RegionCode.USA],
     'bbc.co.uk': [RegionCode.UK],
-    'foxnews.com': [RegionCode.USA],
+    'foxnews.com': [RegionCode.USA]
   };
 
   private static readonly CULTURAL_INDICATORS: Record<string, RegionCode[]> = {
@@ -146,7 +146,7 @@ export class RegionClassifier {
     // British cultural indicators
     'premier league': [RegionCode.UK],
     'royal family': [RegionCode.UK],
-    'tea time': [RegionCode.UK],
+    'tea time': [RegionCode.UK]
   };
 
   /**

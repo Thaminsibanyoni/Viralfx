@@ -87,7 +87,7 @@ const ApiExplorer: React.FC = () => {
       }
 
       // Build URL with query parameters for GET requests
-      let url = `${process.env.REACT_APP_API_URL || 'http://localhost:3000'}${endpoint}`;
+      let url = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'}${endpoint}`;
 
       const options: RequestInit = {
         method,
@@ -147,7 +147,7 @@ const ApiExplorer: React.FC = () => {
     const values = form.getFieldsValue();
     const {endpoint, method, apiKey, parameters} = values;
 
-    const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
 
     const snippets = {
       javascript: `// JavaScript/Node.js

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { RedisService } from "../../redis/redis.service";
 import { CreateProductDto } from '../dto/create-product.dto';
 import { ApiProduct, ProductWithPlans } from '../interfaces/api-marketplace.interface';
 
@@ -10,13 +10,12 @@ export class ProductsService {
 
   constructor(
     private prisma: PrismaService,
-    private redis: RedisService,
-  ) {}
+    private redis: RedisService) {}
 
   async createProduct(dto: CreateProductDto): Promise<ApiProduct> {
     // Check if slug already exists
     const existing = await this.prisma.apiProduct.findUnique({
-      where: { slug: dto.slug },
+      where: { slug: dto.slug }
     });
 
     if (existing) {
@@ -26,11 +25,11 @@ export class ProductsService {
     const product = await this.prisma.apiProduct.create({
       data: {
         ...dto,
-        isActive: dto.isActive ?? true,
+        isActive: dto.isActive ?? true
       },
       include: {
-        plans: true,
-      },
+        plans: true
+      }
     });
 
     // Invalidate cache
@@ -41,7 +40,7 @@ export class ProductsService {
 
   async updateProduct(id: string, dto: Partial<CreateProductDto>): Promise<ApiProduct> {
     const product = await this.prisma.apiProduct.findUnique({
-      where: { id },
+      where: { id }
     });
 
     if (!product) {
@@ -51,7 +50,7 @@ export class ProductsService {
     // Check slug uniqueness if updating
     if (dto.slug && dto.slug !== product.slug) {
       const existing = await this.prisma.apiProduct.findUnique({
-        where: { slug: dto.slug },
+        where: { slug: dto.slug }
       });
 
       if (existing) {
@@ -63,8 +62,8 @@ export class ProductsService {
       where: { id },
       data: dto,
       include: {
-        plans: true,
-      },
+        plans: true
+      }
     });
 
     // Invalidate cache
@@ -88,7 +87,7 @@ export class ProductsService {
       include: {
         plans: {
           where: { isActive: true },
-          orderBy: { monthlyFee: 'asc' },
+          orderBy: { monthlyFee: 'asc' }
         },
         apiKeys: {
           where: {
@@ -96,16 +95,16 @@ export class ProductsService {
             OR: [
               { expiresAt: null },
               { expiresAt: { gte: new Date() } },
-            ],
+            ]
           },
-          select: { id: true },
+          select: { id: true }
         },
         _count: {
           select: {
-            apiUsage: true,
-          },
-        },
-      },
+            apiUsage: true
+          }
+        }
+      }
     });
 
     if (product) {
@@ -114,9 +113,9 @@ export class ProductsService {
         ...product,
         _count: {
           ...product._count,
-          apiKeys: product.apiKeys.length,
+          apiKeys: product.apiKeys.length
         },
-        apiKeys: undefined, // Remove the raw apiKeys array
+        apiKeys: undefined // Remove the raw apiKeys array
       };
 
       // Cache the result
@@ -146,7 +145,7 @@ export class ProductsService {
         include: {
           plans: {
             where: { isActive: true },
-            orderBy: { monthlyFee: 'asc' },
+            orderBy: { monthlyFee: 'asc' }
           },
           apiKeys: {
             where: {
@@ -154,19 +153,19 @@ export class ProductsService {
               OR: [
                 { expiresAt: null },
                 { expiresAt: { gte: new Date() } },
-              ],
+              ]
             },
-            select: { id: true },
+            select: { id: true }
           },
           _count: {
             select: {
-              apiUsage: true,
-            },
-          },
+              apiUsage: true
+            }
+          }
         },
         orderBy: { name: 'asc' },
         skip,
-        take: limit,
+        take: limit
       }),
       this.prisma.apiProduct.count({ where }),
     ]);
@@ -176,9 +175,9 @@ export class ProductsService {
       ...product,
       _count: {
         ...product._count,
-        apiKeys: product.apiKeys.length,
+        apiKeys: product.apiKeys.length
       },
-      apiKeys: undefined, // Remove the raw apiKeys array
+      apiKeys: undefined // Remove the raw apiKeys array
     }));
 
     return {
@@ -187,8 +186,8 @@ export class ProductsService {
         page,
         limit,
         total,
-        pages: Math.ceil(total / limit),
-      },
+        pages: Math.ceil(total / limit)
+      }
     };
   }
 
@@ -202,11 +201,11 @@ export class ProductsService {
             OR: [
               { expiresAt: null },
               { expiresAt: { gte: new Date() } },
-            ],
+            ]
           },
-          select: { id: true },
-        },
-      },
+          select: { id: true }
+        }
+      }
     });
 
     if (!product) {
@@ -219,7 +218,7 @@ export class ProductsService {
     }
 
     await this.prisma.apiProduct.delete({
-      where: { id },
+      where: { id }
     });
 
     // Invalidate cache
@@ -230,7 +229,7 @@ export class ProductsService {
   async getProductPlans(productId: string) {
     const plans = await this.prisma.apiPlan.findMany({
       where: { productId },
-      orderBy: { monthlyFee: 'asc' },
+      orderBy: { monthlyFee: 'asc' }
     });
 
     return plans;
@@ -242,7 +241,7 @@ export class ProductsService {
     if (dateRange) {
       where.createdAt = {
         gte: dateRange.start,
-        lte: dateRange.end,
+        lte: dateRange.end
       };
     }
 
@@ -250,7 +249,7 @@ export class ProductsService {
       where,
       _count: { id: true },
       _sum: { bytesIn: true, bytesOut: true },
-      _avg: { latencyMs: true },
+      _avg: { latencyMs: true }
     });
 
     // Get top endpoints
@@ -259,14 +258,14 @@ export class ProductsService {
       where,
       _count: { id: true },
       orderBy: { _count: { id: 'desc' } },
-      take: 10,
+      take: 10
     });
 
     // Get status code distribution
     const statusCodes = await this.prisma.apiUsage.groupBy({
       by: ['statusCode'],
       where,
-      _count: { id: true },
+      _count: { id: true }
     });
 
     return {
@@ -276,12 +275,12 @@ export class ProductsService {
       topEndpoints: topEndpoints.map(e => ({
         path: e.path,
         method: e.method,
-        count: e._count.id,
+        count: e._count.id
       })),
       statusCodeDistribution: statusCodes.reduce((acc, curr) => {
         acc[curr.statusCode] = curr._count.id;
         return acc;
-      }, {} as Record<number, number>),
+      }, {} as Record<number, number>)
     };
   }
 

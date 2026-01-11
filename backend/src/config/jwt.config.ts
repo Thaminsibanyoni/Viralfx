@@ -8,5 +8,5 @@ export default registerAs('jwt', () => ({
   adminSecret: process.env.JWT_ADMIN_SECRET,
   adminRefreshSecret: process.env.JWT_ADMIN_REFRESH_SECRET,
   adminExpiresIn: process.env.JWT_ADMIN_EXPIRES_IN || '15m',
-  adminRefreshExpiresIn: process.env.JWT_ADMIN_REFRESH_EXPIRES_IN || '7d',
+  adminRefreshExpiresIn: process.env.JWT_ADMIN_REFRESH_EXPIRES_IN || '7d'
 }));

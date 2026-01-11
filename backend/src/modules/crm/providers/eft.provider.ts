@@ -46,7 +46,7 @@ export class EFTProvider implements PaymentProvider {
           'ABSA', 'STANDARD_BANK', 'FNB', 'NEDBANK', 'CAPITEC',
           'DISCOVERY_BANK', 'TYMEBANK', 'AFRICAN_BANK', 'INVESTEC',
           'BIDVEST_BANK', 'GRINDROD_BANK', 'SASFIN_BANK', 'UBANK'
-        ],
+        ]
       };
 
       const signature = this.generateSignature(payload);
@@ -55,13 +55,13 @@ export class EFTProvider implements PaymentProvider {
         `${this.baseUrl}/initiate`,
         {
           ...payload,
-          signature,
+          signature
         },
         {
           headers: {
             Authorization: `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json',
-          },
+            'Content-Type': 'application/json'
+          }
         }
       );
 
@@ -73,13 +73,13 @@ export class EFTProvider implements PaymentProvider {
         authorizationUrl: data.redirect_url,
         transactionId: data.transaction_id,
         provider: 'eft',
-        metadata: response.data,
+        metadata: response.data
       };
     } catch (error) {
       return {
         success: false,
         error: error.response?.data?.message || error.message,
-        provider: 'eft',
+        provider: 'eft'
       };
     }
   }
@@ -91,8 +91,8 @@ export class EFTProvider implements PaymentProvider {
         {
           headers: {
             Authorization: `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json',
-          },
+            'Content-Type': 'application/json'
+          }
         }
       );
 
@@ -108,7 +108,7 @@ export class EFTProvider implements PaymentProvider {
           paidAt: new Date(data.settlement_date),
           bankReference: data.bank_reference,
           provider: 'eft',
-          metadata: response.data,
+          metadata: response.data
         };
       } else {
         return {
@@ -117,14 +117,14 @@ export class EFTProvider implements PaymentProvider {
           status: data.transaction_status?.toLowerCase(),
           message: data.status_description,
           provider: 'eft',
-          metadata: response.data,
+          metadata: response.data
         };
       }
     } catch (error) {
       return {
         success: false,
         error: error.response?.data?.message || error.message,
-        provider: 'eft',
+        provider: 'eft'
       };
     }
   }
@@ -153,7 +153,7 @@ export class EFTProvider implements PaymentProvider {
         customerEmail: event.email_address,
         bankReference: event.bank_reference,
         bankName: event.bank_name,
-        metadata: event,
+        metadata: event
       };
     } catch (error) {
       throw new Error('Invalid webhook payload');
@@ -164,7 +164,7 @@ export class EFTProvider implements PaymentProvider {
     try {
       const payload: any = {
         m_payment_id: reference,
-        refund_reason: 'Customer requested refund',
+        refund_reason: 'Customer requested refund'
       };
 
       if (amount) {
@@ -177,13 +177,13 @@ export class EFTProvider implements PaymentProvider {
         `${this.baseUrl}/refund`,
         {
           ...payload,
-          signature,
+          signature
         },
         {
           headers: {
             Authorization: `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json',
-          },
+            'Content-Type': 'application/json'
+          }
         }
       );
 
@@ -194,13 +194,13 @@ export class EFTProvider implements PaymentProvider {
         amount: amount || response.data.original_amount / 100,
         status: 'processing',
         provider: 'eft',
-        metadata: response.data,
+        metadata: response.data
       };
     } catch (error) {
       return {
         success: false,
         error: error.response?.data?.message || error.message,
-        provider: 'eft',
+        provider: 'eft'
       };
     }
   }

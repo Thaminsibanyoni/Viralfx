@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from "../../prisma/prisma.service";
 import { RedisService } from '../redis/redis.service';
-import { BrokerSafetyMetrics } from './interfaces/vpmx.interface';
+import { BrokerSafetyMetrics } from "./interfaces/vpmx.interface";
 
 @Injectable()
 export class BrokerSafetyService {
@@ -11,8 +11,7 @@ export class BrokerSafetyService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly redis: RedisService,
-  ) {}
+    private readonly redis: RedisService) {}
 
   /**
    * Get broker safety metrics
@@ -28,7 +27,7 @@ export class BrokerSafetyService {
 
     // Get from database
     const brokerSafety = await this.prisma.vPMXBrokerSafety.findUnique({
-      where: { brokerId },
+      where: { brokerId }
     });
 
     if (!brokerSafety) {
@@ -43,7 +42,7 @@ export class BrokerSafetyService {
       exposurePercentage: brokerSafety.exposurePercentage,
       riskLevel: brokerSafety.riskLevel as any,
       allowedMarkets: brokerSafety.allowedMarkets,
-      blockedMarkets: brokerSafety.blockedMarkets,
+      blockedMarkets: brokerSafety.blockedMarkets
     };
 
     // Cache for 30 seconds
@@ -59,8 +58,7 @@ export class BrokerSafetyService {
     brokerId: string,
     betAmount: number,
     marketType: string,
-    region?: string,
-  ): Promise<{ allowed: boolean; reason?: string; adjustedAmount?: number }> {
+    region?: string): Promise<{ allowed: boolean; reason?: string; adjustedAmount?: number }> {
     const safety = await this.getBrokerSafetyMetrics(brokerId);
 
     if (!safety) {
@@ -71,7 +69,7 @@ export class BrokerSafetyService {
     if (safety.currentExposure + betAmount > safety.maxExposure) {
       return {
         allowed: false,
-        reason: `Bet amount exceeds exposure limit. Current: $${safety.currentExposure}, Limit: $${safety.maxExposure}`,
+        reason: `Bet amount exceeds exposure limit. Current: $${safety.currentExposure}, Limit: $${safety.maxExposure}`
       };
     }
 
@@ -81,7 +79,7 @@ export class BrokerSafetyService {
       return {
         allowed: false,
         reason: `Bet size exceeds maximum limit. Max: $${maxBetSize}`,
-        adjustedAmount: maxBetSize,
+        adjustedAmount: maxBetSize
       };
     }
 
@@ -89,14 +87,14 @@ export class BrokerSafetyService {
     if (safety.allowedMarkets.length > 0 && !safety.allowedMarkets.includes(marketType)) {
       return {
         allowed: false,
-        reason: `Market type ${marketType} not allowed for this broker`,
+        reason: `Market type ${marketType} not allowed for this broker`
       };
     }
 
     if (safety.blockedMarkets.includes(marketType)) {
       return {
         allowed: false,
-        reason: `Market type ${marketType} is blocked for this broker`,
+        reason: `Market type ${marketType} is blocked for this broker`
       };
     }
 
@@ -104,7 +102,7 @@ export class BrokerSafetyService {
     if (region && safety.regions.length > 0 && !safety.regions.includes(region)) {
       return {
         allowed: false,
-        reason: `Region ${region} not allowed for this broker`,
+        reason: `Region ${region} not allowed for this broker`
       };
     }
 
@@ -115,7 +113,7 @@ export class BrokerSafetyService {
     if (dailyExposure + betAmount > maxDailyExposure) {
       return {
         allowed: false,
-        reason: `Daily exposure limit exceeded. Current: $${dailyExposure}, Limit: $${maxDailyExposure}`,
+        reason: `Daily exposure limit exceeded. Current: $${dailyExposure}, Limit: $${maxDailyExposure}`
       };
     }
 
@@ -128,21 +126,20 @@ export class BrokerSafetyService {
   async updateExposure(
     brokerId: string,
     betAmount: number,
-    potentialLoss: number,
-  ): Promise<void> {
+    potentialLoss: number): Promise<void> {
     try {
       // Update current exposure
       await this.prisma.vPMXBrokerSafety.update({
         where: { brokerId },
         data: {
           currentExposure: {
-            increment: potentialLoss, // Use potential loss for exposure calculation
+            increment: potentialLoss // Use potential loss for exposure calculation
           },
           exposurePercentage: {
-            increment: (potentialLoss / (await this.getBrokerSafetyMetrics(brokerId))!.maxExposure) * 100,
+            increment: (potentialLoss / (await this.getBrokerSafetyMetrics(brokerId))!.maxExposure) * 100
           },
-          lastRiskAssessment: new Date(),
-        },
+          lastRiskAssessment: new Date()
+        }
       });
 
       // Track daily exposure
@@ -173,10 +170,10 @@ export class BrokerSafetyService {
         where: { brokerId },
         data: {
           currentExposure: {
-            decrement: amount,
+            decrement: amount
           },
-          lastRiskAssessment: new Date(),
-        },
+          lastRiskAssessment: new Date()
+        }
       });
 
       // Re-calculate exposure percentage
@@ -185,8 +182,8 @@ export class BrokerSafetyService {
         await this.prisma.vPMXBrokerSafety.update({
           where: { brokerId },
           data: {
-            exposurePercentage: Math.max(0, (safety.currentExposure / safety.maxExposure) * 100),
-          },
+            exposurePercentage: Math.max(0, (safety.currentExposure / safety.maxExposure) * 100)
+          }
         });
       }
 
@@ -219,7 +216,7 @@ export class BrokerSafetyService {
       blockedMarkets: [],
       regions: ['US', 'ZA', 'UK'], // Default allowed regions
       autoLimitReduction: true,
-      suspensionThreshold: 90, // Auto-suspend at 90% exposure
+      suspensionThreshold: 90 // Auto-suspend at 90% exposure
     };
 
     await this.prisma.vPMXBrokerSafety.create({
@@ -236,8 +233,8 @@ export class BrokerSafetyService {
         regions: defaultSafety.regions,
         autoLimitReduction: defaultSafety.autoLimitReduction,
         suspensionThreshold: defaultSafety.suspensionThreshold,
-        lastRiskAssessment: new Date(),
-      },
+        lastRiskAssessment: new Date()
+      }
     });
 
     this.logger.log(`Initialized safety settings for broker ${brokerId}`);
@@ -249,11 +246,10 @@ export class BrokerSafetyService {
    */
   async updateSafetySettings(
     brokerId: string,
-    settings: Partial<BrokerSafetyMetrics>,
-  ): Promise<void> {
+    settings: Partial<BrokerSafetyMetrics>): Promise<void> {
     try {
       const updateData: any = {
-        lastRiskAssessment: new Date(),
+        lastRiskAssessment: new Date()
       };
 
       if (settings.maxExposure !== undefined) updateData.maxExposure = settings.maxExposure;
@@ -265,7 +261,7 @@ export class BrokerSafetyService {
 
       await this.prisma.vPMXBrokerSafety.update({
         where: { brokerId },
-        data: updateData,
+        data: updateData
       });
 
       // Invalidate cache
@@ -287,8 +283,8 @@ export class BrokerSafetyService {
         OR: [
           { exposurePercentage: { gt: 75 } },
           { riskLevel: { in: ['HIGH', 'CRITICAL'] } },
-        ],
-      },
+        ]
+      }
     });
 
     return atRiskBrokers.map(broker => ({
@@ -298,7 +294,7 @@ export class BrokerSafetyService {
       exposurePercentage: broker.exposurePercentage,
       riskLevel: broker.riskLevel as any,
       allowedMarkets: broker.allowedMarkets,
-      blockedMarkets: broker.blockedMarkets,
+      blockedMarkets: broker.blockedMarkets
     }));
   }
 
@@ -337,20 +333,20 @@ export class BrokerSafetyService {
         daily: dailyExposure,
         weekly: weeklyExposure,
         activePositions: activePositions.count,
-        totalActiveValue: activePositions.totalValue,
+        totalActiveValue: activePositions.totalValue
       },
       risk: {
         level: safety.riskLevel,
         exposurePercentage: safety.exposurePercentage,
         distanceToLimit: safety.maxExposure - safety.currentExposure,
-        recommendedAction: this.getRecommendedAction(safety),
+        recommendedAction: this.getRecommendedAction(safety)
       },
       limits: {
         maxBetSize: safety.maxBetSize,
         maxDailyExposure: safety.maxDailyExposure,
-        remainingDailyExposure: (safety.maxDailyExposure || safety.maxExposure * 0.5) - dailyExposure,
+        remainingDailyExposure: (safety.maxDailyExposure || safety.maxExposure * 0.5) - dailyExposure
       },
-      timestamp: new Date(),
+      timestamp: new Date()
     };
   }
 
@@ -378,8 +374,8 @@ export class BrokerSafetyService {
         where: { brokerId },
         data: {
           riskLevel: newRiskLevel,
-          lastRiskAssessment: new Date(),
-        },
+          lastRiskAssessment: new Date()
+        }
       });
 
       this.logger.warn(`Broker ${brokerId} risk level changed to ${newRiskLevel}`);
@@ -399,8 +395,8 @@ export class BrokerSafetyService {
         where: { brokerId },
         data: {
           maxBetSize: newMaxBetSize,
-          lastRiskAssessment: new Date(),
-        },
+          lastRiskAssessment: new Date()
+        }
       });
 
       this.logger.warn(`Auto-reduced bet limit for broker ${brokerId} to $${newMaxBetSize}`);
@@ -455,7 +451,7 @@ export class BrokerSafetyService {
     // For now, return placeholder values
     return {
       count: 15,
-      totalValue: 25000,
+      totalValue: 25000
     };
   }
 

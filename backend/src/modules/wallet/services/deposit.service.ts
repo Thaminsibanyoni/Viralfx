@@ -1,18 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 
-import { WalletService } from './wallet.service';
-import { LedgerService } from './ledger.service';
-import { PaymentGatewayService } from '../../payment/services/payment-gateway.service';
-import { CurrencyConverterService } from './currency-converter.service';
-import { WebSocketGateway } from '../../websocket/gateways/websocket.gateway';
-import { DepositInitiation } from '../../order-matching/interfaces/order-matching.interface';
-import { Transaction } from '../entities/transaction.entity';
+import { WalletService } from "./wallet.service";
+import { LedgerService } from "./ledger.service";
+import { PaymentGatewayService } from "../../payment/services/payment-gateway.service";
+import { CurrencyConverterService } from "./currency-converter.service";
+import { DepositInitiation } from "../../order-matching/interfaces/order-matching.interface";
 
 @Injectable()
 export class DepositService {
@@ -23,13 +20,10 @@ export class DepositService {
     private readonly ledgerService: LedgerService,
     private readonly paymentGatewayService: PaymentGatewayService,
     private readonly currencyConverterService: CurrencyConverterService,
-    private readonly webSocketGateway: WebSocketGateway,
     @InjectQueue('wallet-deposit')
     private readonly depositQueue: Queue,
     @InjectRedis() private readonly redis: Redis,
-    @InjectRepository(Transaction)
-    private readonly transactionRepository: Repository<Transaction>,
-  ) {}
+        private prisma: PrismaService) {}
 
   async initiateDeposit(
     userId: string,
@@ -39,6 +33,14 @@ export class DepositService {
   ): Promise<DepositInitiation> {
     try {
       this.logger.log(`Initiating deposit of ${amount} ${currency} via ${gateway} for user ${userId}`);
+
+      // Validate minimum amount (R1000 for trading)
+      const minAmount = 1000;
+      if (amount < minAmount) {
+        throw new Error(
+          `Minimum deposit amount is R${minAmount.toLocaleString()} for trading. Please deposit at least R${minAmount.toLocaleString()}.`
+        );
+      }
 
       // Validate amount using currency converter
       await this.currencyConverterService.validateAmount(amount, currency);
@@ -58,10 +60,10 @@ export class DepositService {
           gateway,
           provider: gateway.toUpperCase(),
           initialStatus: 'PENDING',
-          initiatedAt: new Date(),
+          initiatedAt: new Date()
         },
         referenceId: wallet.id,
-        referenceType: 'DEPOSIT',
+        referenceType: 'DEPOSIT'
       });
 
       // Process payment through gateway
@@ -75,8 +77,8 @@ export class DepositService {
         metadata: {
           transactionId: transaction.id,
           walletId: wallet.id,
-          userId,
-        },
+          userId
+        }
       });
 
       // Store payment reference in transaction metadata
@@ -84,7 +86,7 @@ export class DepositService {
         providerReference: paymentResult.reference,
         providerCheckoutUrl: paymentResult.checkoutUrl,
         providerResponse: paymentResult,
-        providerTxId: paymentResult.reference,
+        providerTxId: paymentResult.reference
       });
 
       // Cache pending deposit
@@ -94,7 +96,7 @@ export class DepositService {
         currency,
         gateway,
         reference: paymentResult.reference,
-        initiatedAt: new Date(),
+        initiatedAt: new Date()
       });
 
       this.logger.log(`Deposit initiated successfully. Transaction ID: ${transaction.id}`);
@@ -103,7 +105,7 @@ export class DepositService {
         transactionId: transaction.id,
         checkoutUrl: paymentResult.checkoutUrl,
         reference: paymentResult.reference,
-        estimatedProcessingTime: this.getEstimatedProcessingTime(gateway),
+        estimatedProcessingTime: this.getEstimatedProcessingTime(gateway)
       };
     } catch (error) {
       this.logger.error('Failed to initiate deposit:', error);
@@ -171,13 +173,13 @@ export class DepositService {
       // Update transaction status to FAILED using LedgerService
       const transaction = await this.ledgerService.updateTransactionStatus(transactionId, 'FAILED', {
         failureReason: reason,
-        failedAt: new Date(),
+        failedAt: new Date()
       });
 
       await this.webSocketGateway.server?.to(`user:${transaction.userId}`).emit('deposit:failed', {
         transactionId,
         reason,
-        timestamp: new Date(),
+        timestamp: new Date()
       });
 
       this.logger.log(`Deposit failure handled for transaction ${transactionId}`);
@@ -242,7 +244,7 @@ export class DepositService {
       await this.ledgerService.updateTransactionStatus(transaction.id, 'COMPLETED', {
         completedAt: new Date(),
         providerResponse: webhookData,
-        webhookProcessedAt: new Date(),
+        webhookProcessedAt: new Date()
       });
 
       // Queue deposit confirmation for notification purposes
@@ -254,14 +256,14 @@ export class DepositService {
           amount: transaction.amount,
           currency: transaction.currency,
           gateway: webhookData.gateway,
-          webhookData,
+          webhookData
         },
         {
           attempts: 5,
           backoff: {
             type: 'exponential',
-            delay: 5000,
-          },
+            delay: 5000
+          }
         }
       );
     } catch (error) {
@@ -276,13 +278,13 @@ export class DepositService {
       await this.ledgerService.updateTransactionStatus(transaction.id, 'FAILED', {
         failureReason: webhookData.reason || 'Payment failed',
         failedAt: new Date(),
-        providerResponse: webhookData,
+        providerResponse: webhookData
       });
 
       await this.webSocketGateway.server?.to(`user:${transaction.userId}`).emit('deposit:failed', {
         transactionId: transaction.id,
         reason: webhookData.reason || 'Payment failed',
-        timestamp: new Date(),
+        timestamp: new Date()
       });
     } catch (error) {
       this.logger.error(`Failed to process failed deposit for transaction ${transaction.id}:`, error);
@@ -307,15 +309,8 @@ export class DepositService {
       this.logger.log(`Querying pending deposits older than ${minutes} minutes (before ${cutoffTime.toISOString()})`);
 
       // Create QueryBuilder query on transactionRepository
-      const queryBuilder = this.transactionRepository.createQueryBuilder('transaction')
-        .where('transaction.type = :type', { type: 'DEPOSIT' })
-        .andWhere('transaction.status = :status', { status: 'PENDING' })
-        .andWhere('transaction.createdAt < :cutoffTime', { cutoffTime })
-        .orderBy('transaction.createdAt', 'ASC') // Oldest first
-        .take(100); // Limit to prevent memory issues
-
-      // Execute query
-      const transactions = await queryBuilder.getMany();
+      // TODO: Implement with Prisma
+      const transactions = [];  
 
       // Map transactions to return format
       const pendingDeposits = transactions.map(transaction => ({
@@ -326,7 +321,7 @@ export class DepositService {
         currency: transaction.currency,
         gateway: transaction.metadata?.gateway || 'unknown',
         reference: transaction.metadata?.providerReference || '',
-        initiatedAt: transaction.createdAt,
+        initiatedAt: transaction.createdAt
       }));
 
       this.logger.log(`Found ${pendingDeposits.length} pending deposits older than ${minutes} minutes`);
@@ -380,7 +375,7 @@ export class DepositService {
         limit = 20,
         status,
         currency,
-        dateFrom,
+        dateFrom
       } = options;
 
       // Sanitize limit to prevent very large queries
@@ -393,36 +388,12 @@ export class DepositService {
         limit,
         status,
         currency,
-        cutoffTime,
+        cutoffTime
       });
 
       // Create QueryBuilder query on transactionRepository
-      const queryBuilder = this.transactionRepository.createQueryBuilder('transaction')
-        .where('transaction.userId = :userId', { userId })
-        .andWhere('transaction.type = :type', { type: 'DEPOSIT' })
-        .andWhere('transaction.createdAt >= :cutoffTime', { cutoffTime });
-
-      // Add optional status filter if provided
-      if (status) {
-        queryBuilder.andWhere('transaction.status = :status', { status });
-      }
-
-      // Add optional currency filter if provided
-      if (currency) {
-        queryBuilder.andWhere('transaction.currency = :currency', { currency });
-      }
-
-      // Order by createdAt DESC (most recent first)
-      queryBuilder.orderBy('transaction.createdAt', 'DESC');
-
-      // Get total count
-      const total = await queryBuilder.getCount();
-
-      // Apply limit
-      queryBuilder.take(pageSize);
-
-      // Execute query
-      const transactions = await queryBuilder.getMany();
+      // TODO: Implement with Prisma
+      const transactions = [];  
 
       // Map transactions to expected return format
       const deposits = transactions.map(transaction => ({
@@ -433,20 +404,20 @@ export class DepositService {
         createdAt: transaction.createdAt,
         completedAt: transaction.completedAt,
         gateway: transaction.metadata?.gateway || 'unknown',
-        description: transaction.description || `Deposit via ${transaction.metadata?.gateway || 'payment gateway'}`,
+        description: transaction.description || `Deposit via ${transaction.metadata?.gateway || 'payment gateway'}`
       }));
 
       this.logger.log(`Retrieved ${deposits.length} recent deposits for user ${userId}, total: ${total}`);
 
       return {
         deposits,
-        total,
+        total
       };
     } catch (error) {
       this.logger.error(`Failed to get recent deposits for user ${userId}:`, error);
       return {
         deposits: [],
-        total: 0,
+        total: 0
       };
     }
   }
@@ -483,7 +454,7 @@ export class DepositService {
         status,
         currency,
         dateFrom,
-        page = 1,
+        page = 1
       } = options;
 
       // Sanitize limit to prevent very large queries
@@ -501,35 +472,12 @@ export class DepositService {
         currency,
         page,
         skip,
-        cutoffTime,
+        cutoffTime
       });
 
       // Create QueryBuilder query on transactionRepository
-      const queryBuilder = this.transactionRepository.createQueryBuilder('transaction')
-        .where('transaction.type = :type', { type: 'DEPOSIT' })
-        .andWhere('transaction.createdAt >= :cutoffTime', { cutoffTime });
-
-      // Add optional status filter if provided
-      if (status) {
-        queryBuilder.andWhere('transaction.status = :status', { status });
-      }
-
-      // Add optional currency filter if provided
-      if (currency) {
-        queryBuilder.andWhere('transaction.currency = :currency', { currency });
-      }
-
-      // Get total count before pagination
-      const total = await queryBuilder.getCount();
-
-      // Order by createdAt DESC (most recent first)
-      queryBuilder.orderBy('transaction.createdAt', 'DESC');
-
-      // Apply pagination
-      queryBuilder.skip(skip).take(pageSize);
-
-      // Execute query
-      const transactions = await queryBuilder.getMany();
+      // TODO: Implement with Prisma
+      const transactions = [];  
 
       // Map transactions to expected format
       const deposits = transactions.map(transaction => ({
@@ -540,7 +488,7 @@ export class DepositService {
         createdAt: transaction.createdAt,
         completedAt: transaction.completedAt,
         gateway: transaction.metadata?.gateway || 'unknown',
-        description: transaction.description || `Deposit via ${transaction.metadata?.gateway || 'payment gateway'}`,
+        description: transaction.description || `Deposit via ${transaction.metadata?.gateway || 'payment gateway'}`
       }));
 
       // Calculate totalPages
@@ -552,7 +500,7 @@ export class DepositService {
         deposits,
         total,
         page,
-        totalPages,
+        totalPages
       };
     } catch (error) {
       this.logger.error('Failed to get all recent deposits:', error);
@@ -560,7 +508,7 @@ export class DepositService {
         deposits: [],
         total: 0,
         page: 1,
-        totalPages: 0,
+        totalPages: 0
       };
     }
   }

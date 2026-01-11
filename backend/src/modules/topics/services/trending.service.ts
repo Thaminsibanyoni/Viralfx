@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -41,21 +41,19 @@ export class TrendingService {
     REGION_AFRICA: 'trending:region:africa',
     REGION_EUROPE: 'trending:region:europe',
     REGION_AMERICAS: 'trending:region:americas',
-    REGION_ASIA: 'trending:region:asia',
+    REGION_ASIA: 'trending:region:asia'
   };
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: Redis,
     @InjectQueue('topic-processing')
-    private readonly topicQueue: Queue,
-  ) {}
+    private readonly topicQueue: Queue) {}
 
   async calculateTrending(
     timeWindow: number = 60, // minutes
     region?: string,
-    category?: string,
-  ): Promise<TrendingScore[]> {
+    category?: string): Promise<TrendingScore[]> {
     const timeAgo = new Date(Date.now() - timeWindow * 60 * 1000);
 
     // Get topics with recent activity
@@ -66,33 +64,33 @@ export class TrendingService {
         ...(category && { category }),
         viralSnapshots: {
           some: {
-            timestamp: { gte: timeAgo },
-          },
-        },
+            timestamp: { gte: timeAgo }
+          }
+        }
       },
       include: {
         viralSnapshots: {
           where: {
-            timestamp: { gte: timeAgo },
+            timestamp: { gte: timeAgo }
           },
-          orderBy: { timestamp: 'desc' },
+          orderBy: { timestamp: 'desc' }
         },
         ingestEvents: {
           where: {
             timestamp: { gte: timeAgo },
-            ...(region && { metadata: { path: ['region'], equals: region } }),
-          },
+            ...(region && { metadata: { path: ['region'], equals: region } })
+          }
         },
         _count: {
           select: {
             ingestEvents: {
               where: {
-                timestamp: { gte: timeAgo },
-              },
-            },
-          },
-        },
-      },
+                timestamp: { gte: timeAgo }
+              }
+            }
+          }
+        }
+      }
     });
 
     const scores: TrendingScore[] = [];
@@ -111,8 +109,7 @@ export class TrendingService {
   async getTrendingByRegion(
     region: string,
     limit: number = 10,
-    category?: string,
-  ): Promise<TrendingTopic[]> {
+    category?: string): Promise<TrendingTopic[]> {
     const cacheKey = `trending:region:${region}:${limit}:${category || 'all'}`;
     const cached = await this.redis.get(cacheKey);
     if (cached) {
@@ -130,8 +127,8 @@ export class TrendingService {
           id: true,
           name: true,
           slug: true,
-          category: true,
-        },
+          category: true
+        }
       });
 
       if (topic) {
@@ -142,7 +139,7 @@ export class TrendingService {
           engagementRate: score.components.engagement,
           viralIndex: score.components.viralIndex,
           lastUpdated: score.metadata.lastUpdated,
-          metadata: score.metadata,
+          metadata: score.metadata
         });
       }
     }
@@ -155,8 +152,7 @@ export class TrendingService {
   async getTrendingByCategory(
     category: string,
     limit: number = 10,
-    region?: string,
-  ): Promise<TrendingTopic[]> {
+    region?: string): Promise<TrendingTopic[]> {
     const cacheKey = `trending:category:${category}:${limit}:${region || 'global'}`;
     const cached = await this.redis.get(cacheKey);
     if (cached) {
@@ -174,8 +170,8 @@ export class TrendingService {
           id: true,
           name: true,
           slug: true,
-          category: true,
-        },
+          category: true
+        }
       });
 
       if (topic) {
@@ -186,7 +182,7 @@ export class TrendingService {
           engagementRate: score.components.engagement,
           viralIndex: score.components.viralIndex,
           lastUpdated: score.metadata.lastUpdated,
-          metadata: score.metadata,
+          metadata: score.metadata
         });
       }
     }
@@ -235,9 +231,9 @@ export class TrendingService {
     const snapshots = await this.prisma.viralIndexSnapshot.findMany({
       where: {
         topicId,
-        timestamp: { gte: startTime },
+        timestamp: { gte: startTime }
       },
-      orderBy: { timestamp: 'asc' },
+      orderBy: { timestamp: 'asc' }
     });
 
     // Group snapshots by intervals
@@ -255,7 +251,7 @@ export class TrendingService {
     // Calculate average scores for each interval
     return Object.entries(grouped).map(([timestamp, scores]) => ({
       timestamp: new Date(parseInt(timestamp)),
-      score: scores.reduce((sum, score) => sum + score, 0) / scores.length,
+      score: scores.reduce((sum, score) => sum + score, 0) / scores.length
     }));
   }
 
@@ -270,16 +266,16 @@ export class TrendingService {
     const topics = await this.prisma.topic.findMany({
       where: {
         isActive: true,
-        deletedAt: null,
+        deletedAt: null
       },
       include: {
         viralSnapshots: {
           where: {
-            timestamp: { gte: baselineStart },
+            timestamp: { gte: baselineStart }
           },
-          orderBy: { timestamp: 'asc' },
-        },
-      },
+          orderBy: { timestamp: 'asc' }
+        }
+      }
     });
 
     const spikes: Array<any> = [];
@@ -299,7 +295,7 @@ export class TrendingService {
             topicId: topic.id,
             spikeScore,
             currentScore,
-            baselineScore,
+            baselineScore
           });
         }
       }
@@ -326,13 +322,13 @@ export class TrendingService {
       components: {
         viralIndex: Math.round(viralIndex * 100) / 100,
         velocity: Math.round(velocity * 100) / 100,
-        engagement: Math.round(engagement * 100) / 100,
+        engagement: Math.round(engagement * 100) / 100
       },
       metadata: {
         lastUpdated: new Date(),
         sampleSize: viralSnapshots.length + ingestEvents.length,
-        timeWindow,
-      },
+        timeWindow
+      }
     };
   }
 
@@ -391,8 +387,8 @@ export class TrendingService {
       distinct: ['category'],
       where: {
         isActive: true,
-        deletedAt: null,
-      },
+        deletedAt: null
+      }
     });
 
     return categories.map(c => c.category);

@@ -10,15 +10,14 @@ import {
   HttpCode,
   Request,
   Res,
-  Headers,
-} from '@nestjs/common';
+  Headers, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { InitiatePaymentDto, WebhookPaymentDto } from '../dto/payment.dto';
 import { BillingService } from '../services/billing.service';
-import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { BrokerBill, BillStatus } from '../entities/broker-bill.entity';
 import { UserRole } from '@prisma/client';
 import { Response } from 'express';
 
@@ -37,13 +36,12 @@ export class BillingController {
     @Param('brokerId') brokerId: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
-    @Query('status') status?: BillStatus,
-  ): Promise<any> {
+    @Query('status') status?: BillStatus): Promise<any> {
     const result = await this.billingService.getBrokerBills(brokerId, { page, limit, status });
     return {
       success: true,
       data: result.bills,
-      pagination: result.pagination,
+      pagination: result.pagination
     };
   }
 
@@ -57,12 +55,11 @@ export class BillingController {
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Bill not found' })
   async getBill(
     @Param('brokerId') brokerId: string,
-    @Param('billId') billId: string,
-  ): Promise<any> {
+    @Param('billId') billId: string): Promise<any> {
     const bill = await this.billingService.getBill(billId);
     return {
       success: true,
-      data: bill,
+      data: bill
     };
   }
 
@@ -80,13 +77,12 @@ export class BillingController {
   async initiatePayment(
     @Param('brokerId') brokerId: string,
     @Param('billId') billId: string,
-    @Body() paymentDto: InitiatePaymentDto,
-  ): Promise<any> {
+    @Body() paymentDto: InitiatePaymentDto): Promise<any> {
     const paymentResult = await this.billingService.processBillPayment(billId, paymentDto);
     return {
       success: true,
       message: 'Payment initiated successfully',
-      data: paymentResult,
+      data: paymentResult
     };
   }
 
@@ -101,8 +97,7 @@ export class BillingController {
     @Param('gateway') gateway: string,
     @Body() webhookData: any,
     @Headers('x-paystack-signature') paystackSignature?: string,
-    @Headers('x-payfast-signature') payfastSignature?: string,
-  ): Promise<any> {
+    @Headers('x-payfast-signature') payfastSignature?: string): Promise<any> {
     // Attach signature to webhook data for verification
     if (paystackSignature) {
       webhookData.signature = paystackSignature;
@@ -114,13 +109,13 @@ export class BillingController {
       await this.billingService.handlePaymentWebhook(gateway, webhookData);
       return {
         success: true,
-        message: 'Webhook processed successfully',
+        message: 'Webhook processed successfully'
       };
     } catch (error) {
       return {
         success: false,
         message: 'Webhook processing failed',
-        error: error.message,
+        error: error.message
       };
     }
   }
@@ -136,8 +131,7 @@ export class BillingController {
   async downloadInvoice(
     @Param('brokerId') brokerId: string,
     @Param('billId') billId: string,
-    @Res() res: Response,
-  ): Promise<void> {
+    @Res() res: Response): Promise<void> {
     const bill = await this.billingService.getBill(billId);
 
     // In a real implementation, this would generate a PDF invoice
@@ -157,16 +151,15 @@ export class BillingController {
   @ApiOperation({ summary: 'Get current broker bills' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Bills retrieved successfully' })
   async getMyBills(
-    @Request() req,
+    @Req() req,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
-    @Query('status') status?: BillStatus,
-  ): Promise<any> {
+    @Query('status') status?: BillStatus): Promise<any> {
     // This would be implemented when broker authentication is added
     // For now, return a placeholder
     return {
       success: true,
-      message: 'My bills endpoint - requires broker authentication',
+      message: 'My bills endpoint - requires broker authentication'
     };
   }
 
@@ -175,10 +168,10 @@ export class BillingController {
   @ApiOperation({ summary: 'Get current broker bill details' })
   @ApiParam({ name: 'billId', description: 'Bill ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Bill details retrieved successfully' })
-  async getMyBill(@Request() req, @Param('billId') billId: string): Promise<any> {
+  async getMyBill(@Req() req, @Param('billId') billId: string): Promise<any> {
     return {
       success: true,
-      message: 'My bill details endpoint - requires broker authentication',
+      message: 'My bill details endpoint - requires broker authentication'
     };
   }
 
@@ -189,13 +182,12 @@ export class BillingController {
   @ApiBody({ type: InitiatePaymentDto })
   @ApiResponse({ status: HttpStatus.OK, description: 'Payment initiated successfully' })
   async payMyBill(
-    @Request() req,
+    @Req() req,
     @Param('billId') billId: string,
-    @Body() paymentDto: InitiatePaymentDto,
-  ): Promise<any> {
+    @Body() paymentDto: InitiatePaymentDto): Promise<any> {
     return {
       success: true,
-      message: 'Pay my bill endpoint - requires broker authentication',
+      message: 'Pay my bill endpoint - requires broker authentication'
     };
   }
 
@@ -205,10 +197,9 @@ export class BillingController {
   @ApiParam({ name: 'billId', description: 'Bill ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Invoice downloaded successfully' })
   async downloadMyInvoice(
-    @Request() req,
+    @Req() req,
     @Param('billId') billId: string,
-    @Res() res: Response,
-  ): Promise<void> {
+    @Res() res: Response): Promise<void> {
     // Return a placeholder for now
     const pdfBuffer = Buffer.from('My Invoice PDF placeholder');
 
@@ -230,7 +221,7 @@ export class BillingController {
     // For now, return a placeholder
     return {
       success: true,
-      message: 'Monthly bills generation initiated',
+      message: 'Monthly bills generation initiated'
     };
   }
 
@@ -243,7 +234,7 @@ export class BillingController {
     await this.billingService.checkOverdueBills();
     return {
       success: true,
-      message: 'Overdue bills check completed',
+      message: 'Overdue bills check completed'
     };
   }
 
@@ -261,8 +252,8 @@ export class BillingController {
         paidBills: 45,
         pendingBills: 12,
         overdueBills: 3,
-        thisMonthRevenue: 25000,
-      },
+        thisMonthRevenue: 25000
+      }
     };
   }
 
@@ -274,11 +265,10 @@ export class BillingController {
   async getDetailedBillingReport(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('brokerId') brokerId?: string,
-  ): Promise<any> {
+    @Query('brokerId') brokerId?: string): Promise<any> {
     return {
       success: true,
-      message: 'Detailed billing report endpoint - requires implementation',
+      message: 'Detailed billing report endpoint - requires implementation'
     };
   }
 }

@@ -17,7 +17,7 @@ export class ProofGeneratorService {
       confidence: consensusResult.confidence,
       timestamp: consensusResult.timestamp,
       validators: consensusResult.validatorResponses.map(r => r.validatorId),
-      consensusStrength: consensusResult.consensusStrength,
+      consensusStrength: consensusResult.consensusStrength
     };
 
     // 2. Generate SHA-256 hash of payload
@@ -43,8 +43,8 @@ export class ProofGeneratorService {
       payload: {
         ...payload,
         sourceHash,
-        dataType: 'virality',
-      },
+        dataType: 'virality'
+      }
     };
   }
 
@@ -95,7 +95,7 @@ export class ProofGeneratorService {
         validatorId: response.validatorId,
         score: response.data.viralityScore,
         confidence: response.data.confidence,
-        timestamp: response.data.timestamp,
+        timestamp: response.data.timestamp
       });
       return crypto.createHash('sha256').update(data).digest('hex');
     });
@@ -129,7 +129,7 @@ export class ProofGeneratorService {
         validatorId: response.validatorId,
         signature,
         timestamp: response.data.timestamp,
-        publicKey: `pk-${response.validatorId}`, // Mock public key
+        publicKey: `pk-${response.validatorId}` // Mock public key
       });
     }
 
@@ -140,7 +140,7 @@ export class ProofGeneratorService {
     const sourceData = responses.map(r => ({
       validatorId: r.validatorId,
       timestamp: r.data.timestamp,
-      random: Math.random().toString(36).substring(7), // Add randomness
+      random: Math.random().toString(36).substring(7) // Add randomness
     }));
 
     return crypto.createHash('sha256')
@@ -178,12 +178,12 @@ export class ProofGeneratorService {
         validatorId: response.validatorId,
         score: response.data.viralityScore,
         confidence: response.data.confidence,
-        timestamp: response.data.timestamp,
+        timestamp: response.data.timestamp
       });
       return {
         hash: crypto.createHash('sha256').update(data).digest('hex'),
         isLeaf: true,
-        index: responses.indexOf(response),
+        index: responses.indexOf(response)
       };
     });
 
@@ -205,14 +205,14 @@ export class ProofGeneratorService {
           const sibling = i === currentIndex ? right : left;
           proof.push({
             hash: sibling.hash,
-            isLeft: i === currentIndex,
+            isLeft: i === currentIndex
           });
           currentIndex = Math.floor(i / 2);
         }
 
         nextLevel.push({
           hash: parentHash,
-          isLeaf: false,
+          isLeaf: false
         });
       }
 
@@ -222,7 +222,7 @@ export class ProofGeneratorService {
     return {
       root: level[0].hash,
       proof,
-      leafIndex,
+      leafIndex
     };
   }
 }

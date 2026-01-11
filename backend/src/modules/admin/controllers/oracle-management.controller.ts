@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Post,
@@ -10,15 +10,15 @@ import {
   UseGuards,
   Request,
   Logger,
-  ParseUUIDPipe,
-} from '@nestjs/common';
+  ParseUUIDPipe, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { AdminAuthGuard } from '../guards/admin-auth.guard';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { Permissions } from '../decorators/permissions.decorator';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { OracleManagementService } from '../services/oracle-management.service';
-import { AdminAuditLog, AuditAction, AuditSeverity } from '../entities/admin-audit-log.entity';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { PrismaService } from '../../../prisma/prisma.service';
 
 @ApiTags('Oracle Management')
 @Controller('admin/oracle')
@@ -29,9 +29,7 @@ export class OracleManagementController {
 
   constructor(
     private readonly oracleManagementService: OracleManagementService,
-    @InjectRepository(AdminAuditLog)
-    private readonly auditLogRepository: Repository<AdminAuditLog>,
-  ) {}
+        private prisma: PrismaService) {}
 
   @Get('nodes')
   @Permissions('oracle:read')
@@ -42,14 +40,13 @@ export class OracleManagementController {
     @Query('limit') limit: string = '50',
     @Query('status') status?: string,
     @Query('region') region?: string,
-    @Query('search') search?: string,
-  ) {
+    @Query('search') search?: string) {
     return await this.oracleManagementService.getNodes({
       page: parseInt(page),
       limit: parseInt(limit),
       status,
       region,
-      search,
+      search
     });
   }
 
@@ -59,8 +56,7 @@ export class OracleManagementController {
   @ApiParam({ name: 'id', description: 'Oracle Node ID' })
   @ApiResponse({ status: 200, description: 'Oracle node details retrieved successfully' })
   async getOracleNodeById(
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+    @Param('id', ParseUUIDPipe) id: string) {
     return await this.oracleManagementService.getNodeById(id);
   }
 
@@ -70,22 +66,20 @@ export class OracleManagementController {
   @ApiResponse({ status: 201, description: 'Validator node added successfully' })
   async addOracleNode(
     @Body() nodeData: any,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.oracleManagementService.addNode(
       nodeData,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.HIGH,
       targetType: 'OracleNode',
       targetId: result.id,
       metadata: nodeData,
-      description: `Added oracle node: ${result.nodeId}`,
+      description: `Added oracle node: ${result.nodeId}`
     });
 
     this.logger.log(`Oracle node added by admin ${req.admin.id}: ${result.nodeId}`);
@@ -99,21 +93,19 @@ export class OracleManagementController {
   @ApiResponse({ status: 200, description: 'Validator node removed successfully' })
   async removeOracleNode(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.oracleManagementService.removeNode(
       id,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.CRITICAL,
       targetType: 'OracleNode',
       targetId: id,
-      description: `Removed oracle node: ${id}`,
+      description: `Removed oracle node: ${id}`
     });
 
     this.logger.log(`Oracle node removed by admin ${req.admin.id}: ${id}`);
@@ -127,21 +119,19 @@ export class OracleManagementController {
   @ApiResponse({ status: 200, description: 'Validator node restarted successfully' })
   async restartOracleNode(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.oracleManagementService.restartNode(
       id,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.MEDIUM,
       targetType: 'OracleNode',
       targetId: id,
-      description: `Restarted oracle node: ${id}`,
+      description: `Restarted oracle node: ${id}`
     });
 
     this.logger.log(`Oracle node restarted by admin ${req.admin.id}: ${id}`);
@@ -156,23 +146,21 @@ export class OracleManagementController {
   async disableOracleNode(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.oracleManagementService.disableNode(
       id,
       reason,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.HIGH,
       targetType: 'OracleNode',
       targetId: id,
       metadata: { reason },
-      description: `Disabled oracle node: ${id} - ${reason}`,
+      description: `Disabled oracle node: ${id} - ${reason}`
     });
 
     this.logger.log(`Oracle node disabled by admin ${req.admin.id}: ${id} - ${reason}`);
@@ -186,21 +174,19 @@ export class OracleManagementController {
   @ApiResponse({ status: 200, description: 'Validator node enabled successfully' })
   async enableOracleNode(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.oracleManagementService.enableNode(
       id,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.MEDIUM,
       targetType: 'OracleNode',
       targetId: id,
-      description: `Enabled oracle node: ${id}`,
+      description: `Enabled oracle node: ${id}`
     });
 
     this.logger.log(`Oracle node enabled by admin ${req.admin.id}: ${id}`);
@@ -214,21 +200,19 @@ export class OracleManagementController {
   @ApiResponse({ status: 200, description: 'Node keys rotated successfully' })
   async rotateNodeKeys(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.oracleManagementService.rotateNodeKeys(
       id,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.CRITICAL,
       targetType: 'OracleNode',
       targetId: id,
-      description: `Rotated cryptographic keys for oracle node: ${id}`,
+      description: `Rotated cryptographic keys for oracle node: ${id}`
     });
 
     this.logger.log(`Oracle node keys rotated by admin ${req.admin.id}: ${id}`);
@@ -244,14 +228,13 @@ export class OracleManagementController {
     @Query('limit') limit: string = '50',
     @Query('status') status?: string,
     @Query('dataType') dataType?: string,
-    @Query('trendId') trendId?: string,
-  ) {
+    @Query('trendId') trendId?: string) {
     return await this.oracleManagementService.getRequests({
       page: parseInt(page),
       limit: parseInt(limit),
       status,
       dataType,
-      trendId,
+      trendId
     });
   }
 
@@ -261,8 +244,7 @@ export class OracleManagementController {
   @ApiParam({ name: 'id', description: 'Oracle Request ID' })
   @ApiResponse({ status: 200, description: 'Oracle request details retrieved successfully' })
   async getOracleRequestById(
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+    @Param('id', ParseUUIDPipe) id: string) {
     return await this.oracleManagementService.getRequestById(id);
   }
 
@@ -281,13 +263,11 @@ export class OracleManagementController {
   async getConsensusHistory(
     @Query('timeframe') timeframe: string = '24h',
     @Query('page') page: string = '1',
-    @Query('limit') limit: string = '100',
-  ) {
+    @Query('limit') limit: string = '100') {
     return await this.oracleManagementService.getConsensusHistory(
       timeframe,
       parseInt(page),
-      parseInt(limit),
-    );
+      parseInt(limit));
   }
 
   @Get('logs')
@@ -300,15 +280,14 @@ export class OracleManagementController {
     @Query('level') level?: string,
     @Query('nodeId') nodeId?: string,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ) {
+    @Query('endDate') endDate?: string) {
     return await this.oracleManagementService.getOracleLogs({
       page: parseInt(page),
       limit: parseInt(limit),
       level,
       nodeId,
       startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined
     });
   }
 
@@ -317,8 +296,7 @@ export class OracleManagementController {
   @ApiOperation({ summary: 'Get oracle performance metrics' })
   @ApiResponse({ status: 200, description: 'Oracle performance metrics retrieved successfully' })
   async getOraclePerformance(
-    @Query('timeframe') timeframe: string = '24h',
-  ) {
+    @Query('timeframe') timeframe: string = '24h') {
     return await this.oracleManagementService.getPerformanceMetrics(timeframe);
   }
 
@@ -336,22 +314,20 @@ export class OracleManagementController {
   @ApiResponse({ status: 200, description: 'Consensus threshold updated successfully' })
   async updateConsensusThreshold(
     @Body('threshold') threshold: number,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.oracleManagementService.updateConsensusThreshold(
       threshold,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.CRITICAL,
       targetType: 'OracleConfig',
       targetId: 'consensus_threshold',
       metadata: { threshold },
-      description: `Updated oracle consensus threshold to ${threshold}`,
+      description: `Updated oracle consensus threshold to ${threshold}`
     });
 
     this.logger.log(`Oracle consensus threshold updated by admin ${req.admin.id}: ${threshold}`);
@@ -365,21 +341,19 @@ export class OracleManagementController {
   @ApiResponse({ status: 200, description: 'Oracle request retry initiated successfully' })
   async retryOracleRequest(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.oracleManagementService.retryRequest(
       id,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.MEDIUM,
       targetType: 'OracleRequest',
       targetId: id,
-      description: `Retried oracle request: ${id}`,
+      description: `Retried oracle request: ${id}`
     });
 
     this.logger.log(`Oracle request retried by admin ${req.admin.id}: ${id}`);
@@ -393,23 +367,21 @@ export class OracleManagementController {
   async enableOracleMaintenance(
     @Body('enabled') enabled: boolean,
     @Body('message') message?: string,
-    @Request() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.oracleManagementService.setMaintenanceMode(
       enabled,
       message,
-      req.admin.id,
-    );
+      req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: enabled ? AuditSeverity.CRITICAL : AuditSeverity.HIGH,
       targetType: 'OracleSystem',
       targetId: 'maintenance',
       metadata: { enabled, message },
-      description: `${enabled ? 'Enabled' : 'Disabled'} oracle maintenance mode`,
+      description: `${enabled ? 'Enabled' : 'Disabled'} oracle maintenance mode`
     });
 
     this.logger.log(`Oracle maintenance mode ${enabled ? 'enabled' : 'disabled'} by admin ${req.admin.id}`);
@@ -428,17 +400,17 @@ export class OracleManagementController {
   @Permissions('oracle:update')
   @ApiOperation({ summary: 'Force sync oracle network' })
   @ApiResponse({ status: 200, description: 'Oracle network sync initiated successfully' })
-  async syncOracleNetwork(@Request() req: any) {
+  async syncOracleNetwork(@Req() req: any) {
     const result = await this.oracleManagementService.syncNetwork(req.admin.id);
 
     // Create audit log
-    await this.auditLogRepository.save({
+    await this.prisma.adminAuditLog.upsert({
       adminId: req.admin.id,
       action: AuditAction.SYSTEM_ACTION,
       severity: AuditSeverity.MEDIUM,
       targetType: 'OracleSystem',
       targetId: 'network_sync',
-      description: 'Forced oracle network synchronization',
+      description: 'Forced oracle network synchronization'
     });
 
     this.logger.log(`Oracle network sync initiated by admin ${req.admin.id}`);

@@ -1,7 +1,9 @@
 import { IsString, IsOptional, IsEnum, IsArray, IsUUID, ValidateNested, IsObject, MaxLength, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TicketPriority } from '../entities/ticket.entity';
+import { TicketPriority } from '../enums/support.enum';
+// User entity import removed - using Prisma directly;
+// COMMENTED OUT (cross-module entity import): import { Broker } from "../../modules/brokers/entities/broker.entity";
 
 export class AttachmentDto {
   @ApiProperty({ description: 'Attachment URL' })

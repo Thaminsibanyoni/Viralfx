@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Query,
@@ -6,20 +6,18 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  Request,
-} from '@nestjs/common';
+  Request, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UsageService } from '../services/usage.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { AdminAuthGuard } from '../../admin/guards/admin-auth.guard';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { AdminAuthGuard } from "../../admin/guards/admin-auth.guard";
 
 @ApiTags('API Marketplace - Usage')
 @Controller('api/v1/api-marketplace/usage')
 export class UsageController {
   constructor(
-    private readonly usageService: UsageService,
-  ) {}
+    private readonly usageService: UsageService) {}
 
   @Get('my-usage')
   @HttpCode(HttpStatus.OK)
@@ -28,11 +26,10 @@ export class UsageController {
   @ApiOperation({ summary: 'Get current user API usage' })
   @ApiResponse({ status: 200, description: 'Usage statistics retrieved successfully' })
   async getUserUsage(
-    @Request() req: any,
+    @Req() req: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('groupBy') groupBy: 'hour' | 'day' | 'month' = 'day',
-  ): Promise<any> {
+    @Query('groupBy') groupBy: 'hour' | 'day' | 'month' = 'day'): Promise<any> {
     const userId = req.user?.id;
     const brokerId = req.user?.brokerId;
 
@@ -40,7 +37,7 @@ export class UsageController {
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
 
@@ -55,11 +52,10 @@ export class UsageController {
   @ApiResponse({ status: 200, description: 'Usage statistics retrieved successfully' })
   async getKeyUsage(
     @Param('keyId', ParseUUIDPipe) keyId: string,
-    @Request() req: any,
+    @Req() req: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('groupBy') groupBy: 'hour' | 'day' | 'month' = 'day',
-  ): Promise<any> {
+    @Query('groupBy') groupBy: 'hour' | 'day' | 'month' = 'day'): Promise<any> {
     const userId = req.user?.id;
     const brokerId = req.user?.brokerId;
 
@@ -67,7 +63,7 @@ export class UsageController {
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
 
@@ -83,13 +79,12 @@ export class UsageController {
   async getProductUsage(
     @Param('productId', ParseUUIDPipe) productId: string,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ): Promise<any> {
+    @Query('endDate') endDate?: string): Promise<any> {
     let dateRange;
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
 
@@ -104,13 +99,12 @@ export class UsageController {
   @ApiResponse({ status: 200, description: 'Usage overview retrieved successfully' })
   async getUsageOverview(
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ): Promise<any> {
+    @Query('endDate') endDate?: string): Promise<any> {
     let dateRange;
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
 
@@ -126,13 +120,12 @@ export class UsageController {
   async getTopEndpoints(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('limit') limit: number = 10,
-  ): Promise<any> {
+    @Query('limit') limit: number = 10): Promise<any> {
     let dateRange;
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
 
@@ -147,13 +140,12 @@ export class UsageController {
   @ApiResponse({ status: 200, description: 'Error analysis retrieved successfully' })
   async getErrorAnalysis(
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ): Promise<any> {
+    @Query('endDate') endDate?: string): Promise<any> {
     let dateRange;
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
 

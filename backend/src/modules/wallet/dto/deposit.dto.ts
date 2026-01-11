@@ -3,15 +3,16 @@ import { IsNumber, IsEnum, Min, IsOptional, IsUrl, IsObject } from 'class-valida
 import { Type } from 'class-transformer';
 
 export class DepositDto {
-  @ApiProperty({ description: 'Deposit amount' })
+  @ApiProperty({ description: 'Deposit amount (Minimum R1000 for trading)', example: 1000 })
   @IsNumber()
-  @Min(10)
+  @Min(1000)
   @Type(() => Number)
   amount: number;
 
   @ApiProperty({
     description: 'Deposit currency',
-    enum: ['ZAR', 'USD', 'EUR', 'BTC', 'ETH']
+    enum: ['ZAR', 'USD', 'EUR', 'BTC', 'ETH'],
+    default: 'ZAR'
   })
   @IsEnum(['ZAR', 'USD', 'EUR', 'BTC', 'ETH'])
   currency: 'ZAR' | 'USD' | 'EUR' | 'BTC' | 'ETH';

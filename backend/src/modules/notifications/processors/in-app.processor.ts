@@ -1,9 +1,9 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { Logger, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { WebSocketGateway as WSGateway } from '../../websocket/gateways/websocket.gateway';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { SendTimeOptimizerService } from '../services/send-time-optimizer.service';
 import { ProviderHealthService } from '../services/provider-health.service';
 import { ProviderRoutingService, RoutingContext } from '../services/provider-routing.service';
@@ -26,7 +26,7 @@ export interface InAppNotificationJob {
 
 @Injectable()
 @Processor('notifications:in-app')
-export class InAppProcessor {
+export class InAppProcessor extends WorkerHost {
   private readonly logger = new Logger(InAppProcessor.name);
   private providerClients = new Map<string, any>();
   private sessionCache = new Map<string, any>(); // Cache for active sessions
@@ -34,13 +34,12 @@ export class InAppProcessor {
   constructor(
     private readonly configService: ConfigService,
     private readonly prismaService: PrismaService,
-    private readonly webSocketGateway: WSGateway,
     private readonly sendTimeOptimizer: SendTimeOptimizerService,
     private readonly providerHealthService: ProviderHealthService,
     private readonly providerRoutingService: ProviderRoutingService,
-    private readonly chaosTestingService: ChaosTestingService,
-  ) {
-    this.initializeProviders();
+    private readonly chaosTestingService: ChaosTestingService) {
+    super();
+this.initializeProviders();
   }
 
   private initializeProviders() {
@@ -60,7 +59,7 @@ export class InAppProcessor {
         } catch (error) {
           return { status: 'unhealthy', error: error.message };
         }
-      },
+      }
     });
 
     // Initialize SSE provider as fallback
@@ -74,7 +73,7 @@ export class InAppProcessor {
         } catch (error) {
           return { status: 'unhealthy', error: error.message };
         }
-      },
+      }
     });
 
     // Initialize Long Polling provider as last resort
@@ -88,27 +87,26 @@ export class InAppProcessor {
         } catch (error) {
           return { status: 'unhealthy', error: error.message };
         }
-      },
+      }
     });
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onActive(job: Job<InAppNotificationJob>) {
     this.logger.log(`Processing in-app notification job ${job.id} for user ${job.data.userId}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job<InAppNotificationJob>) {
     this.logger.log(`Completed in-app notification job ${job.id} for user ${job.data.userId}`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job<InAppNotificationJob>, error: Error) {
     this.logger.error(`Failed in-app notification job ${job.id} for user ${job.data.userId}:`, error);
   }
 
-  @Process('send-in-app')
-  async handleSendInApp(job: Job<InAppNotificationJob>) {
+  private async handleSendInApp(job: Job<InAppNotificationJob>) {
     const {
       userId,
       notificationId,
@@ -121,7 +119,7 @@ export class InAppProcessor {
       actionText,
       icon,
       imageUrl,
-      metadata,
+      metadata
     } = job.data;
 
     this.logger.log(`Processing in-app notification ${notificationId} for user ${userId}`);
@@ -130,7 +128,7 @@ export class InAppProcessor {
       // Get user details and preferences
       const user = await this.prismaService.user.findUnique({
         where: { id: userId },
-        include: { notificationPreferences: true },
+        include: { notificationPreferences: true }
       });
 
       if (!user) {
@@ -152,7 +150,7 @@ export class InAppProcessor {
 
       // Get notification details
       const notification = await this.prismaService.notification.findUnique({
-        where: { id: notificationId },
+        where: { id: notificationId }
       });
 
       if (!notification) {
@@ -167,7 +165,7 @@ export class InAppProcessor {
         priority: priority as 'low' | 'medium' | 'high' | 'critical',
         channel: 'in-app',
         timezone: user.notificationPreferences?.timezone,
-        metadata: { actionUrl, actionText, icon, imageUrl, ...metadata },
+        metadata: { actionUrl, actionText, icon, imageUrl, ...metadata }
       });
 
       if (!timeOptimization.shouldSendNow) {
@@ -177,7 +175,7 @@ export class InAppProcessor {
         if (timeOptimization.optimalSendTime) {
           await this.prismaService.notification.update({
             where: { id: notificationId },
-            data: { scheduledFor: timeOptimization.optimalSendTime },
+            data: { scheduledFor: timeOptimization.optimalSendTime }
           });
         }
 
@@ -191,7 +189,7 @@ export class InAppProcessor {
           skipped: true,
           reason: timeOptimization.reason,
           optimalSendTime: timeOptimization.optimalSendTime,
-          delayMs: timeOptimization.delayMs,
+          delayMs: timeOptimization.delayMs
         };
       }
 
@@ -217,9 +215,9 @@ export class InAppProcessor {
         metadata: {
           ...metadata,
           ...data,
-          createdAt: notification.createdAt,
+          createdAt: notification.createdAt
         },
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
 
       // Send notification via multi-provider failover to all active sessions
@@ -242,8 +240,8 @@ export class InAppProcessor {
           imageUrl,
           deliveredSessions,
           totalSessions: activeSessions.length,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-        },
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+        }
       });
 
       // Log the delivery
@@ -258,7 +256,7 @@ export class InAppProcessor {
       this.webSocketGateway.broadcastToUser(userId, 'notification:delivered', {
         notificationId,
         delivered: deliveredSessions,
-        total: activeSessions.length,
+        total: activeSessions.length
       });
 
       this.logger.log(
@@ -274,7 +272,7 @@ export class InAppProcessor {
           priority: priority as 'low' | 'medium' | 'high' | 'critical',
           channel: 'in-app',
           timezone: user.notificationPreferences?.timezone,
-          metadata: { actionUrl, actionText, icon, imageUrl, ...metadata },
+          metadata: { actionUrl, actionText, icon, imageUrl, ...metadata }
         });
       }
 
@@ -289,8 +287,8 @@ export class InAppProcessor {
         optimizationStats: {
           qualityScore: timeOptimization.qualityScore,
           frequencyCapRespected: timeOptimization.frequencyCapRespected,
-          quietHoursRespected: timeOptimization.quietHoursRespected,
-        },
+          quietHoursRespected: timeOptimization.quietHoursRespected
+        }
       };
     } catch (error) {
       // Handle special case for optimal time delay
@@ -306,8 +304,7 @@ export class InAppProcessor {
     }
   }
 
-  @Process('broadcast-in-app')
-  async handleBroadcastInApp(job: Job<{
+  private async handleBroadcastInApp(job: Job<{
     userIds: string[];
     notification: Omit<InAppNotificationJob, 'userId'>;
   }>) {
@@ -324,7 +321,7 @@ export class InAppProcessor {
         try {
           const result = await this.handleSendInApp({
             ...notification,
-            userId,
+            userId
           });
 
           if (result.success) {
@@ -336,13 +333,13 @@ export class InAppProcessor {
             userId,
             success: result.success,
             deliveredSessions: result.deliveredSessions,
-            totalSessions: result.totalSessions,
+            totalSessions: result.totalSessions
           });
         } catch (error) {
           results.push({
             userId,
             success: false,
-            error: error.message,
+            error: error.message
           });
         }
       }
@@ -361,7 +358,7 @@ export class InAppProcessor {
         failedUsers,
         totalSessions,
         totalDelivered,
-        results,
+        results
       };
     } catch (error) {
       this.logger.error('Broadcast in-app notification failed:', error);
@@ -369,8 +366,7 @@ export class InAppProcessor {
     }
   }
 
-  @Process('cleanup-expired-notifications')
-  async handleCleanupExpiredNotifications(job: Job<{
+  private async handleCleanupExpiredNotifications(job: Job<{
     olderThanDays?: number;
   }>) {
     const { olderThanDays = 30 } = job.data;
@@ -384,9 +380,9 @@ export class InAppProcessor {
       const result = await this.prismaService.inAppNotification.deleteMany({
         where: {
           expiresAt: {
-            lt: cutoffDate,
-          },
-        },
+            lt: cutoffDate
+          }
+        }
       });
 
       this.logger.log(`Cleaned up ${result.count} expired in-app notifications`);
@@ -394,7 +390,7 @@ export class InAppProcessor {
       return {
         success: true,
         deleted: result.count,
-        cutoffDate,
+        cutoffDate
       };
     } catch (error) {
       this.logger.error('Failed to cleanup expired notifications:', error);
@@ -402,8 +398,7 @@ export class InAppProcessor {
     }
   }
 
-  @Process('mark-as-read')
-  async handleMarkAsRead(job: Job<{
+  private async handleMarkAsRead(job: Job<{
     userId: string;
     notificationId: string;
     inAppNotificationId?: string;
@@ -417,8 +412,8 @@ export class InAppProcessor {
           where: { id: inAppNotificationId },
           data: {
             readAt: new Date(),
-            read: true,
-          },
+            read: true
+          }
         });
       }
 
@@ -426,13 +421,13 @@ export class InAppProcessor {
       this.webSocketGateway.broadcastToUser(userId, 'notification:read', {
         notificationId,
         inAppNotificationId,
-        readAt: new Date(),
+        readAt: new Date()
       });
 
       return {
         success: true,
         notificationId,
-        readAt: new Date(),
+        readAt: new Date()
       };
     } catch (error) {
       this.logger.error(`Failed to mark notification ${notificationId} as read:`, error);
@@ -465,7 +460,7 @@ export class InAppProcessor {
     requiresHighThroughput: activeSessions.length > 50,
     requiresLowLatency: notificationPriority === 'critical' || notificationPriority === 'high',
     costOptimization: false, // In-app notifications are free
-    geographicRouting: false, // In-app is global
+    geographicRouting: false // In-app is global
   };
 
   let lastError: Error | null = null;
@@ -511,8 +506,7 @@ export class InAppProcessor {
           providerId,
           deliveredSessions > 0,
           Date.now() - Date.now(),
-          failedSessions > 0 ? `Failed to deliver to ${failedSessions} sessions` : undefined,
-        );
+          failedSessions > 0 ? `Failed to deliver to ${failedSessions} sessions` : undefined);
 
         // Update provider load
         await this.providerRoutingService.updateProviderLoad(providerId, activeSessions.length);
@@ -524,7 +518,7 @@ export class InAppProcessor {
           failedSessions,
           provider: providerId,
           attempts,
-          errors,
+          errors
         };
 
       } catch (error) {
@@ -538,8 +532,7 @@ export class InAppProcessor {
           providerId,
           false,
           Date.now() - Date.now(),
-          error.message,
-        );
+          error.message);
 
         // Continue to next provider if available
         if (attempts < maxAttempts) {
@@ -559,7 +552,7 @@ export class InAppProcessor {
       failedSessions: activeSessions.length,
       provider: 'none',
       attempts,
-      errors,
+      errors
     };
   }
 }
@@ -589,7 +582,7 @@ private async sendWithInAppProvider(
         try {
           await this.webSocketGateway.sendNotificationToSession(session.sessionId, {
             type: 'notification',
-            data: notificationPayload,
+            data: notificationPayload
           });
           deliveredSessions++;
         } catch (error) {
@@ -634,7 +627,7 @@ private async sendWithInAppProvider(
 
   return {
     deliveredSessions,
-    failedSessions,
+    failedSessions
   };
 }
 
@@ -657,8 +650,8 @@ private async storeForLongPolling(sessionId: string, notificationPayload: any): 
         data: JSON.stringify(notificationPayload),
         metadata: JSON.stringify({ sessionId, deliveryMethod: 'long-polling' }),
         deliveryStatus: 'PENDING',
-        createdAt: new Date(),
-      },
+        createdAt: new Date()
+      }
     });
   } catch (error) {
     this.logger.error(`Failed to store notification for long polling:`, error);
@@ -686,13 +679,13 @@ private async storeForLongPolling(sessionId: string, notificationPayload: any): 
       connectedAt: new Date(),
       lastSeenAt: new Date(),
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      ipAddress: '127.0.0.1',
+      ipAddress: '127.0.0.1'
     }];
 
     // Update cache
     this.sessionCache.set(userId, {
       sessions,
-      lastUpdate: Date.now(),
+      lastUpdate: Date.now()
     });
 
     return sessions;
@@ -716,9 +709,9 @@ private async storeForLongPolling(sessionId: string, notificationPayload: any): 
         title,
         message,
         createdAt: {
-          gte: oneMinuteAgo,
-        },
-      },
+          gte: oneMinuteAgo
+        }
+      }
     });
 
     return count > 0;
@@ -730,38 +723,38 @@ private async storeForLongPolling(sessionId: string, notificationPayload: any): 
         info: 'info-circle',
         success: 'check-circle',
         warning: 'warning',
-        error: 'exclamation-circle',
+        error: 'exclamation-circle'
       },
       trading: {
         info: 'chart-line',
         success: 'trending-up',
         warning: 'alert',
-        error: 'x-circle',
+        error: 'x-circle'
       },
       security: {
         info: 'shield-check',
         success: 'shield',
         warning: 'alert-triangle',
-        error: 'shield-x',
+        error: 'shield-x'
       },
       billing: {
         info: 'credit-card',
         success: 'check-circle',
         warning: 'alert',
-        error: 'x-circle',
+        error: 'x-circle'
       },
       social: {
         info: 'users',
         success: 'heart',
         warning: 'alert',
-        error: 'x-circle',
+        error: 'x-circle'
       },
       promotion: {
         info: 'gift',
         success: 'star',
         warning: 'alert',
-        error: 'x-circle',
-      },
+        error: 'x-circle'
+      }
     };
 
     return iconMap[category]?.[type] || 'bell';
@@ -785,9 +778,9 @@ private async storeForLongPolling(sessionId: string, notificationPayload: any): 
         metadata: JSON.stringify({
           totalSessions,
           deliveredSessions,
-          deliveryRate: totalSessions > 0 ? (deliveredSessions / totalSessions) * 100 : 0,
-        }),
-      },
+          deliveryRate: totalSessions > 0 ? (deliveredSessions / totalSessions) * 100 : 0
+        })
+      }
     });
   }
 
@@ -799,8 +792,8 @@ private async storeForLongPolling(sessionId: string, notificationPayload: any): 
       where: { id: notificationId },
       data: {
         deliveryStatus: status,
-        deliveredAt: status === 'IN_APP_SENT' ? new Date() : undefined,
-      },
+        deliveredAt: status === 'IN_APP_SENT' ? new Date() : undefined
+      }
     });
   }
 }

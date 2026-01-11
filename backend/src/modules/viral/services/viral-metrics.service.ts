@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 
 interface ContentMetrics {
@@ -74,13 +74,11 @@ export class ViralMetricsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly redis: Redis,
-  ) {}
+    private readonly redis: Redis) {}
 
   async getContentMetrics(
     topicId: string,
-    since: Date,
-  ): Promise<ContentMetrics> {
+    since: Date): Promise<ContentMetrics> {
     const cacheKey = `viral:metrics:content:${topicId}:${since.getTime()}`;
     const cached = await this.redis.get(cacheKey);
     if (cached) {
@@ -91,9 +89,9 @@ export class ViralMetricsService {
       const viralContent = await this.prisma.viralContent.findMany({
         where: {
           topicId,
-          createdAt: { gte: since },
+          createdAt: { gte: since }
         },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'asc' }
       });
 
       if (viralContent.length === 0) {
@@ -107,8 +105,8 @@ export class ViralMetricsService {
           distribution: { low: 0, medium: 0, high: 0 },
           timeDistribution: {
             hourly: [],
-            daily: [],
-          },
+            daily: []
+          }
         };
 
         await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(emptyMetrics));
@@ -140,7 +138,7 @@ export class ViralMetricsService {
         growthRate,
         engagementRate,
         distribution,
-        timeDistribution,
+        timeDistribution
       };
 
       await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(metrics));
@@ -168,14 +166,14 @@ export class ViralMetricsService {
         this.prisma.viralContent.findMany({
           where: {
             topicId,
-            createdAt: { gte: since },
+            createdAt: { gte: since }
           },
           orderBy: { viralScore: 'desc' },
-          take: 10,
+          take: 10
         }),
         this.prisma.topic.findUnique({
           where: { id: topicId },
-          select: { name: true, viralIndex: true, viralScore: true, momentumScore: true },
+          select: { name: true, viralIndex: true, viralScore: true, momentumScore: true }
         }),
       ]);
 
@@ -194,10 +192,10 @@ export class ViralMetricsService {
         topPerformingContent: viralContent.map(c => ({
           id: c.id,
           score: c.viralScore,
-          timestamp: c.createdAt,
+          timestamp: c.createdAt
         })),
         engagementMetrics,
-        growthMetrics,
+        growthMetrics
       };
 
       await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(metrics));
@@ -221,26 +219,26 @@ export class ViralMetricsService {
       const [totalTopics, totalViralContent, avgIndex] = await Promise.all([
         this.prisma.topic.count(),
         this.prisma.viralContent.count({
-          where: { createdAt: { gte: since } },
+          where: { createdAt: { gte: since } }
         }),
         this.prisma.topic.aggregate({
-          _avg: { viralIndex: true },
+          _avg: { viralIndex: true }
         }),
       ]);
 
       // Get top performing topics
       const topTopics = await this.prisma.topic.findMany({
         where: {
-          viralIndex: { gte: 0.5 },
+          viralIndex: { gte: 0.5 }
         },
         select: {
           id: true,
           name: true,
           viralIndex: true,
-          momentumScore: true,
+          momentumScore: true
         },
         orderBy: { viralIndex: 'desc' },
-        take: 10,
+        take: 10
       });
 
       // Get trending categories
@@ -257,10 +255,10 @@ export class ViralMetricsService {
           topicId: t.id,
           topicName: t.name,
           viralIndex: t.viralIndex,
-          momentum: t.momentumScore,
+          momentum: t.momentumScore
         })),
         trendingCategories,
-        performanceMetrics,
+        performanceMetrics
       };
 
       await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(metrics));
@@ -292,7 +290,7 @@ export class ViralMetricsService {
     return {
       viralIndex: Math.min(1, viralIndex),
       viralScore: Math.min(1, viralScore),
-      momentumScore: Math.min(1, momentumScore),
+      momentumScore: Math.min(1, momentumScore)
     };
   }
 
@@ -300,8 +298,7 @@ export class ViralMetricsService {
     topicId: string,
     contentType: string,
     score: number,
-    metadata?: any,
-  ): Promise<void> {
+    metadata?: any): Promise<void> {
     try {
       // Store metrics event for analytics
       await this.prisma.metricsEvent.create({
@@ -311,8 +308,8 @@ export class ViralMetricsService {
           contentType,
           score,
           metadata: metadata || {},
-          timestamp: new Date(),
-        },
+          timestamp: new Date()
+        }
       });
 
       // Update real-time counters
@@ -334,8 +331,7 @@ export class ViralMetricsService {
 
   async getMetricsSummary(
     topicId: string,
-    timeWindow: number = 24,
-  ): Promise<{
+    timeWindow: number = 24): Promise<{
     totalAnalyses: number;
     averageScore: number;
     peakScore: number;
@@ -350,9 +346,9 @@ export class ViralMetricsService {
           where: {
             topicId,
             eventType: 'VIRAL_CONTENT_ANALYZED',
-            timestamp: { gte: since },
+            timestamp: { gte: since }
           },
-          orderBy: { timestamp: 'desc' },
+          orderBy: { timestamp: 'desc' }
         }),
         this.getTopContentTypes(topicId, since),
       ]);
@@ -363,7 +359,7 @@ export class ViralMetricsService {
           averageScore: 0,
           peakScore: 0,
           currentTrend: 'stable',
-          topContentTypes: contentTypes,
+          topContentTypes: contentTypes
         };
       }
 
@@ -391,7 +387,7 @@ export class ViralMetricsService {
         averageScore,
         peakScore,
         currentTrend,
-        topContentTypes: contentTypes,
+        topContentTypes: contentTypes
       };
     } catch (error) {
       this.logger.error(`Failed to get metrics summary for topic ${topicId}:`, error);
@@ -446,23 +442,22 @@ export class ViralMetricsService {
     return {
       low: distribution.low / scores.length,
       medium: distribution.medium / scores.length,
-      high: distribution.high / scores.length,
+      high: distribution.high / scores.length
     };
   }
 
   private async calculateTimeDistribution(
     topicId: string,
-    since: Date,
-  ): Promise<{
+    since: Date): Promise<{
     hourly: Array<{ hour: number; count: number; avgScore: number }>;
     daily: Array<{ day: string; count: number; avgScore: number }>;
   }> {
     const viralContent = await this.prisma.viralContent.findMany({
       where: {
         topicId,
-        createdAt: { gte: since },
+        createdAt: { gte: since }
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'asc' }
     });
 
     // Hourly distribution
@@ -472,14 +467,14 @@ export class ViralMetricsService {
       const existing = hourlyMap.get(hour) || { count: 0, totalScore: 0 };
       hourlyMap.set(hour, {
         count: existing.count + 1,
-        totalScore: existing.totalScore + content.viralScore,
+        totalScore: existing.totalScore + content.viralScore
       });
     });
 
     const hourly = Array.from(hourlyMap.entries()).map(([hour, data]) => ({
       hour,
       count: data.count,
-      avgScore: data.totalScore / data.count,
+      avgScore: data.totalScore / data.count
     })).sort((a, b) => a.hour - b.hour);
 
     // Daily distribution
@@ -489,14 +484,14 @@ export class ViralMetricsService {
       const existing = dailyMap.get(day) || { count: 0, totalScore: 0 };
       dailyMap.set(day, {
         count: existing.count + 1,
-        totalScore: existing.totalScore + content.viralScore,
+        totalScore: existing.totalScore + content.viralScore
       });
     });
 
     const daily = Array.from(dailyMap.entries()).map(([day, data]) => ({
       day,
       count: data.count,
-      avgScore: data.totalScore / data.count,
+      avgScore: data.totalScore / data.count
     })).sort((a, b) => a.day.localeCompare(b.day));
 
     return { hourly, daily };
@@ -504,8 +499,7 @@ export class ViralMetricsService {
 
   private async calculateEngagementMetrics(
     topicId: string,
-    since: Date,
-  ): Promise<{
+    since: Date): Promise<{
     totalLikes: number;
     totalShares: number;
     totalComments: number;
@@ -515,8 +509,8 @@ export class ViralMetricsService {
     const viralContent = await this.prisma.viralContent.findMany({
       where: {
         topicId,
-        createdAt: { gte: since },
-      },
+        createdAt: { gte: since }
+      }
     });
 
     return viralContent.reduce(
@@ -532,7 +526,7 @@ export class ViralMetricsService {
           totalShares: metrics.totalShares + shares,
           totalComments: metrics.totalComments + comments,
           totalViews: metrics.totalViews + views,
-          averageEngagement: metrics.averageEngagement + (likes + shares + comments),
+          averageEngagement: metrics.averageEngagement + (likes + shares + comments)
         };
       },
       { totalLikes: 0, totalShares: 0, totalComments: 0, totalViews: 0, averageEngagement: 0 }
@@ -551,13 +545,13 @@ export class ViralMetricsService {
 
     const [dailyCount, weeklyCount, monthlyCount] = await Promise.all([
       this.prisma.viralContent.count({
-        where: { topicId, createdAt: { gte: dayAgo } },
+        where: { topicId, createdAt: { gte: dayAgo } }
       }),
       this.prisma.viralContent.count({
-        where: { topicId, createdAt: { gte: weekAgo, lt: dayAgo } },
+        where: { topicId, createdAt: { gte: weekAgo, lt: dayAgo } }
       }),
       this.prisma.viralContent.count({
-        where: { topicId, createdAt: { gte: monthAgo, lt: weekAgo } },
+        where: { topicId, createdAt: { gte: monthAgo, lt: weekAgo } }
       }),
     ]);
 
@@ -568,7 +562,7 @@ export class ViralMetricsService {
     return {
       dailyGrowth: Math.round(dailyGrowth * 100) / 100,
       weeklyGrowth: Math.round(weeklyGrowth * 100) / 100,
-      monthlyGrowth,
+      monthlyGrowth
     };
   }
 
@@ -594,15 +588,15 @@ export class ViralMetricsService {
     const totalEvents = await this.prisma.metricsEvent.count({
       where: {
         eventType: 'VIRAL_CONTENT_ANALYZED',
-        timestamp: { gte: since },
-      },
+        timestamp: { gte: since }
+      }
     });
 
     const errorEvents = await this.prisma.metricsEvent.count({
       where: {
         eventType: 'VIRAL_ANALYSIS_ERROR',
-        timestamp: { gte: since },
-      },
+        timestamp: { gte: since }
+      }
     });
 
     const successRate = totalEvents > 0 ? ((totalEvents - errorEvents) / totalEvents) * 100 : 100;
@@ -614,7 +608,7 @@ export class ViralMetricsService {
     return {
       processingTime,
       successRate: Math.round(successRate * 100) / 100,
-      errorRate: Math.round(errorRate * 100) / 100,
+      errorRate: Math.round(errorRate * 100) / 100
     };
   }
 
@@ -635,23 +629,22 @@ export class ViralMetricsService {
 
   private async getTopContentTypes(
     topicId: string,
-    since: Date,
-  ): Promise<Array<{ type: string; count: number; avgScore: number }>> {
+    since: Date): Promise<Array<{ type: string; count: number; avgScore: number }>> {
     const contentTypes = await this.prisma.metricsEvent.groupBy({
       by: ['contentType'],
       where: {
         topicId,
         eventType: 'VIRAL_CONTENT_ANALYZED',
-        timestamp: { gte: since },
+        timestamp: { gte: since }
       },
       _count: { id: true },
-      _avg: { score: true },
+      _avg: { score: true }
     });
 
     return contentTypes.map(item => ({
       type: item.contentType,
       count: item._count.id,
-      avgScore: item._avg.score || 0,
+      avgScore: item._avg.score || 0
     })).sort((a, b) => b.count - a.count);
   }
 }

@@ -1,28 +1,31 @@
-import {
+import { 
   Controller,
   Get,
   Post,
+  Put,
+  Delete,
+  Patch,
   Query,
   Param,
   Body,
   UseGuards,
+  Request,
   ParseUUIDPipe,
   HttpStatus,
   HttpCode,
-  BadRequestException,
-} from '@nestjs/common';
+  BadRequestException, Req } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
   ApiQuery,
-  ApiBearerAuth,
+  ApiBearerAuth
 } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { DeceptionService } from '../services/deception.service';
 import { DeceptionAnalysisService } from '../services/deception-analysis.service';
 
@@ -33,8 +36,7 @@ import { DeceptionAnalysisService } from '../services/deception-analysis.service
 export class DeceptionController {
   constructor(
     private readonly deceptionService: DeceptionService,
-    private readonly analysisService: DeceptionAnalysisService,
-  ) {}
+    private readonly analysisService: DeceptionAnalysisService) {}
 
   @Get('topics/:topicId')
   @ApiOperation({ summary: 'Get deception analysis for a topic' })
@@ -44,8 +46,7 @@ export class DeceptionController {
   @ApiResponse({ status: 404, description: 'Topic not found' })
   async getTopicDeception(
     @Param('topicId', ParseUUIDPipe) topicId: string,
-    @Query('timestamp') timestamp?: string,
-  ) {
+    @Query('timestamp') timestamp?: string) {
     const snapshotTime = timestamp ? new Date(timestamp) : undefined;
     return this.deceptionService.getDeceptionSnapshot(topicId, snapshotTime);
   }
@@ -61,8 +62,7 @@ export class DeceptionController {
     @Param('topicId', ParseUUIDPipe) topicId: string,
     @Query('startTime') startTime: string,
     @Query('endTime') endTime: string,
-    @Query('interval') interval: number = 60,
-  ) {
+    @Query('interval') interval: number = 60) {
     const start = new Date(startTime);
     const end = new Date(endTime);
 
@@ -84,8 +84,7 @@ export class DeceptionController {
   @ApiResponse({ status: 200, description: 'Deception statistics retrieved successfully' })
   async getDeceptionStats(
     @Param('topicId', ParseUUIDPipe) topicId: string,
-    @Query('timeWindow') timeWindow: number = 24,
-  ) {
+    @Query('timeWindow') timeWindow: number = 24) {
     return this.deceptionService.getDeceptionStats(topicId, timeWindow);
   }
 
@@ -98,8 +97,7 @@ export class DeceptionController {
   async getHighRiskContent(
     @Query('limit') limit: number = 20,
     @Query('minRiskLevel') minRiskLevel: 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'HIGH',
-    @Query('timeWindow') timeWindow: number = 24,
-  ) {
+    @Query('timeWindow') timeWindow: number = 24) {
     const validatedLimit = Math.min(limit, 100);
     return this.deceptionService.getHighRiskContent(validatedLimit, minRiskLevel, timeWindow);
   }
@@ -112,7 +110,7 @@ export class DeceptionController {
     // This would typically return system-wide statistics
     return {
       timeWindow,
-      message: 'Deception overview endpoint - to be implemented with system-wide stats',
+      message: 'Deception overview endpoint - to be implemented with system-wide stats'
     };
   }
 
@@ -128,8 +126,7 @@ export class DeceptionController {
       topicId?: string;
       source?: string;
       metadata?: any;
-    },
-  ) {
+    }) {
     const { content, topicId, source, metadata } = body;
 
     if (!content || content.trim().length === 0) {
@@ -144,7 +141,7 @@ export class DeceptionController {
       content,
       topicId,
       source,
-      metadata,
+      metadata
     });
   }
 
@@ -161,8 +158,7 @@ export class DeceptionController {
       includeSocialMediaAnalysis?: boolean;
       includeMediaAnalysis?: boolean;
       mediaUrl?: string;
-    },
-  ) {
+    }) {
     const { content, source, includeSocialMediaAnalysis, includeMediaAnalysis, mediaUrl } = body;
 
     if (!content || content.trim().length === 0) {
@@ -175,7 +171,7 @@ export class DeceptionController {
       linguisticAnalysis: analysis.linguisticPatterns,
       sourceAnalysis: analysis.sourceAnalysis,
       contentAnalysis: analysis.contentAnalysis,
-      riskAssessment: analysis.riskAssessment,
+      riskAssessment: analysis.riskAssessment
     };
 
     if (includeSocialMediaAnalysis) {
@@ -203,8 +199,7 @@ export class DeceptionController {
         source?: string;
         metadata?: any;
       }>;
-    },
-  ) {
+    }) {
     const { contents } = body;
 
     if (!contents || contents.length === 0) {
@@ -236,8 +231,7 @@ export class DeceptionController {
   async crossReferenceClaim(
     @Body() body: {
       claim: string;
-    },
-  ) {
+    }) {
     const { claim } = body;
 
     if (!claim || claim.trim().length === 0) {
@@ -260,8 +254,7 @@ export class DeceptionController {
       status: 'REVIEWED' | 'FALSE_POSITIVE' | 'CONFIRMED';
       notes?: string;
     },
-    @Request() req,
-  ) {
+    @Req() req) {
     const { status, notes } = body;
 
     if (!['REVIEWED', 'FALSE_POSITIVE', 'CONFIRMED'].includes(status)) {
@@ -279,8 +272,7 @@ export class DeceptionController {
   async cleanupOldData(
     @Body() body: {
       olderThanDays?: number;
-    } = {},
-  ) {
+    } = {}) {
     const { olderThanDays = 90 } = body;
 
     return this.deceptionService.cleanupOldData(olderThanDays);

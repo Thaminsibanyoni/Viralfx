@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { CreatePlanDto, UpdatePlanDto } from '../dto/create-plan.dto';
 import { ApiPlan } from '../interfaces/api-marketplace.interface';
 
@@ -10,7 +10,7 @@ export class PlansService {
   async createPlan(productId: string, dto: CreatePlanDto): Promise<ApiPlan> {
     // Check if plan code already exists
     const existing = await this.prisma.apiPlan.findUnique({
-      where: { code: dto.code },
+      where: { code: dto.code }
     });
 
     if (existing) {
@@ -19,7 +19,7 @@ export class PlansService {
 
     // Validate that product exists
     const product = await this.prisma.apiProduct.findUnique({
-      where: { id: productId },
+      where: { id: productId }
     });
 
     if (!product) {
@@ -34,11 +34,11 @@ export class PlansService {
     const plan = await this.prisma.apiPlan.create({
       data: {
         ...dto,
-        productId,
+        productId
       },
       include: {
-        product: true,
-      },
+        product: true
+      }
     });
 
     return plan;
@@ -47,7 +47,7 @@ export class PlansService {
   async updatePlan(id: string, dto: UpdatePlanDto): Promise<ApiPlan> {
     const plan = await this.prisma.apiPlan.findUnique({
       where: { id },
-      include: { _count: { select: { apiKeys: true } } },
+      include: { _count: { select: { apiKeys: true } } }
     });
 
     if (!plan) {
@@ -57,7 +57,7 @@ export class PlansService {
     // Check code uniqueness if updating
     if (dto.code && dto.code !== plan.code) {
       const existing = await this.prisma.apiPlan.findUnique({
-        where: { code: dto.code },
+        where: { code: dto.code }
       });
 
       if (existing) {
@@ -79,8 +79,8 @@ export class PlansService {
       where: { id },
       data: dto,
       include: {
-        product: true,
-      },
+        product: true
+      }
     });
 
     return updated;
@@ -92,9 +92,9 @@ export class PlansService {
       include: {
         product: true,
         _count: {
-          select: { apiKeys: true },
-        },
-      },
+          select: { apiKeys: true }
+        }
+      }
     });
 
     return plan;
@@ -108,13 +108,13 @@ export class PlansService {
       include: {
         product: true,
         _count: {
-          select: { apiKeys: true },
-        },
+          select: { apiKeys: true }
+        }
       },
       orderBy: [
         { productId: 'asc' },
         { monthlyFee: 'asc' },
-      ],
+      ]
     });
 
     return plans;
@@ -125,9 +125,9 @@ export class PlansService {
       where: { id },
       include: {
         _count: {
-          select: { apiKeys: true },
-        },
-      },
+          select: { apiKeys: true }
+        }
+      }
     });
 
     if (!plan) {
@@ -140,7 +140,7 @@ export class PlansService {
     }
 
     await this.prisma.apiPlan.delete({
-      where: { id },
+      where: { id }
     });
   }
 
@@ -150,7 +150,7 @@ export class PlansService {
     overage?: number;
   }> {
     const plan = await this.prisma.apiPlan.findUnique({
-      where: { id: planId },
+      where: { id: planId }
     });
 
     if (!plan) {
@@ -167,13 +167,13 @@ export class PlansService {
     return {
       withinLimit: remaining >= 0,
       remaining: Math.max(0, remaining),
-      overage: remaining < 0 ? Math.abs(remaining) : undefined,
+      overage: remaining < 0 ? Math.abs(remaining) : undefined
     };
   }
 
   async calculateOverageFees(planId: string, overageCalls: number): Promise<number> {
     const plan = await this.prisma.apiPlan.findUnique({
-      where: { id: planId },
+      where: { id: planId }
     });
 
     if (!plan) {
@@ -200,14 +200,14 @@ export class PlansService {
         planId,
         revoked: false,
         expiresAt: {
-          gte: new Date(),
-        },
-      },
+          gte: new Date()
+        }
+      }
     });
 
     // Get plan details
     const plan = await this.prisma.apiPlan.findUnique({
-      where: { id: planId },
+      where: { id: planId }
     });
 
     if (!plan) {
@@ -220,14 +220,14 @@ export class PlansService {
     // Calculate overage revenue from usage using relational filter
     const usageWhere: any = {
       apiKey: {
-        planId,
-      },
+        planId
+      }
     };
 
     if (dateRange) {
       usageWhere.createdAt = {
         gte: dateRange.start,
-        lte: dateRange.end,
+        lte: dateRange.end
       };
     }
 
@@ -237,10 +237,10 @@ export class PlansService {
         apiKey: {
           select: {
             quotaResetAt: true,
-            usageCount: true,
-          },
-        },
-      },
+            usageCount: true
+          }
+        }
+      }
     });
 
     let overageRevenue = 0;
@@ -254,7 +254,7 @@ export class PlansService {
       subscriptionRevenue,
       overageRevenue,
       totalRevenue: subscriptionRevenue + overageRevenue,
-      activeKeys,
+      activeKeys
     };
   }
 
@@ -272,21 +272,21 @@ export class PlansService {
     // Build relational filter for ApiUsage through ApiKey
     const usageWhere: any = {
       apiKey: {
-        planId,
-      },
+        planId
+      }
     };
 
     if (dateRange) {
       usageWhere.createdAt = {
         gte: dateRange.start,
-        lte: dateRange.end,
+        lte: dateRange.end
       };
     }
 
     const [totalRequests, uniqueKeysData] = await Promise.all([
       // Total requests
       this.prisma.apiUsage.count({
-        where: usageWhere,
+        where: usageWhere
       }),
 
       // Unique keys with usage counts
@@ -295,7 +295,7 @@ export class PlansService {
         where: usageWhere,
         _count: { id: true },
         orderBy: { _count: { id: 'desc' } },
-        take: 10,
+        take: 10
       }),
     ]);
 
@@ -303,8 +303,8 @@ export class PlansService {
     const topUsers = await this.prisma.apiKey.findMany({
       where: {
         id: {
-          in: uniqueKeysData.map(u => u.apiKeyId),
-        },
+          in: uniqueKeysData.map(u => u.apiKeyId)
+        }
       },
       include: {
         user: {
@@ -312,41 +312,41 @@ export class PlansService {
             id: true,
             email: true,
             firstName: true,
-            lastName: true,
-          },
+            lastName: true
+          }
         },
         broker: {
           select: {
             id: true,
             companyName: true,
-            contactEmail: true,
-          },
+            contactEmail: true
+          }
         },
         _count: {
           select: {
             apiUsage: {
               where: dateRange ? {
                 apiKey: {
-                  planId,
+                  planId
                 },
                 createdAt: {
                   gte: dateRange.start,
-                  lte: dateRange.end,
-                },
+                  lte: dateRange.end
+                }
               } : {
                 apiKey: {
-                  planId,
-                },
-              },
-            },
-          },
-        },
+                  planId
+                }
+              }
+            }
+          }
+        }
       },
       orderBy: {
         apiUsage: {
-          _count: 'desc',
-        },
-      },
+          _count: 'desc'
+        }
+      }
     });
 
     return {
@@ -357,8 +357,8 @@ export class PlansService {
         id: key.userId || key.brokerId || key.id,
         email: key.user?.email || key.broker?.contactEmail,
         companyName: key.broker?.companyName,
-        usage: key._count.apiUsage,
-      })),
+        usage: key._count.apiUsage
+      }))
     };
   }
 }

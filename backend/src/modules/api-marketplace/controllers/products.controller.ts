@@ -12,16 +12,16 @@ import {
   HttpStatus,
   ParseUUIDPipe,
   SetMetadata,
-  ValidationPipe,
+  ValidationPipe
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { ProductsService } from '../services/products.service';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { ApiProduct, ProductWithPlans } from '../interfaces/api-marketplace.interface';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { AdminAuthGuard } from '../../auth/guards/admin-auth.guard';
-import { Permissions } from '../../auth/decorators/permissions.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { AdminAuthGuard } from "../../auth/guards/admin-auth.guard";
+import { Permissions } from "../../auth/decorators/permissions.decorator";
 
 @ApiTags('API Marketplace - Products')
 @Controller('api/v1/api-marketplace/products')
@@ -39,8 +39,7 @@ export class ProductsController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Admin only' })
   async createProduct(
-    @Body(ValidationPipe) dto: CreateProductDto,
-  ): Promise<ApiProduct> {
+    @Body(ValidationPipe) dto: CreateProductDto): Promise<ApiProduct> {
     return this.productsService.createProduct(dto);
   }
 
@@ -57,8 +56,7 @@ export class ProductsController {
     @Query('category') category?: string,
     @Query('active') active?: string,
     @Query('page') page?: number,
-    @Query('limit') limit?: number,
-  ): Promise<{
+    @Query('limit') limit?: number): Promise<{
     products: ProductWithPlans[];
     pagination: {
       page: number;
@@ -84,8 +82,7 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'Product retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Product not found' })
   async getProduct(
-    @Param('slug') slug: string,
-  ): Promise<ProductWithPlans | null> {
+    @Param('slug') slug: string): Promise<ProductWithPlans | null> {
     return this.productsService.getProduct(slug);
   }
 
@@ -102,8 +99,7 @@ export class ProductsController {
   @ApiResponse({ status: 404, description: 'Product not found' })
   async updateProduct(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body(ValidationPipe) dto: Partial<CreateProductDto>,
-  ): Promise<ApiProduct> {
+    @Body(ValidationPipe) dto: Partial<CreateProductDto>): Promise<ApiProduct> {
     return this.productsService.updateProduct(id, dto);
   }
 
@@ -130,8 +126,7 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'Plans retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Product not found' })
   async getProductPlans(
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<any[]> {
+    @Param('id', ParseUUIDPipe) id: string): Promise<any[]> {
     return this.productsService.getProductPlans(id);
   }
 
@@ -150,13 +145,12 @@ export class ProductsController {
   async getProductUsageStats(
     @Param('id', ParseUUIDPipe) id: string,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ): Promise<any> {
+    @Query('endDate') endDate?: string): Promise<any> {
     let dateRange;
     if (startDate || endDate) {
       dateRange = {
         start: startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        end: endDate ? new Date(endDate) : new Date(),
+        end: endDate ? new Date(endDate) : new Date()
       };
     }
 

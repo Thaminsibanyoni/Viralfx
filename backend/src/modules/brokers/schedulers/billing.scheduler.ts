@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { BillingService } from '../services/billing.service';
 import { startOfMonth, endOfMonth, addMonths } from 'date-fns';
 
@@ -11,8 +11,7 @@ export class BillingScheduler {
 
   constructor(
     private readonly billingService: BillingService,
-    @InjectQueue('broker-billing') private billingQueue: Queue,
-  ) {}
+    @InjectQueue('broker-billing') private billingQueue: Queue) {}
 
   @Cron('0 0 1 * *') // Monthly on 1st at midnight
   async handleGenerateMonthlyBills() {
@@ -32,13 +31,13 @@ export class BillingScheduler {
         period: periodStart,
         options: {
           periodStart,
-          periodEnd,
-        },
+          periodEnd
+        }
       }, {
         attempts: 3,
         backoff: 'exponential',
         removeOnComplete: 10,
-        removeOnFail: 5,
+        removeOnFail: 5
       });
 
       this.logger.log(`Monthly bill generation job queued with ID: ${job.id}`);
@@ -48,9 +47,9 @@ export class BillingScheduler {
         jobId: job.id,
         period: {
           start: periodStart.toISOString(),
-          end: periodEnd.toISOString(),
+          end: periodEnd.toISOString()
         },
-        message: 'Monthly bill generation initiated',
+        message: 'Monthly bill generation initiated'
       };
     } catch (error) {
       this.logger.error('Failed to queue monthly bill generation:', error);
@@ -68,12 +67,12 @@ export class BillingScheduler {
         options: {
           reminderTypes: ['DUE_SOON', 'OVERDUE'],
           daysUntilDue: [7, 3, 1], // Reminders 7, 3, and 1 days before due
-          overdueDays: [7, 14, 30], // Overdue reminders at 7, 14, and 30 days
-        },
+          overdueDays: [7, 14, 30] // Overdue reminders at 7, 14, and 30 days
+        }
       }, {
         attempts: 2,
         backoff: 'fixed',
-        delay: 0,
+        delay: 0
       });
 
       this.logger.log(`Bill reminders job queued with ID: ${job.id}`);
@@ -81,7 +80,7 @@ export class BillingScheduler {
       return {
         success: true,
         jobId: job.id,
-        message: 'Bill reminder process initiated',
+        message: 'Bill reminder process initiated'
       };
     } catch (error) {
       this.logger.error('Failed to queue bill reminders:', error);
@@ -97,7 +96,7 @@ export class BillingScheduler {
       // Queue overdue bills check
       const job = await this.billingQueue.add('check-overdue-bills', {}, {
         attempts: 3,
-        backoff: 'exponential',
+        backoff: 'exponential'
       });
 
       this.logger.log(`Overdue bills check job queued with ID: ${job.id}`);
@@ -105,7 +104,7 @@ export class BillingScheduler {
       return {
         success: true,
         jobId: job.id,
-        message: 'Overdue bills check initiated',
+        message: 'Overdue bills check initiated'
       };
     } catch (error) {
       this.logger.error('Failed to queue overdue bills check:', error);
@@ -122,11 +121,11 @@ export class BillingScheduler {
       const job = await this.billingQueue.add('suspend-overdue-brokers', {
         options: {
           suspensionThreshold: 30, // Days overdue before suspension
-          notificationPeriod: 7, // Days warning before suspension
-        },
+          notificationPeriod: 7 // Days warning before suspension
+        }
       }, {
         attempts: 2,
-        backoff: 'fixed',
+        backoff: 'fixed'
       });
 
       this.logger.log(`Overdue broker suspension job queued with ID: ${job.id}`);
@@ -134,7 +133,7 @@ export class BillingScheduler {
       return {
         success: true,
         jobId: job.id,
-        message: 'Overdue broker suspension check initiated',
+        message: 'Overdue broker suspension check initiated'
       };
     } catch (error) {
       this.logger.error('Failed to queue overdue broker suspension:', error);
@@ -161,11 +160,11 @@ export class BillingScheduler {
           reportType: 'WEEKLY',
           period: {
             start: weekStart,
-            end: weekEnd,
+            end: weekEnd
           },
           format: 'PDF',
-          includeCharts: true,
-        },
+          includeCharts: true
+        }
       });
 
       this.logger.log(`Weekly billing report job queued with ID: ${job.id}`);
@@ -175,9 +174,9 @@ export class BillingScheduler {
         jobId: job.id,
         period: {
           start: weekStart.toISOString(),
-          end: weekEnd.toISOString(),
+          end: weekEnd.toISOString()
         },
-        message: 'Weekly billing report generation initiated',
+        message: 'Weekly billing report generation initiated'
       };
     } catch (error) {
       this.logger.error('Failed to queue weekly billing report:', error);
@@ -200,12 +199,12 @@ export class BillingScheduler {
           reportType: 'MONTHLY',
           period: {
             start: monthStart,
-            end: monthEnd,
+            end: monthEnd
           },
           format: 'PDF',
           includeCharts: true,
-          includeTrends: true,
-        },
+          includeTrends: true
+        }
       });
 
       this.logger.log(`Monthly billing report job queued with ID: ${job.id}`);
@@ -215,9 +214,9 @@ export class BillingScheduler {
         jobId: job.id,
         period: {
           start: monthStart.toISOString(),
-          end: monthEnd.toISOString(),
+          end: monthEnd.toISOString()
         },
-        message: 'Monthly billing report generation initiated',
+        message: 'Monthly billing report generation initiated'
       };
     } catch (error) {
       this.logger.error('Failed to queue monthly billing report:', error);
@@ -240,11 +239,11 @@ export class BillingScheduler {
         options: {
           reconcileGateways: ['paystack', 'payfast', 'ozow'],
           autoReconcile: true,
-          generateDiscrepancyReport: true,
-        },
+          generateDiscrepancyReport: true
+        }
       }, {
         attempts: 3,
-        backoff: 'exponential',
+        backoff: 'exponential'
       });
 
       this.logger.log(`Payment reconciliation job queued with ID: ${job.id}`);
@@ -253,7 +252,7 @@ export class BillingScheduler {
         success: true,
         jobId: job.id,
         period: reconciliationPeriod.toISOString(),
-        message: 'Payment reconciliation initiated',
+        message: 'Payment reconciliation initiated'
       };
     } catch (error) {
       this.logger.error('Failed to queue payment reconciliation:', error);
@@ -274,11 +273,11 @@ export class BillingScheduler {
         options: {
           cutoffDate: cleanupDate,
           cleanupTypes: ['audit_logs', 'temp_bills', 'failed_payments'],
-          archiveOldData: true,
-        },
+          archiveOldData: true
+        }
       }, {
         attempts: 1,
-        removeOnComplete: true,
+        removeOnComplete: true
       });
 
       this.logger.log(`Billing data cleanup job queued with ID: ${job.id}`);
@@ -287,7 +286,7 @@ export class BillingScheduler {
         success: true,
         jobId: job.id,
         cutoffDate: cleanupDate.toISOString(),
-        message: 'Billing data cleanup initiated',
+        message: 'Billing data cleanup initiated'
       };
     } catch (error) {
       this.logger.error('Failed to queue billing data cleanup:', error);
@@ -306,11 +305,11 @@ export class BillingScheduler {
           checkGateways: true,
           checkDatabase: true,
           checkQueues: true,
-          generateHealthReport: true,
-        },
+          generateHealthReport: true
+        }
       }, {
         attempts: 1,
-        timeout: 300000, // 5 minutes timeout
+        timeout: 300000 // 5 minutes timeout
       });
 
       this.logger.log(`Billing health check job queued with ID: ${job.id}`);
@@ -318,7 +317,7 @@ export class BillingScheduler {
       return {
         success: true,
         jobId: job.id,
-        message: 'Billing system health check initiated',
+        message: 'Billing system health check initiated'
       };
     } catch (error) {
       this.logger.error('Failed to queue billing health check:', error);
@@ -337,7 +336,7 @@ export class BillingScheduler {
       for (const brokerId of brokerIds) {
         const job = await this.billingQueue.add('generate-monthly-bills', {
           period: billingPeriod,
-          brokerIds: [brokerId], // Override to process only specific brokers
+          brokerIds: [brokerId] // Override to process only specific brokers
         });
         jobs.push({ brokerId, jobId: job.id });
       }
@@ -347,7 +346,7 @@ export class BillingScheduler {
       return {
         success: true,
         period: billingPeriod.toISOString(),
-        jobs,
+        jobs
       };
     } catch (error) {
       this.logger.error('Failed to trigger manual bill generation:', error);
@@ -363,8 +362,8 @@ export class BillingScheduler {
         options: {
           reminderTypes: [reminderType],
           brokerIds, // Optional specific brokers
-          manualTrigger: true,
-        },
+          manualTrigger: true
+        }
       });
 
       this.logger.log(`Manual ${reminderType} reminder job queued with ID: ${job.id}`);
@@ -372,7 +371,7 @@ export class BillingScheduler {
       return {
         success: true,
         jobId: job.id,
-        reminderType,
+        reminderType
       };
     } catch (error) {
       this.logger.error(`Failed to trigger manual ${reminderType} reminder:`, error);

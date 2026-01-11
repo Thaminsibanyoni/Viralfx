@@ -6,7 +6,7 @@ import {
   UseGuards,
   BadRequestException,
   NotFoundException,
-  InternalServerErrorException,
+  InternalServerErrorException
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -14,22 +14,14 @@ import {
   ApiResponse,
   ApiParam,
   ApiQuery,
-  ApiBearerAuth,
+  ApiBearerAuth
 } from '@nestjs/swagger';
 
-import { Portfolio } from '../entities/portfolio.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Portfolio } from '../entities/portfolio.entity';
 import { MarketDataService } from '../services/market-data.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { CurrentUser } from "../../auth/decorators/current-user.decorator";
 import { PortfolioResponseDto } from '../dto/portfolio-response.dto';
-
-// Custom decorator to get current user (simplified for this example)
-const CurrentUser = () => (target: any, propertyKey: string, descriptor: PropertyDescriptor) => {
-  const originalMethod = descriptor.value;
-  descriptor.value = function (...args: any[]) {
-    const req = args.find(arg => arg && arg.user);
-    return originalMethod.apply(this, [req?.user, ...args]);
-  };
-};
 
 @ApiTags('Portfolio')
 @Controller('portfolio')
@@ -37,8 +29,7 @@ const CurrentUser = () => (target: any, propertyKey: string, descriptor: Propert
 @ApiBearerAuth()
 export class PortfolioController {
   constructor(
-    private readonly marketDataService: MarketDataService,
-  ) {}
+    private readonly marketDataService: MarketDataService) {}
 
   @Get()
   @ApiOperation({ summary: 'Get user portfolio' })
@@ -68,7 +59,7 @@ export class PortfolioController {
           totalPnL: 6700,
           allocation: 21.10,
           firstPurchaseAt: '2024-01-01T10:00:00Z',
-          lastTradeAt: '2024-01-15T14:30:00Z',
+          lastTradeAt: '2024-01-15T14:30:00Z'
         },
         {
           symbol: 'VIRAL/SA_TREVOR_NOAH_001',
@@ -84,7 +75,7 @@ export class PortfolioController {
           totalPnL: 7975,
           allocation: 19.53,
           firstPurchaseAt: '2024-01-02T09:15:00Z',
-          lastTradeAt: '2024-01-14T11:20:00Z',
+          lastTradeAt: '2024-01-14T11:20:00Z'
         },
         {
           symbol: 'VIRAL/SA_CASSPER_NYOVEST_001',
@@ -100,7 +91,7 @@ export class PortfolioController {
           totalPnL: -1700,
           allocation: 19.50,
           firstPurchaseAt: '2024-01-03T13:45:00Z',
-          lastTradeAt: '2024-01-13T16:10:00Z',
+          lastTradeAt: '2024-01-13T16:10:00Z'
         },
       ];
 
@@ -131,7 +122,7 @@ export class PortfolioController {
         bestPerformer,
         worstPerformer,
         largestPosition,
-        diversificationScore: this.calculateDiversificationScore(positions),
+        diversificationScore: this.calculateDiversificationScore(positions)
       };
 
       return {
@@ -144,9 +135,9 @@ export class PortfolioController {
           totalPnLPercent: Math.round(totalPnLPercent * 100) / 100,
           positions,
           summary,
-          lastUpdated: new Date().toISOString(),
+          lastUpdated: new Date().toISOString()
         },
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       if (error instanceof BadRequestException) {
@@ -163,8 +154,7 @@ export class PortfolioController {
   @ApiResponse({ status: 404, description: 'Position not found' })
   async getPosition(
     @Param('symbol') symbol: string,
-    @CurrentUser() user: any,
-  ): Promise<any> {
+    @CurrentUser() user: any): Promise<any> {
     try {
       if (!symbol || symbol.trim() === '') {
         throw new BadRequestException('Symbol is required');
@@ -190,7 +180,7 @@ export class PortfolioController {
         realizedPnL: 1200,
         totalPnL: 6700,
         firstPurchaseAt: '2024-01-01T10:00:00Z',
-        lastTradeAt: '2024-01-15T14:30:00Z',
+        lastTradeAt: '2024-01-15T14:30:00Z'
       };
 
       // Check if position exists (mock)
@@ -201,7 +191,7 @@ export class PortfolioController {
       return {
         success: true,
         data: position,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
@@ -226,7 +216,7 @@ export class PortfolioController {
       return {
         success: true,
         data: portfolioResponse.data.summary,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
@@ -242,8 +232,7 @@ export class PortfolioController {
   @ApiResponse({ status: 200, description: 'Performance data retrieved' })
   async getPortfolioPerformance(
     @CurrentUser() user: any,
-    @Query('timeframe') timeframe: string = '30d',
-  ): Promise<any> {
+    @Query('timeframe') timeframe: string = '30d'): Promise<any> {
     try {
       if (!user || !user.id) {
         throw new BadRequestException('Invalid user information');
@@ -272,7 +261,7 @@ export class PortfolioController {
           date: date.toISOString().split('T')[0],
           value: Math.round(portfolioValue),
           change: i === 0 ? portfolioValue - 450000 : performanceData[performanceData.length - 1]?.change || 0,
-          changePercent: i === 0 ? ((portfolioValue - 450000) / 450000) * 100 : 0,
+          changePercent: i === 0 ? ((portfolioValue - 450000) / 450000) * 100 : 0
         });
       }
 
@@ -298,9 +287,9 @@ export class PortfolioController {
           volatility: Math.round(volatility * 100) / 100,
           sharpeRatio: totalReturnPercent / (volatility || 1),
           performanceChart: performanceData,
-          maxDrawdown: this.calculateMaxDrawdown(performanceData),
+          maxDrawdown: this.calculateMaxDrawdown(performanceData)
         },
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       if (error instanceof BadRequestException) {
@@ -330,7 +319,7 @@ export class PortfolioController {
         symbol: pos.symbol,
         name: pos.name,
         value: pos.currentValue,
-        allocation: pos.allocation,
+        allocation: pos.allocation
       }));
 
       // Allocation by category
@@ -344,7 +333,7 @@ export class PortfolioController {
       const categoryAllocation = Object.entries(byCategory).map(([category, value]) => ({
         category,
         value,
-        allocation: Math.round((value / totalValue) * 10000) / 100,
+        allocation: Math.round((value / totalValue) * 10000) / 100
       }));
 
       // Allocation by region
@@ -358,7 +347,7 @@ export class PortfolioController {
       const regionAllocation = Object.entries(byRegion).map(([region, value]) => ({
         region,
         value,
-        allocation: Math.round((value / totalValue) * 10000) / 100,
+        allocation: Math.round((value / totalValue) * 10000) / 100
       }));
 
       return {
@@ -367,9 +356,9 @@ export class PortfolioController {
           bySymbol,
           byCategory: categoryAllocation,
           byRegion: regionAllocation,
-          diversificationScore: this.calculateDiversificationScore(positions),
+          diversificationScore: this.calculateDiversificationScore(positions)
         },
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
       if (error instanceof BadRequestException) {
@@ -404,7 +393,7 @@ export class PortfolioController {
       '7d': 7,
       '30d': 30,
       '90d': 90,
-      '1y': 365,
+      '1y': 365
     };
     return timeframes[timeframe] || 30;
   }

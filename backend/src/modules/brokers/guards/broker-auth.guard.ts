@@ -1,13 +1,53 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, ForbiddenException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
-import { Broker } from '../entities/broker.entity';
-import { BrokerStatus } from '../entities/broker.entity';
-import { ApiMethod } from '../entities/broker-api-usage.entity';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { AnalyticsService } from '../services/analytics.service';
-import { crypto } from '../../../common/utils/crypto';
+import { BrokerStatus } from '../enums/broker.enum';
+
+type ApiMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+interface Broker {
+  id: string;
+  companyName: string;
+  registrationNumber: string;
+  fscaLicenseNumber?: string;
+  fscaLicenseExpiry?: Date;
+  tier: string;
+  type: string;
+  status: BrokerStatus;
+  contactEmail: string;
+  contactPhone?: string;
+  physicalAddress: string;
+  postalAddress?: string;
+  website?: string;
+  businessProfile?: any;
+  complianceInfo?: any;
+  paymentInfo?: any;
+  oauthConfig?: any;
+  apiConfig?: {
+    apiKey?: string;
+    apiSecret?: string;
+    rateLimit?: number;
+    allowedIps?: string[];
+  };
+  riskAssessment?: any;
+  isPubliclyListed: boolean;
+  acceptNewClients: boolean;
+  totalTraders: number;
+  totalVolume: number;
+  averageRating: number;
+  numberOfReviews: number;
+  trustScore: number;
+  logoUrl?: string;
+  bannerUrl?: string;
+  socialLinks?: any;
+  operatingHours?: any;
+  isActive: boolean;
+  metadata?: any;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface BrokerRequest extends Request {
   broker?: Broker;
@@ -19,11 +59,9 @@ export class BrokerAuthGuard implements CanActivate {
   private readonly logger = new Logger(BrokerAuthGuard.name);
 
   constructor(
-    @InjectRepository(Broker)
-    private readonly brokerRepository: Repository<Broker>,
+    private prisma: PrismaService,
     private readonly analyticsService: AnalyticsService,
-    private readonly jwtService: JwtService,
-  ) {}
+    private readonly jwtService: JwtService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<BrokerRequest>();
@@ -102,18 +140,25 @@ export class BrokerAuthGuard implements CanActivate {
 
   private async validateApiKey(apiKey: string): Promise<Broker | null> {
     try {
-      // Find broker by API key hash
-      const brokers = await this.brokerRepository
-        .createQueryBuilder('broker')
-        .where('broker.apiConfig->>\'apiKey\' = :apiKey', { apiKey })
-        .getMany();
+      // Find all brokers and check API key in apiConfig
+      const brokers = await this.prisma.broker.findMany({
+        where: {
+          isActive: true
+        }
+      });
 
-      if (brokers.length === 0) {
+      // Filter brokers where apiConfig.apiKey matches
+      const matchingBrokers = brokers.filter((broker: Broker) => {
+        const brokerApiKey = broker.apiConfig?.apiKey;
+        return brokerApiKey === apiKey;
+      });
+
+      if (matchingBrokers.length === 0) {
         return null;
       }
 
       // Return the first matching broker (API keys should be unique)
-      const broker = brokers[0];
+      const broker = matchingBrokers[0];
 
       // Additional validation checks
       if (!this.isValidApiKeyFormat(apiKey)) {
@@ -127,7 +172,7 @@ export class BrokerAuthGuard implements CanActivate {
     }
   }
 
-  private async validateJwtToken(request: Request): Promise<Broker | null> {
+  private async validateJwtToken(request: Request): Promise<Broker> {
     try {
       const authHeader = request.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -143,7 +188,7 @@ export class BrokerAuthGuard implements CanActivate {
       }
 
       // Find broker by ID
-      const broker = await this.brokerRepository.findOne({
+      const broker = await this.prisma.broker.findUnique({
         where: { id: payload.brokerId }
       });
 
@@ -151,13 +196,15 @@ export class BrokerAuthGuard implements CanActivate {
         throw new UnauthorizedException('Broker not found');
       }
 
-      return broker;
+      return broker as Broker;
     } catch (error) {
       // Re-throw JWT errors, but return null for other cases
-      if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-        throw new UnauthorizedException('Invalid or expired JWT token');
+      if (error && typeof error === 'object' && 'name' in error) {
+        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+          throw new UnauthorizedException('Invalid or expired JWT token');
+        }
       }
-      return null;
+      throw error;
     }
   }
 
@@ -168,7 +215,7 @@ export class BrokerAuthGuard implements CanActivate {
   }
 
   private isBrokerActive(broker: Broker): boolean {
-    return broker.isActive && broker.status === BrokerStatus.VERIFIED;
+    return broker.isActive && broker.status === 'VERIFIED';
   }
 
   private isIpAllowed(request: Request, broker: Broker): boolean {
@@ -186,7 +233,7 @@ export class BrokerAuthGuard implements CanActivate {
     // Get client IP from various sources
     const forwardedFor = request.headers['x-forwarded-for'] as string;
     const realIp = request.headers['x-real-ip'] as string;
-    const remoteAddress = request.socket.remoteAddress;
+    const remoteAddress = request.socket?.remoteAddress;
 
     if (forwardedFor) {
       return forwardedFor.split(',')[0].trim();
@@ -219,24 +266,24 @@ export class BrokerAuthGuard implements CanActivate {
       (request as any).__analyticsStartTime = startTime;
     } catch (error) {
       // Don't let analytics errors block the request
-      this.logger.error('Failed to track API usage:', error.stack || error.message);
+      this.logger.error('Failed to track API usage:', error);
     }
   }
 
   private getHttpMethod(method: string): ApiMethod {
     switch (method.toUpperCase()) {
       case 'GET':
-        return ApiMethod.GET;
+        return 'GET';
       case 'POST':
-        return ApiMethod.POST;
+        return 'POST';
       case 'PUT':
-        return ApiMethod.PUT;
+        return 'PUT';
       case 'DELETE':
-        return ApiMethod.DELETE;
+        return 'DELETE';
       case 'PATCH':
-        return ApiMethod.PATCH;
+        return 'PATCH';
       default:
-        return ApiMethod.GET;
+        return 'GET';
     }
   }
 
@@ -255,8 +302,7 @@ export class BrokerAuthGuard implements CanActivate {
 @Injectable()
 export class BrokerResponseInterceptor {
   constructor(
-    private readonly analyticsService: AnalyticsService,
-  ) {}
+    private readonly analyticsService: AnalyticsService) {}
 
   intercept(context: ExecutionContext, next: any) {
     const request = context.switchToHttp().getRequest<BrokerRequest>();

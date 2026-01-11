@@ -1,19 +1,42 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
-import { WalletService } from '../../wallet/services/wallet.service';
-import { LedgerService } from '../../wallet/services/ledger.service';
-import { WebSocketGateway } from '../../websocket/gateways/websocket.gateway';
-import { NotificationService } from '../../notification/services/notification.service';
-import { Order } from '../../market-aggregation/entities/order.entity';
+import { WalletService } from "../../wallet/services/wallet.service";
+import { LedgerService } from "../../wallet/services/ledger.service";
+import { NotificationService } from "../../notifications/services/notification.service";
 import {
   SettlementResult,
   RecordTransactionParams
 } from '../interfaces/order-matching.interface';
+
+interface OrderFill {
+  id: string;
+  quantity: number;
+  price: number;
+  commission: number;
+  fee: number;
+  timestamp: Date;
+  tradeId?: string;
+}
+
+interface DbOrder {
+  id: string;
+  userId: string;
+  symbol: string;
+  side: string;
+  order_type: string;
+  quantity: number;
+  price?: number;
+  status: string;
+  filled_quantity?: number;
+  remaining_quantity?: number;
+  fills?: any;
+  commission?: number;
+  fee?: number;
+  avg_fill_price?: number;
+}
 
 @Injectable()
 export class SettlementService {
@@ -21,27 +44,23 @@ export class SettlementService {
 
   constructor(
     private readonly prisma: PrismaService,
-    @InjectRepository(Order)
-    private readonly orderRepository: Repository<Order>,
     private readonly walletService: WalletService,
     private readonly ledgerService: LedgerService,
-    private readonly webSocketGateway: WebSocketGateway,
     private readonly notificationService: NotificationService,
     @InjectQueue('order-settlement')
-    private readonly settlementQueue: Queue,
-  ) {}
+    private readonly settlementQueue: Queue) {}
 
   async settleBet(betId: string): Promise<SettlementResult> {
     try {
       this.logger.log(`Settling bet ${betId}`);
 
-      // Get bet details
+      // Get bet details with relations
       const bet = await this.prisma.bet.findUnique({
         where: { id: betId },
         include: {
           market: true,
-          user: true,
-        },
+          user: true
+        }
       });
 
       if (!bet) {
@@ -49,7 +68,7 @@ export class SettlementService {
       }
 
       // Verify market is settled
-      if (bet.market.status !== 'SETTLED') {
+      if (bet.market?.status !== 'SETTLED') {
         throw new Error(`Market ${bet.marketId} is not settled`);
       }
 
@@ -57,11 +76,11 @@ export class SettlementService {
       let payout = 0;
       let status = 'LOST';
 
-      switch (bet.type) {
+      switch (bet.betType) {
         case 'BACK':
           // Back bet wins if the selection matches the settlement
           if (bet.selection === bet.market.settlementValue) {
-            payout = bet.stake * bet.odds;
+            payout = Number(bet.stake) * Number(bet.odds);
             status = 'WON';
           }
           break;
@@ -69,7 +88,7 @@ export class SettlementService {
         case 'LAY':
           // Lay bet wins if the selection does not match the settlement
           if (bet.selection !== bet.market.settlementValue) {
-            payout = bet.stake;
+            payout = Number(bet.stake);
             status = 'WON';
           }
           break;
@@ -78,14 +97,14 @@ export class SettlementService {
           // Yes/No bet wins if prediction matches settlement
           if ((bet.prediction === 'YES' && bet.market.settlementValue === '1') ||
               (bet.prediction === 'NO' && bet.market.settlementValue === '0')) {
-            payout = bet.stake * bet.odds;
+            payout = Number(bet.stake) * Number(bet.odds);
             status = 'WON';
           }
           break;
 
         default:
           // For unknown bet types, return stake (refund)
-          payout = bet.stake;
+          payout = Number(bet.stake);
           status = 'REFUNDED';
       }
 
@@ -96,18 +115,18 @@ export class SettlementService {
           userId: bet.userId,
           type: 'BET_PAYOUT',
           amount: payout,
-          currency: bet.currency,
-          description: `Bet payout - ${bet.type}:${bet.selection}`,
+          currency: bet.currency || 'ZAR',
+          description: `Bet payout - ${bet.betType}:${bet.selection}`,
           metadata: {
             betId,
             marketId: bet.marketId,
             selection: bet.selection,
-            odds: bet.odds,
-            stake: bet.stake,
-            status,
+            odds: Number(bet.odds),
+            stake: Number(bet.stake),
+            status
           },
           referenceId: betId,
-          referenceType: 'BET',
+          referenceType: 'BET'
         };
 
         // Process transaction
@@ -120,41 +139,53 @@ export class SettlementService {
         data: {
           status,
           actualPayout: payout,
-          settledAt: new Date(),
-        },
+          settledAt: new Date()
+        }
       });
 
       // Create audit log
-      await this.prisma.auditLog.create({
-        data: {
-          userId: bet.userId,
-          action: 'BET_SETTLEMENT',
-          entityType: 'BET',
-          entityId: betId,
-          details: {
-            payout,
-            status,
-            marketSettlementValue: bet.market.settlementValue,
-          },
-        },
-      });
+      try {
+        await this.prisma.auditLog.create({
+          data: {
+            userId: bet.userId,
+            action: 'BET_SETTLEMENT',
+            entityType: 'BET',
+            entityId: betId,
+            details: {
+              payout,
+              status,
+              marketSettlementValue: bet.market.settlementValue
+            }
+          }
+        });
+      } catch (auditError) {
+        this.logger.warn(`Failed to create audit log for bet ${betId}:`, auditError);
+      }
 
       // Broadcast settlement to user
-      await this.webSocketGateway.server?.to(`user:${bet.userId}`).emit('bet:settled', {
-        betId,
-        status,
-        payout,
-        timestamp: new Date(),
-      });
+      try {
+        await this.webSocketGateway.server?.to(`user:${bet.userId}`).emit('bet:settled', {
+          betId,
+          status,
+          payout,
+          timestamp: new Date()
+        });
+      } catch (wsError) {
+        this.logger.warn(`Failed to broadcast bet settlement for ${betId}:`, wsError);
+      }
 
       // Send notification
-      await this.notificationService.sendNotification({
-        userId: bet.userId,
-        type: 'BET_SETTLED',
-        title: status === 'WON' ? 'Bet Won!' : status === 'LOST' ? 'Bet Lost' : 'Bet Refunded',
-        message: `Your bet on ${bet.selection} has been ${status.toLowerCase()}. Payout: ${payout} ${bet.currency}`,
-        metadata: { betId, payout, status },
-      });
+      try {
+        await this.notificationService.sendNotification({
+          userId: bet.userId,
+          type: 'BET_SETTLED',
+          title: status === 'WON' ? 'Bet Won!' : status === 'LOST' ? 'Bet Lost' : 'Bet Refunded',
+          message: `Your bet on ${bet.selection} has been ${status.toLowerCase()}. Payout: ${payout} ${bet.currency || 'ZAR'}`,
+          metadata: { betId, payout, status }
+        });
+      } catch (notifError) {
+        this.logger.warn(`Failed to send notification for bet ${betId}:`, notifError);
+      }
 
       this.logger.log(`Bet ${betId} settled successfully with status ${status} and payout ${payout}`);
 
@@ -163,7 +194,7 @@ export class SettlementService {
         betId,
         payout,
         status,
-        timestamp: new Date(),
+        timestamp: new Date()
       };
     } catch (error) {
       this.logger.error(`Failed to settle bet ${betId}:`, error);
@@ -175,8 +206,7 @@ export class SettlementService {
     marketId: string,
     settlementValue: number,
     proof: any,
-    signature?: string,
-  ): Promise<void> {
+    signature?: string): Promise<void> {
     try {
       this.logger.log(`Settling market ${marketId} with value ${settlementValue}`);
 
@@ -188,16 +218,16 @@ export class SettlementService {
           settlementValue,
           settlementProof: proof,
           settlementSignature: signature,
-          settledAt: new Date(),
-        },
+          settledAt: new Date()
+        }
       });
 
       // Get all active bets for this market
       const activeBets = await this.prisma.bet.findMany({
         where: {
           marketId,
-          status: 'ACTIVE',
-        },
+          status: 'ACTIVE'
+        }
       });
 
       // Queue settlement for each bet
@@ -209,18 +239,22 @@ export class SettlementService {
             attempts: 5,
             backoff: {
               type: 'exponential',
-              delay: 5000,
-            },
+              delay: 5000
+            }
           }
         );
       }
 
       // Broadcast market settlement
-      await this.webSocketGateway.server?.emit('market:settled', {
-        marketId,
-        settlementValue,
-        timestamp: new Date(),
-      });
+      try {
+        await this.webSocketGateway.server?.emit('market:settled', {
+          marketId,
+          settlementValue,
+          timestamp: new Date()
+        });
+      } catch (wsError) {
+        this.logger.warn(`Failed to broadcast market settlement for ${marketId}:`, wsError);
+      }
 
       this.logger.log(`Market ${marketId} settled. Queued ${activeBets.length} bets for settlement`);
     } catch (error) {
@@ -233,16 +267,16 @@ export class SettlementService {
     try {
       this.logger.log(`Processing order settlement for ${orderId}`);
 
-      // Get order with fills using TypeORM
-      const order = await this.orderRepository.findOne({
-        where: { id: orderId },
-      });
+      // Get order from database
+      const order = await this.prisma.order.findFirst({
+        where: { id: orderId }
+      }) as DbOrder | null;
 
       if (!order) {
         throw new Error(`Order ${orderId} not found`);
       }
 
-      if (order.status !== 'FILLED' || !order.fills || order.fills.length === 0) {
+      if (order.status !== 'FILLED' || !order.fills || (Array.isArray(order.fills) && order.fills.length === 0)) {
         this.logger.log(`Order ${orderId} is not filled, skipping settlement`);
         return;
       }
@@ -252,8 +286,9 @@ export class SettlementService {
         throw new Error(`Wallet not found for user ${order.userId}`);
       }
 
-      // Process each fill using TypeORM order entity
-      for (const fill of order.fills) {
+      // Process each fill
+      const fills: OrderFill[] = Array.isArray(order.fills) ? order.fills : [];
+      for (const fill of fills) {
         const fillValue = fill.quantity * fill.price;
 
         if (order.side === 'SELL') {
@@ -271,49 +306,53 @@ export class SettlementService {
               quantity: fill.quantity,
               price: fill.price,
               commission: fill.commission,
-              fee: fill.fee,
+              fee: fill.fee
             },
             referenceId: orderId,
-            referenceType: 'ORDER',
+            referenceType: 'ORDER'
           });
         } else {
           // For buy orders, unlock remaining funds if any
           const lockedAmount = fillValue + (fill.commission + fill.fee);
-          await this.walletService.unlockFunds(
-            order.userId,
-            lockedAmount,
-            'ZAR',
-            `Order ${orderId} fill processed`,
-          );
+          try {
+            await this.walletService.unlockFunds(
+              order.userId,
+              lockedAmount,
+              'ZAR',
+              `Order ${orderId} fill processed`
+            );
+          } catch (unlockError) {
+            this.logger.warn(`Failed to unlock funds for order ${orderId}:`, unlockError);
+          }
         }
       }
 
-      // Record commission and fee transactions using TypeORM order entity
-      if (order.commission > 0) {
+      // Record commission and fee transactions
+      if (order.commission && order.commission > 0) {
         await this.ledgerService.recordTransaction({
           walletId: userWallet.id,
           userId: order.userId,
           type: 'COMMISSION',
-          amount: -order.commission,
+          amount: -Number(order.commission),
           currency: 'ZAR',
           description: `Trading commission - ${order.symbol}`,
           metadata: { orderId },
           referenceId: orderId,
-          referenceType: 'ORDER',
+          referenceType: 'ORDER'
         });
       }
 
-      if (order.fee > 0) {
+      if (order.fee && order.fee > 0) {
         await this.ledgerService.recordTransaction({
           walletId: userWallet.id,
           userId: order.userId,
           type: 'FEE',
-          amount: -order.fee,
+          amount: -Number(order.fee),
           currency: 'ZAR',
           description: `Trading fee - ${order.symbol}`,
           metadata: { orderId },
           referenceId: orderId,
-          referenceType: 'ORDER',
+          referenceType: 'ORDER'
         });
       }
 
@@ -329,7 +368,7 @@ export class SettlementService {
       this.logger.log(`Bulk settling bets for market ${marketId}`);
 
       const market = await this.prisma.market.findUnique({
-        where: { id: marketId },
+        where: { id: marketId }
       });
 
       if (!market || market.status !== 'SETTLED') {
@@ -341,8 +380,8 @@ export class SettlementService {
         where: {
           marketId,
           status: 'ACTIVE',
-          settledAt: null,
-        },
+          settledAt: null
+        }
       });
 
       this.logger.log(`Found ${unsettledBets.length} unsettled bets for market ${marketId}`);
@@ -356,9 +395,9 @@ export class SettlementService {
             attempts: 5,
             backoff: {
               type: 'exponential',
-              delay: 3000,
+              delay: 3000
             },
-            delay: Math.random() * 1000, // Add small delay to prevent overwhelming
+            delay: Math.random() * 1000 // Add small delay to prevent overwhelming
           }
         )
       );
@@ -377,16 +416,18 @@ export class SettlementService {
       this.logger.log('Retrying failed settlements');
 
       // Get failed bets from the last hour
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
       const failedBets = await this.prisma.bet.findMany({
         where: {
           status: 'ACTIVE',
           market: {
-            status: 'SETTLED',
+            status: 'SETTLED'
           },
           updatedAt: {
-            gte: new Date(Date.now() - 60 * 60 * 1000), // Last hour
-          },
-        },
+            gte: oneHourAgo
+          }
+        }
       });
 
       if (failedBets.length > 0) {
@@ -400,14 +441,101 @@ export class SettlementService {
               attempts: 3,
               backoff: {
                 type: 'exponential',
-                delay: 10000,
-              },
+                delay: 10000
+              }
             }
           );
         }
+      } else {
+        this.logger.log('No failed bets to retry');
       }
     } catch (error) {
       this.logger.error('Failed to retry failed settlements:', error);
+    }
+  }
+
+  /**
+   * Get settlement statistics for a market
+   */
+  async getMarketSettlementStats(marketId: string): Promise<{
+    totalBets: number;
+    settledBets: number;
+    pendingBets: number;
+    totalPayout: number;
+    winningBets: number;
+    losingBets: number;
+  }> {
+    try {
+      const [totalBets, settledBets, pendingBets, winningBets, losingBets] = await Promise.all([
+        this.prisma.bet.count({ where: { marketId } }),
+        this.prisma.bet.count({ where: { marketId, status: { in: ['WON', 'LOST', 'REFUNDED'] } } }),
+        this.prisma.bet.count({ where: { marketId, status: 'ACTIVE' } }),
+        this.prisma.bet.count({ where: { marketId, status: 'WON' } }),
+        this.prisma.bet.count({ where: { marketId, status: 'LOST' } })
+      ]);
+
+      const settledBetRecords = await this.prisma.bet.findMany({
+        where: {
+          marketId,
+          status: { in: ['WON', 'LOST', 'REFUNDED'] }
+        },
+        select: { actualPayout: true }
+      });
+
+      const totalPayout = settledBetRecords.reduce(
+        (sum, bet) => sum + (bet.actualPayout || 0),
+        0
+      );
+
+      return {
+        totalBets,
+        settledBets,
+        pendingBets,
+        totalPayout,
+        winningBets,
+        losingBets
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get settlement stats for market ${marketId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user settlement history
+   */
+  async getUserSettlementHistory(userId: string, limit: number = 50, offset: number = 0): Promise<{
+    settlements: any[];
+    total: number;
+    hasMore: boolean;
+  }> {
+    try {
+      const [settlements, total] = await Promise.all([
+        this.prisma.bet.findMany({
+          where: {
+            userId,
+            status: { in: ['WON', 'LOST', 'REFUNDED'] }
+          },
+          orderBy: { settledAt: 'desc' },
+          take: limit,
+          skip: offset
+        }),
+        this.prisma.bet.count({
+          where: {
+            userId,
+            status: { in: ['WON', 'LOST', 'REFUNDED'] }
+          }
+        })
+      ]);
+
+      return {
+        settlements,
+        total,
+        hasMore: offset + settlements.length < total
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get settlement history for user ${userId}:`, error);
+      throw error;
     }
   }
 }

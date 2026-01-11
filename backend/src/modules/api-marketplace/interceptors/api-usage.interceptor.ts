@@ -3,7 +3,7 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-  Logger,
+  Logger
 } from '@nestjs/common';
 import { Observable, tap } from 'rxjs';
 import { Reflector } from '@nestjs/core';
@@ -18,8 +18,7 @@ export class ApiUsageInterceptor implements NestInterceptor {
 
   constructor(
     @InjectQueue('api-usage') private usageQueue: Queue,
-    private reflector: Reflector,
-  ) {}
+    private reflector: Reflector) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
@@ -28,8 +27,7 @@ export class ApiUsageInterceptor implements NestInterceptor {
     // Skip usage tracking for certain routes
     const skipUsageTracking = this.reflector.get<boolean>(
       'skipUsageTracking',
-      context.getHandler(),
-    );
+      context.getHandler());
 
     if (skipUsageTracking || !request[API_USAGE_TAG]) {
       return next.handle();
@@ -77,7 +75,7 @@ export class ApiUsageInterceptor implements NestInterceptor {
               brokerId: request.apiKey?.brokerId,
               ip: this.getClientIp(request),
               userAgent: request.headers['user-agent'],
-              timestamp: new Date(),
+              timestamp: new Date()
             };
 
             await this.usageQueue.add(
@@ -86,28 +84,24 @@ export class ApiUsageInterceptor implements NestInterceptor {
               {
                 removeOnComplete: true,
                 attempts: 1,
-                delay: 0,
-              },
-            );
+                delay: 0
+              });
 
             // Log slow requests
             if (latency > 1000) {
               this.logger.warn(
-                `Slow API request: ${request.method} ${request.path} - ${latency}ms`,
-              );
+                `Slow API request: ${request.method} ${request.path} - ${latency}ms`);
             }
 
             // Log errors
             if (statusCode >= 400) {
               this.logger.error(
-                `API error: ${request.method} ${request.path} - ${statusCode}`,
-              );
+                `API error: ${request.method} ${request.path} - ${statusCode}`);
             }
           } catch (error) {
             this.logger.error(
               'Failed to log API usage',
-              error.stack,
-            );
+              error.stack);
           }
         },
         error: async (error) => {
@@ -130,7 +124,7 @@ export class ApiUsageInterceptor implements NestInterceptor {
               ip: this.getClientIp(request),
               userAgent: request.headers['user-agent'],
               error: error.message,
-              timestamp: new Date(),
+              timestamp: new Date()
             };
 
             await this.usageQueue.add(
@@ -139,25 +133,21 @@ export class ApiUsageInterceptor implements NestInterceptor {
               {
                 removeOnComplete: true,
                 attempts: 1,
-                delay: 0,
-              },
-            );
+                delay: 0
+              });
 
             this.logger.error(
-              `API error: ${request.method} ${request.path} - ${error.message}`,
-            );
+              `API error: ${request.method} ${request.path} - ${error.message}`);
           } catch (logError) {
             this.logger.error(
               'Failed to log API usage error',
-              logError.stack,
-            );
+              logError.stack);
           }
 
           // Re-throw the original error
           throw error;
-        },
-      }),
-    );
+        }
+      }));
   }
 
   private getClientIp(request: any): string {

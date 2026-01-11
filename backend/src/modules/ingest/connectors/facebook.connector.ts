@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
-import { BaseConnector, Content, ContentMetrics, MediaUrl } from './base.connector';
+import { BaseConnector, Content, ContentMetrics, MediaUrl } from "./base.connector";
 import { firstValueFrom } from 'rxjs';
 
 @Injectable()
@@ -26,14 +26,13 @@ export class FacebookConnector extends BaseConnector {
     'Mail & Guardian': '192629990771719',
     'Sunday Times': '1108756489263045',
     'Carte Blanche': '128076243896647',
-    'Power 987': '197666996923460',
+    'Power 987': '197666996923460'
   };
 
   constructor(
     @InjectRedis() redis: Redis,
     config: ConfigService,
-    httpService: HttpService,
-  ) {
+    httpService: HttpService) {
     super(redis, config, 'facebook');
     this.httpService = httpService;
     this.accessToken = config.get<string>('FACEBOOK_ACCESS_TOKEN') || '';
@@ -52,7 +51,7 @@ export class FacebookConnector extends BaseConnector {
       'Mail & Guardian': config.get<string>('MAIL_AND_GUARDIAN_PAGE_TOKEN') || '',
       'Sunday Times': config.get<string>('SUNDAY_TIMES_PAGE_TOKEN') || '',
       'Carte Blanche': config.get<string>('CARTE_BLANCHE_PAGE_TOKEN') || '',
-      'Power 987': config.get<string>('POWER_987_PAGE_TOKEN') || '',
+      'Power 987': config.get<string>('POWER_987_PAGE_TOKEN') || ''
     };
 
     if (!this.accessToken && !(this.appId && this.appSecret)) {
@@ -74,7 +73,7 @@ export class FacebookConnector extends BaseConnector {
           if (token) {
             const response = await this.makeApiRequest(`/${pageId}`, {
               fields: 'id,name',
-              access_token: token,
+              access_token: token
             });
             if (response.id) {
               // Cache valid pages in Redis with TTL (7 days)
@@ -166,13 +165,13 @@ export class FacebookConnector extends BaseConnector {
           mediaUrls.push({
             url: attachment.media?.image?.src || attachment.url,
             type: 'image',
-            size: attachment.media?.image?.height * attachment.media?.image?.width,
+            size: attachment.media?.image?.height * attachment.media?.image?.width
           });
         } else if (attachment.type === 'video') {
           mediaUrls.push({
             url: attachment.source || attachment.url,
             type: 'video',
-            thumbnail: attachment.picture,
+            thumbnail: attachment.picture
           });
         } else if (attachment.type === 'album') {
           // Handle photo albums
@@ -182,7 +181,7 @@ export class FacebookConnector extends BaseConnector {
                 mediaUrls.push({
                   url: subAttachment.media?.image?.src || subAttachment.url,
                   type: 'image',
-                  size: subAttachment.media?.image?.height * subAttachment.media?.image?.width,
+                  size: subAttachment.media?.image?.height * subAttachment.media?.image?.width
                 });
               }
             }
@@ -196,7 +195,7 @@ export class FacebookConnector extends BaseConnector {
       likes: 0,
       shares: rawPost.shares?.count || 0,
       comments: 0,
-      views: 0, // Facebook doesn't provide view counts for regular posts
+      views: 0 // Facebook doesn't provide view counts for regular posts
     };
 
     // Handle reactions properly - reactions.data is an array of reaction objects
@@ -236,8 +235,8 @@ export class FacebookConnector extends BaseConnector {
         name: rawPost.place.name,
         coordinates: rawPost.place.location ? {
           latitude: rawPost.place.location.latitude,
-          longitude: rawPost.place.location.longitude,
-        } : null,
+          longitude: rawPost.place.location.longitude
+        } : null
       } : null,
       language: this.detectLanguage(rawPost.message || rawPost.story || ''),
       timestamp: new Date(rawPost.created_time),
@@ -253,8 +252,8 @@ export class FacebookConnector extends BaseConnector {
         messageTags: rawPost.message_tags,
         withTags: rawPost.with_tags,
         target: rawPost.target,
-        object: rawPost.object,
-      },
+        object: rawPost.object
+      }
     };
   }
 
@@ -322,7 +321,7 @@ export class FacebookConnector extends BaseConnector {
     const params: any = {
       fields: 'id,message,story,created_time,from,attachments,reactions.summary(true),comments.summary(true),shares,place,type,status_type,permalink_url,is_hidden,is_expired,story_tags,message_tags,with_tags,target,object',
       limit: 25,
-      access_token: token,
+      access_token: token
     };
 
     if (since) {
@@ -379,7 +378,7 @@ export class FacebookConnector extends BaseConnector {
         // Search for hashtag (limited availability)
         const hashtagResponse = await this.makeApiRequest(`/ig_hashtag_search`, {
           user_id: 'me', // This requires Instagram Business account
-          q: cleanHashtag,
+          q: cleanHashtag
         });
 
         // Facebook hashtag search is limited and requires specific permissions
@@ -403,8 +402,8 @@ export class FacebookConnector extends BaseConnector {
         this.httpService.get(url, {
           params: {
             access_token: this.accessToken,
-            ...params,
-          },
+            ...params
+          }
         })
       );
 
@@ -420,8 +419,8 @@ export class FacebookConnector extends BaseConnector {
           this.httpService.get(url, {
             params: {
               access_token: this.accessToken,
-              ...params,
-            },
+              ...params
+            }
           })
         );
 
@@ -443,8 +442,8 @@ export class FacebookConnector extends BaseConnector {
           params: {
             client_id: this.appId,
             client_secret: this.appSecret,
-            grant_type: 'client_credentials',
-          },
+            grant_type: 'client_credentials'
+          }
         })
       );
 

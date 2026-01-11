@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
-import * as tf from '@tensorflow/tfjs-node';
-import { SocialMediaService } from './social-media.service';
+import * as tf from '@tensorflow/tfjs';
+import { SocialMediaService } from "./social-media.service";
 
 export interface ViralityPrediction {
   score: number; // 0-100
@@ -35,8 +35,7 @@ export class ViralityPredictionService {
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
-    private readonly socialMediaService: SocialMediaService,
-  ) {
+    private readonly socialMediaService: SocialMediaService) {
     this.initializeModel();
   }
 
@@ -75,7 +74,7 @@ export class ViralityPredictionService {
         growthRate,
         peakTime,
         decayRate,
-        影响因素,
+        影响因素
       };
 
       // Cache prediction for future reference
@@ -162,7 +161,7 @@ export class ViralityPredictionService {
           velocity: 0,
           acceleration: 0,
           momentum: 0,
-          timeSeries,
+          timeSeries
         };
       }
 
@@ -182,7 +181,7 @@ export class ViralityPredictionService {
         velocity,
         acceleration,
         momentum,
-        timeSeries,
+        timeSeries
       };
 
     } catch (error) {
@@ -271,7 +270,7 @@ export class ViralityPredictionService {
           inputShape: [this.FEATURE_COUNT],
           units: 64,
           activation: 'relu',
-          kernelInitializer: 'heNormal',
+          kernelInitializer: 'heNormal'
         }),
 
         // Hidden layers
@@ -279,28 +278,28 @@ export class ViralityPredictionService {
         tf.layers.dense({
           units: 32,
           activation: 'relu',
-          kernelInitializer: 'heNormal',
+          kernelInitializer: 'heNormal'
         }),
         tf.layers.dropout({ rate: 0.2 }),
         tf.layers.dense({
           units: 16,
           activation: 'relu',
-          kernelInitializer: 'heNormal',
+          kernelInitializer: 'heNormal'
         }),
 
         // Output layer
         tf.layers.dense({
           units: 1,
-          activation: 'sigmoid', // Output between 0 and 1 for virality score
+          activation: 'sigmoid' // Output between 0 and 1 for virality score
         }),
-      ],
+      ]
     });
 
     // Compile the model
     model.compile({
       optimizer: tf.train.adam(0.001),
       loss: 'meanSquaredError',
-      metrics: ['accuracy'],
+      metrics: ['accuracy']
     });
 
     return model;
@@ -313,9 +312,9 @@ export class ViralityPredictionService {
         tf.layers.dense({
           inputShape: [this.FEATURE_COUNT],
           units: 1,
-          activation: 'sigmoid',
+          activation: 'sigmoid'
         }),
-      ],
+      ]
     });
   }
 
@@ -364,7 +363,7 @@ export class ViralityPredictionService {
         comments: 0,
         reach: 0,
         engagement: 0,
-        growthRate: 0,
+        growthRate: 0
       };
     }
 
@@ -375,7 +374,7 @@ export class ViralityPredictionService {
       comments: acc.comments + (metric.comments || 0),
       reach: acc.reach + (metric.reach || 0),
       engagement: acc.engagement + (metric.engagement || 0),
-      growthRate: acc.growthRate + (metric.growthRate || 0),
+      growthRate: acc.growthRate + (metric.growthRate || 0)
     }), {
       mentions: 0,
       likes: 0,
@@ -383,14 +382,14 @@ export class ViralityPredictionService {
       comments: 0,
       reach: 0,
       engagement: 0,
-      growthRate: 0,
+      growthRate: 0
     });
 
     const count = socialMetrics.length;
     return {
       ...aggregated,
       engagement: aggregated.engagement / count,
-      growthRate: aggregated.growthRate / count,
+      growthRate: aggregated.growthRate / count
     };
   }
 
@@ -443,7 +442,7 @@ export class ViralityPredictionService {
 
     return {
       score: score[0] * 100, // Convert to 0-100 scale
-      confidence,
+      confidence
     };
   }
 
@@ -511,7 +510,7 @@ export class ViralityPredictionService {
       contentQuality: features[18] * 100, // content quality as percentage
       influencerImpact: this.calculateInfluencerImpact(socialMetrics) * 100,
       timingScore: this.calculateTimingScore(trend) * 100,
-      platformSynergy: this.calculatePlatformSynergy(socialMetrics) * 100,
+      platformSynergy: this.calculatePlatformSynergy(socialMetrics) * 100
     };
   }
 
@@ -597,7 +596,7 @@ export class ViralityPredictionService {
     return {
       features: [],
       labels: [],
-      metadata: {},
+      metadata: {}
     };
   }
 
@@ -618,8 +617,8 @@ export class ViralityPredictionService {
           if (epoch % 10 === 0) {
             this.logger.debug(`Epoch ${epoch}: loss = ${logs.loss}, accuracy = ${logs.accuracy}`);
           }
-        },
-      },
+        }
+      }
     });
   }
 
@@ -632,7 +631,7 @@ export class ViralityPredictionService {
 
     return {
       loss: loss[0],
-      accuracy: accuracy[0],
+      accuracy: accuracy[0]
     };
   }
 
@@ -678,8 +677,8 @@ export class ViralityPredictionService {
         contentQuality: 50,
         influencerImpact: 30,
         timingScore: 60,
-        platformSynergy: 40,
-      },
+        platformSynergy: 40
+      }
     };
   }
 
@@ -698,7 +697,7 @@ export class ViralityPredictionService {
         timestamp: new Date(parseInt(timeSeries[i + 1], 10)).toISOString(),
         score: parseFloat(timeSeries[i]),
         volume: 0, // Would need to fetch from market data
-        engagement: 0, // Would need to fetch from social metrics
+        engagement: 0 // Would need to fetch from social metrics
       });
     }
 

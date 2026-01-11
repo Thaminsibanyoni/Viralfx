@@ -87,7 +87,7 @@ export class ConsensusService {
       timestamp: Date.now(),
       agreement: this.roundToPrecision(agreementRatio, 2),
       consensusStrength: this.roundToPrecision(consensusStrength, 4),
-      validatorResponses: agreedResponses,
+      validatorResponses: agreedResponses
     };
 
     this.logger.log(`Consensus achieved: score=${consensusResult.score}, strength=${consensusResult.consensusStrength}`);
@@ -139,11 +139,11 @@ export class ConsensusService {
         validatorMetadata: {
           version: '1.0.0',
           model: 'sentiment-v2',
-          dataSources: ['twitter', 'tiktok', 'instagram'],
-        },
+          dataSources: ['twitter', 'tiktok', 'instagram']
+        }
       },
       signature: '',
-      processingTime,
+      processingTime
     };
 
     // Generate signature
@@ -158,7 +158,7 @@ export class ConsensusService {
       validatorId: response.validatorId,
       viralityScore: response.data.viralityScore,
       confidence: response.data.confidence,
-      timestamp: response.data.timestamp,
+      timestamp: response.data.timestamp
     });
 
     return crypto.createHash('sha256')
@@ -190,7 +190,7 @@ export class ConsensusService {
       validatorId,
       healthy: healthChecks[index].status === 'fulfilled',
       responseTime: healthChecks[index].status === 'fulfilled' ? healthChecks[index].value : null,
-      lastSeen: Date.now(),
+      lastSeen: Date.now()
     }));
 
     return {
@@ -198,7 +198,7 @@ export class ConsensusService {
       healthyValidators: results.filter(r => r.healthy).length,
       validators: results,
       consensusRequired: this.requiredAgreement,
-      maxVariance: this.maxVariance,
+      maxVariance: this.maxVariance
     };
   }
 

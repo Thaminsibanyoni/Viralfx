@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Post,
   Get,
@@ -10,21 +10,18 @@ import {
   UseGuards,
   Request,
   HttpCode,
-  HttpStatus,
-} from '@nestjs/common';
+  HttpStatus, Req } from '@nestjs/common';
 import { AdminAuthGuard } from '../guards/admin-auth.guard';
 import { Permissions, ROLES } from '../decorators/permissions.decorator';
 import { AdminAuthService } from '../services/admin-auth.service';
 import { AdminRbacService } from '../services/admin-rbac.service';
-import { AdminUser, AdminRole } from '../entities/admin-user.entity';
 import { AdminLoginDto, CreateAdminDto, UpdateAdminDto } from '../dto/create-admin.dto';
 
 @Controller('admin/auth')
 export class AdminAuthController {
   constructor(
     private adminAuthService: AdminAuthService,
-    private rbacService: AdminRbacService,
-  ) {}
+    private rbacService: AdminRbacService) {}
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -41,29 +38,28 @@ export class AdminAuthController {
   @UseGuards(AdminAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Request() req: { session: { id: string }; admin: AdminUser }) {
+  async logout(@Req() req: { session: { id: string }; admin: AdminUser }) {
     await this.adminAuthService.logout(req.admin.id, req.session.id);
     return { message: 'Logged out successfully' };
   }
 
   @UseGuards(AdminAuthGuard)
   @Get('profile')
-  async getProfile(@Request() req: { admin: AdminUser }) {
+  async getProfile(@Req() req: { admin: AdminUser }) {
     return req.admin;
   }
 
   @UseGuards(AdminAuthGuard)
   @Put('profile')
   async updateProfile(
-    @Request() req: { admin: AdminUser },
-    @Body() updateDto: UpdateAdminDto,
-  ) {
+    @Req() req: { admin: AdminUser },
+    @Body() updateDto: UpdateAdminDto) {
     return await this.adminAuthService.updateAdmin(req.admin.id, updateDto);
   }
 
   @UseGuards(AdminAuthGuard)
   @Get('permissions')
-  async getMyPermissions(@Request() req: { admin: AdminUser }) {
+  async getMyPermissions(@Req() req: { admin: AdminUser }) {
     const rolePermissions = this.rbacService.getRolePermissions(req.admin.role);
     const explicitPermissions = await this.rbacService.getAdminPermissions(req.admin.id);
 
@@ -73,7 +69,7 @@ export class AdminAuthController {
       rolePermissions,
       explicitPermissions: explicitPermissions.map(p => `${p.resource}:${p.action}`),
       department: req.admin.department,
-      jurisdictionClearance: req.admin.jurisdictionClearance,
+      jurisdictionClearance: req.admin.jurisdictionClearance
     };
   }
 }
@@ -83,8 +79,7 @@ export class AdminAuthController {
 export class AdminManagementController {
   constructor(
     private adminAuthService: AdminAuthService,
-    private rbacService: AdminRbacService,
-  ) {}
+    private rbacService: AdminRbacService) {}
 
   @Post()
   @Permissions('admins:create')
@@ -96,12 +91,10 @@ export class AdminManagementController {
   @Permissions('admins:read')
   async getAdmins(
     @Query('page') page: string = '1',
-    @Query('limit') limit: string = '50',
-  ) {
+    @Query('limit') limit: string = '50') {
     return await this.adminAuthService.getAllAdmins(
       parseInt(page),
-      parseInt(limit),
-    );
+      parseInt(limit));
   }
 
   @Get(':id')
@@ -121,8 +114,7 @@ export class AdminManagementController {
   async grantPermission(
     @Param('id') adminId: string,
     @Param('permissionId') permissionId: string,
-    @Request() req: { admin: AdminUser },
-  ) {
+    @Req() req: { admin: AdminUser }) {
     await this.rbacService.grantPermission(adminId, permissionId, req.admin.id);
     return { message: 'Permission granted successfully' };
   }
@@ -132,8 +124,7 @@ export class AdminManagementController {
   async revokePermission(
     @Param('id') adminId: string,
     @Param('permissionId') permissionId: string,
-    @Request() req: { admin: AdminUser },
-  ) {
+    @Req() req: { admin: AdminUser }) {
     await this.rbacService.revokePermission(adminId, permissionId, req.admin.id);
     return { message: 'Permission revoked successfully' };
   }
@@ -172,8 +163,8 @@ export class PermissionController {
       roles: this.rbacService.getAllRoles(),
       rolePermissions: Object.entries(this.rbacService.getRolePermissions).map(([role, permissions]) => ({
         role,
-        permissions,
-      })),
+        permissions
+      }))
     };
   }
 
@@ -188,15 +179,13 @@ export class PermissionController {
       action: string;
       category: string;
       conditions?: Record<string, any>[];
-    },
-  ) {
+    }) {
     return await this.rbacService.createPermission(
       permissionData.name,
       permissionData.description,
       permissionData.resource,
       permissionData.action,
       permissionData.category,
-      permissionData.conditions,
-    );
+      permissionData.conditions);
   }
 }

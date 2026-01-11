@@ -1,26 +1,48 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bullmq';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 
 import { AnalyticsService } from '../services/analytics.service';
 import { MarketDataAggregationService } from '../services/market-data-aggregation.service';
 import { PerformanceService } from '../services/performance.service';
-import { DataInterval } from '../../../database/entities/market-data.entity';
+// TypeORM entity removed - using Prisma instead
+// import { DataInterval } from "../../../database/entities/market-data.entity";
 
 @Processor('analytics-calculation')
-export class AnalyticsProcessor {
+export class AnalyticsProcessor extends WorkerHost {
   private readonly logger = new Logger(AnalyticsProcessor.name);
 
   constructor(
     private readonly analyticsService: AnalyticsService,
     private readonly marketDataAggregationService: MarketDataAggregationService,
-    private readonly performanceService: PerformanceService,
-  ) {}
+    private readonly performanceService: PerformanceService) {
+    super();
+}
 
-  @Process('aggregate-market-data')
-  async processMarketDataAggregation(job: Job<{
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'aggregate-market-data':
+        return this.processMarketDataAggregation(job);
+      case 'calculate-performance':
+        return this.processPerformanceCalculation(job);
+      case 'update-leaderboard':
+        return this.processLeaderboardUpdate(job);
+      case 'cleanup-old-data':
+        return this.processDataCleanup(job);
+      case 'batch-realtime-metrics':
+        return this.processBatchRealtimeMetrics(job);
+      case 'aggregate-all-topics':
+        return this.processAggregateAllTopics(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async processMarketDataAggregation(job: Job<{
     topicId: string;
-    interval: DataInterval;
+    interval: string; // Changed from DataInterval to string
     startTime?: Date;
     endTime?: Date;
   }>): Promise<any> {
@@ -51,7 +73,7 @@ export class AnalyticsProcessor {
         interval,
         dataPointsCount: aggregatedData.length,
         startTime,
-        endTime,
+        endTime
       };
 
     } catch (error) {
@@ -60,8 +82,7 @@ export class AnalyticsProcessor {
     }
   }
 
-  @Process('calculate-performance')
-  async processPerformanceCalculation(job: Job<{
+  private async processPerformanceCalculation(job: Job<{
     entityType: string;
     entityId: string;
     period: string;
@@ -89,7 +110,7 @@ export class AnalyticsProcessor {
         entityType,
         entityId,
         period,
-        completed: true,
+        completed: true
       };
 
     } catch (error) {
@@ -98,8 +119,7 @@ export class AnalyticsProcessor {
     }
   }
 
-  @Process('update-leaderboard')
-  async processLeaderboardUpdate(job: Job<{
+  private async processLeaderboardUpdate(job: Job<{
     metricTypes?: string[];
     periods?: string[];
     entityTypes?: string[];
@@ -110,7 +130,7 @@ export class AnalyticsProcessor {
       const {
         metricTypes = ['TOTAL_RETURN', 'SHARPE_RATIO', 'WIN_RATE', 'PROFIT_FACTOR'],
         periods = ['1D', '7D', '30D', 'ALL_TIME'],
-        entityTypes = ['STRATEGY', 'USER'],
+        entityTypes = ['STRATEGY', 'USER']
       } = job.data;
 
       const results = [];
@@ -137,7 +157,7 @@ export class AnalyticsProcessor {
                 metricType,
                 period,
                 entriesCount: leaderboard.length,
-                topPerformer: leaderboard[0]?.entityId,
+                topPerformer: leaderboard[0]?.entityId
               });
 
             } catch (error) {
@@ -157,7 +177,7 @@ export class AnalyticsProcessor {
       return {
         processedCombinations: results.length,
         results,
-        timestamp: new Date(),
+        timestamp: new Date()
       };
 
     } catch (error) {
@@ -166,8 +186,7 @@ export class AnalyticsProcessor {
     }
   }
 
-  @Process('cleanup-old-data')
-  async processDataCleanup(job: Job<{
+  private async processDataCleanup(job: Job<{
     daysToKeep?: number;
     dryRun?: boolean;
   }>): Promise<any> {
@@ -191,7 +210,7 @@ export class AnalyticsProcessor {
           dryRun: true,
           cutoffDate,
           totalDataPoints: stats.totalMarketDataPoints,
-          estimatedDeletions: 'Estimation not implemented in dry run',
+          estimatedDeletions: 'Estimation not implemented in dry run'
         };
       } else {
         // Actually perform cleanup
@@ -206,7 +225,7 @@ export class AnalyticsProcessor {
           dryRun: false,
           daysToKeep,
           remainingDataPoints: stats.totalMarketDataPoints,
-          cleanupCompleted: true,
+          cleanupCompleted: true
         };
       }
 
@@ -216,8 +235,7 @@ export class AnalyticsProcessor {
     }
   }
 
-  @Process('batch-realtime-metrics')
-  async processBatchRealtimeMetrics(job: Job<{
+  private async processBatchRealtimeMetrics(job: Job<{
     symbols: string[];
     batchSize?: number;
   }>): Promise<any> {
@@ -240,14 +258,14 @@ export class AnalyticsProcessor {
             batchResults.push({
               symbol,
               success: true,
-              metrics,
+              metrics
             });
           } catch (error) {
             this.logger.warn(`Failed to calculate real-time metrics for ${symbol}:`, error);
             batchResults.push({
               symbol,
               success: false,
-              error: error.message,
+              error: error.message
             });
           }
         }
@@ -270,7 +288,7 @@ export class AnalyticsProcessor {
         successful,
         failed,
         results,
-        processedAt: new Date(),
+        processedAt: new Date()
       };
 
     } catch (error) {
@@ -279,15 +297,14 @@ export class AnalyticsProcessor {
     }
   }
 
-  @Process('aggregate-all-topics')
-  async processAggregateAllTopics(job: Job<{
-    interval?: DataInterval;
+  private async processAggregateAllTopics(job: Job<{
+    interval?: string; // Changed from DataInterval to string
     timeRangeHours?: number;
   }>): Promise<any> {
     try {
       this.logger.log(`Processing aggregation for all active topics`);
 
-      const { interval = DataInterval.ONE_HOUR, timeRangeHours = 24 } = job.data;
+      const { interval = 'ONE_HOUR', timeRangeHours = 24 } = job.data;
 
       // Update progress
       await job.updateProgress(10);
@@ -303,7 +320,7 @@ export class AnalyticsProcessor {
         interval,
         timeRangeHours,
         completed: true,
-        processedAt: new Date(),
+        processedAt: new Date()
       };
 
     } catch (error) {
@@ -312,17 +329,17 @@ export class AnalyticsProcessor {
     }
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onActive(job: Job) {
     this.logger.debug(`Analytics calculation job ${job.id} started: ${job.data}`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job, result: any) {
     this.logger.log(`Analytics calculation job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job, error: Error) {
     this.logger.error(`Analytics calculation job ${job.id} failed:`, error);
   }

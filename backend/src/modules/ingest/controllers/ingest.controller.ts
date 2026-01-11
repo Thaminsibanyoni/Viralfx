@@ -8,16 +8,16 @@ import {
   HttpStatus,
   UseGuards,
   ValidationPipe,
-  Logger,
+  Logger
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
-  ApiBearerAuth,
+  ApiBearerAuth
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { IngestService } from '../services/ingest.service';
 import { TriggerCollectionDto } from '../dto/trigger-collection.dto';
 import { CollectionStatusResponseDto } from '../dto/collection-status.dto';
@@ -40,8 +40,7 @@ export class IngestController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async triggerCollection(
-    @Body(new ValidationPipe()) triggerDto: TriggerCollectionDto,
-  ): Promise<CollectionResult | CollectionResult[]> {
+    @Body(new ValidationPipe()) triggerDto: TriggerCollectionDto): Promise<CollectionResult | CollectionResult[]> {
     try {
       this.logger.log(`Manual collection trigger received: ${JSON.stringify(triggerDto)}`);
 
@@ -49,8 +48,7 @@ export class IngestController {
         // Collect from specific platform
         const result = await this.ingestService.collectFromPlatform(
           triggerDto.platform,
-          triggerDto,
-        );
+          triggerDto);
         this.logger.log(`Collection completed for platform ${triggerDto.platform}: ${result.collected} items`);
         return result;
       } else {
@@ -135,7 +133,7 @@ export class IngestController {
           totalCollected: platform.totalCollected,
           totalFailed: platform.totalFailed,
           healthScore: platform.totalFailed > platform.totalCollected * 0.1 ? 'poor' :
-                      platform.totalFailed > 0 ? 'warning' : 'good',
+                      platform.totalFailed > 0 ? 'warning' : 'good'
         })),
         summary: {
           totalCollected: status.totalCollected,
@@ -143,8 +141,8 @@ export class IngestController {
           successRate: status.totalCollected + status.totalFailed > 0
             ? ((status.totalCollected / (status.totalCollected + status.totalFailed)) * 100).toFixed(2) + '%'
             : 'N/A',
-          activeCollectors: status.platforms.filter(p => p.isRunning).length,
-        },
+          activeCollectors: status.platforms.filter(p => p.isRunning).length
+        }
       };
 
       return healthStatus;
@@ -175,8 +173,8 @@ export class IngestController {
             supportsRealtime: ['twitter', 'tiktok'].includes(platform),
             supportsVideo: ['tiktok', 'youtube', 'instagram'].includes(platform),
             supportsImages: ['instagram', 'twitter', 'facebook'].includes(platform),
-            supportsLongForm: ['youtube', 'facebook'].includes(platform),
-          },
+            supportsLongForm: ['youtube', 'facebook'].includes(platform)
+          }
         });
       }
 

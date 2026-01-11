@@ -11,17 +11,17 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  Req,
+  Req
 } from '@nestjs/common';
 import { Response } from 'express';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { BillingService } from '../services/billing.service';
 import { GenerateInvoiceDto } from '../dto/generate-invoice.dto';
 import { RecordPaymentDto } from '../dto/record-payment.dto';
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from "../../../common/enums/user-role.enum";
 
 @ApiTags('CRM - Billing')
 @ApiBearerAuth()
@@ -42,7 +42,7 @@ export class BillingController {
     return {
       success: true,
       message: 'Invoice generated successfully',
-      data: invoice,
+      data: invoice
     };
   }
 
@@ -57,15 +57,14 @@ export class BillingController {
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
   async getInvoices(
     @Query() query: any,
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const filters = {
       brokerId: req.user.role === UserRole.BROKER ? req.user.id : query.brokerId,
       status: query.status,
       startDate: query.startDate ? new Date(query.startDate) : undefined,
       endDate: query.endDate ? new Date(query.endDate) : undefined,
       page: parseInt(query.page) || 1,
-      limit: parseInt(query.limit) || 10,
+      limit: parseInt(query.limit) || 10
     };
 
     const result = await this.billingService.getInvoices(filters);
@@ -77,8 +76,8 @@ export class BillingController {
         page: result.page,
         limit: result.limit,
         total: result.total,
-        totalPages: Math.ceil(result.total / result.limit),
-      },
+        totalPages: Math.ceil(result.total / result.limit)
+      }
     };
   }
 
@@ -89,13 +88,12 @@ export class BillingController {
   @ApiResponse({ status: 403, description: 'Access denied' })
   async getInvoiceById(
     @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const invoice = await this.billingService.getInvoiceById(id, req.user);
 
     return {
       success: true,
-      data: invoice,
+      data: invoice
     };
   }
 
@@ -107,14 +105,13 @@ export class BillingController {
   async generateInvoicePDF(
     @Param('id', ParseUUIDPipe) id: string,
     @Res() res: Response,
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const pdfBuffer = await this.billingService.generateInvoicePDF(id, req.user);
 
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename=invoice-${id}.pdf`,
-      'Content-Length': pdfBuffer.length,
+      'Content-Length': pdfBuffer.length
     });
 
     res.end(pdfBuffer);
@@ -128,14 +125,13 @@ export class BillingController {
   @HttpCode(HttpStatus.OK)
   async sendInvoice(
     @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const result = await this.billingService.sendInvoice(id, req.user);
 
     return {
       success: true,
       message: 'Invoice sent successfully',
-      data: result,
+      data: result
     };
   }
 
@@ -151,7 +147,7 @@ export class BillingController {
     return {
       success: true,
       message: 'Payment recorded successfully',
-      data: payment,
+      data: payment
     };
   }
 
@@ -171,7 +167,7 @@ export class BillingController {
       startDate: query.startDate ? new Date(query.startDate) : undefined,
       endDate: query.endDate ? new Date(query.endDate) : undefined,
       page: parseInt(query.page) || 1,
-      limit: parseInt(query.limit) || 10,
+      limit: parseInt(query.limit) || 10
     };
 
     const result = await this.billingService.getPayments(filters);
@@ -183,8 +179,8 @@ export class BillingController {
         page: result.page,
         limit: result.limit,
         total: result.total,
-        totalPages: Math.ceil(result.total / result.limit),
-      },
+        totalPages: Math.ceil(result.total / result.limit)
+      }
     };
   }
 
@@ -195,13 +191,12 @@ export class BillingController {
   @ApiResponse({ status: 403, description: 'Access denied' })
   async getBrokerBillingSummary(
     @Param('brokerId', ParseUUIDPipe) brokerId: string,
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const summary = await this.billingService.getBrokerBillingSummary(brokerId, req.user);
 
     return {
       success: true,
-      data: summary,
+      data: summary
     };
   }
 
@@ -217,14 +212,14 @@ export class BillingController {
     const filters = {
       startDate: query.startDate ? new Date(query.startDate) : undefined,
       endDate: query.endDate ? new Date(query.endDate) : undefined,
-      groupBy: query.groupBy || 'month',
+      groupBy: query.groupBy || 'month'
     };
 
     const analytics = await this.billingService.getRevenueAnalytics(filters);
 
     return {
       success: true,
-      data: analytics,
+      data: analytics
     };
   }
 
@@ -237,14 +232,13 @@ export class BillingController {
   @HttpCode(HttpStatus.OK)
   async voidInvoice(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() voidData: { reason: string },
-  ) {
+    @Body() voidData: { reason: string }) {
     const invoice = await this.billingService.voidInvoice(id, voidData.reason);
 
     return {
       success: true,
       message: 'Invoice voided successfully',
-      data: invoice,
+      data: invoice
     };
   }
 
@@ -260,7 +254,7 @@ export class BillingController {
     const filters = {
       daysOverdue: parseInt(query.daysOverdue) || 30,
       page: parseInt(query.page) || 1,
-      limit: parseInt(query.limit) || 10,
+      limit: parseInt(query.limit) || 10
     };
 
     const result = await this.billingService.getOverdueInvoices(filters);
@@ -272,8 +266,8 @@ export class BillingController {
         page: result.page,
         limit: result.limit,
         total: result.total,
-        totalPages: Math.ceil(result.total / result.limit),
-      },
+        totalPages: Math.ceil(result.total / result.limit)
+      }
     };
   }
 
@@ -298,14 +292,13 @@ export class BillingController {
         vatRate?: number;
       }>;
       notes?: string;
-    },
-  ) {
+    }) {
     const invoice = await this.billingService.createInvoice(invoiceData);
 
     return {
       success: true,
       message: 'Invoice created successfully',
-      data: invoice,
+      data: invoice
     };
   }
 
@@ -320,14 +313,13 @@ export class BillingController {
       method: 'paystack' | 'payfast' | 'wallet';
       returnUrl?: string;
       cancelUrl?: string;
-    },
-  ) {
+    }) {
     const result = await this.billingService.initiatePayment(paymentData);
 
     return {
       success: true,
       message: 'Payment initiated successfully',
-      data: result,
+      data: result
     };
   }
 
@@ -337,11 +329,10 @@ export class BillingController {
   @ApiResponse({ status: 404, description: 'Invoice not found' })
   async getInvoicePaymentHistory(
     @Param('id', ParseUUIDPipe) id: string,
-    @Query() query: any,
-  ) {
+    @Query() query: any) {
     const filters = {
       page: parseInt(query.page) || 1,
-      limit: parseInt(query.limit) || 10,
+      limit: parseInt(query.limit) || 10
     };
 
     const result = await this.billingService.getInvoicePaymentHistory(id, filters);
@@ -353,8 +344,8 @@ export class BillingController {
         page: result.page,
         limit: result.limit,
         total: result.total,
-        totalPages: Math.ceil(result.total / result.limit),
-      },
+        totalPages: Math.ceil(result.total / result.limit)
+      }
     };
   }
 
@@ -370,14 +361,14 @@ export class BillingController {
     const filters = {
       startDate: query.startDate ? new Date(query.startDate) : undefined,
       endDate: query.endDate ? new Date(query.endDate) : undefined,
-      groupBy: query.groupBy || 'month',
+      groupBy: query.groupBy || 'month'
     };
 
     const summary = await this.billingService.getBillingSummary(filters);
 
     return {
       success: true,
-      data: summary,
+      data: summary
     };
   }
 
@@ -393,14 +384,14 @@ export class BillingController {
     const filters = {
       period: query.period,
       startDate: query.startDate ? new Date(query.startDate) : undefined,
-      endDate: query.endDate ? new Date(query.endDate) : undefined,
+      endDate: query.endDate ? new Date(query.endDate) : undefined
     };
 
     const analytics = await this.billingService.getBillingAnalytics(filters);
 
     return {
       success: true,
-      data: analytics,
+      data: analytics
     };
   }
 
@@ -412,14 +403,13 @@ export class BillingController {
   @ApiResponse({ status: 403, description: 'Forbidden' })
   async writeOffInvoice(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() writeOffData: { reason: string; amount: number; notes?: string },
-  ) {
+    @Body() writeOffData: { reason: string; amount: number; notes?: string }) {
     const result = await this.billingService.writeOffInvoice(id, writeOffData);
 
     return {
       success: true,
       message: 'Invoice written off successfully',
-      data: result,
+      data: result
     };
   }
 
@@ -431,13 +421,12 @@ export class BillingController {
   @ApiResponse({ status: 403, description: 'Forbidden' })
   async voidInvoice(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() voidData: { reason: string },
-  ) {
+    @Body() voidData: { reason: string }) {
     await this.billingService.voidInvoice(id, voidData.reason);
 
     return {
       success: true,
-      message: 'Invoice voided successfully',
+      message: 'Invoice voided successfully'
     };
   }
 
@@ -453,7 +442,7 @@ export class BillingController {
     const filters = {
       format: query.format || 'excel',
       startDate: query.startDate ? new Date(query.startDate) : undefined,
-      endDate: query.endDate ? new Date(query.endDate) : undefined,
+      endDate: query.endDate ? new Date(query.endDate) : undefined
     };
 
     const exportData = await this.billingService.exportBillingData(filters);
@@ -465,7 +454,7 @@ export class BillingController {
     res.set({
       'Content-Type': contentType,
       'Content-Disposition': `attachment; filename="${filename}"`,
-      'Content-Length': exportData.length,
+      'Content-Length': exportData.length
     });
 
     res.end(exportData);
@@ -480,7 +469,7 @@ export class BillingController {
 
     return {
       success: true,
-      data: templates,
+      data: templates
     };
   }
 
@@ -500,14 +489,13 @@ export class BillingController {
         type: 'text' | 'number' | 'date';
         required: boolean;
       }>;
-    },
-  ) {
+    }) {
     const template = await this.billingService.createInvoiceTemplate(templateData);
 
     return {
       success: true,
       message: 'Invoice template created successfully',
-      data: template,
+      data: template
     };
   }
 }

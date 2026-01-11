@@ -1,24 +1,39 @@
-import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bullmq';
+import { Processor } from '@nestjs/bullmq';
+import { OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 
 import { BacktestingService } from '../services/backtesting.service';
 import { PerformanceService } from '../services/performance.service';
-import { WebSocketGateway } from '../../websocket/gateways/websocket.gateway';
+// WebSocketGateway import removed - not a valid NestJS injection pattern
+// import { WebSocketGatewayHandler } from "../../websocket/gateways/websocket.gateway";
 import { BacktestConfig, OptimizationResult } from '../interfaces/backtesting.interface';
 
 @Processor('analytics-backtest')
-export class BacktestProcessor {
+export class BacktestProcessor extends WorkerHost {
   private readonly logger = new Logger(BacktestProcessor.name);
 
   constructor(
     private readonly backtestingService: BacktestingService,
-    private readonly performanceService: PerformanceService,
-    private readonly webSocketGateway: WebSocketGateway,
-  ) {}
+    private readonly performanceService: PerformanceService) {
+    super();
+}
 
-  @Process('run')
-  async processBacktest(job: Job<{
+  async process(job: any): Promise<any> {
+    switch (job.name) {
+      case 'run':
+        return this.processBacktest(job);
+      case 'optimize':
+        return this.processOptimization(job);
+      case 'compare':
+        return this.processComparison(job);
+      default:
+        throw new Error(`Unknown job name: ${job.name}`);
+    }
+  }
+
+
+  private async processBacktest(job: Job<{
     config: BacktestConfig;
     backtestId: string;
     userId?: string;
@@ -43,16 +58,17 @@ export class BacktestProcessor {
       const completeResult = {
         ...result,
         performanceMetrics,
-        userId: job.data.userId,
+        userId: job.data.userId
       };
 
       // Save result (this is handled in the service, but we ensure completion)
       await job.updateProgress(95);
 
+      // TODO: Re-enable WebSocket broadcast using proper NestJS pattern
       // Broadcast completion via WebSocket
-      if (job.data.userId) {
-        this.webSocketGateway.broadcastBacktestCompleted(job.data.userId, completeResult);
-      }
+      // if (job.data.userId) {
+      //   this.webSocketGateway.broadcastBacktestCompleted(job.data.userId, completeResult);
+      // }
 
       // Final progress update
       await job.updateProgress(100);
@@ -63,22 +79,22 @@ export class BacktestProcessor {
     } catch (error) {
       this.logger.error(`Backtest job ${job.id} failed:`, error);
 
+      // TODO: Re-enable WebSocket broadcast using proper NestJS pattern
       // Broadcast failure via WebSocket
-      if (job.data.userId) {
-        this.webSocketGateway.broadcastBacktestCompleted(job.data.userId, {
-          id: job.data.backtestId,
-          status: 'FAILED',
-          error: error.message,
-          config: job.data.config,
-        } as any);
-      }
+      // if (job.data.userId) {
+      //   this.webSocketGateway.broadcastBacktestCompleted(job.data.userId, {
+      //     id: job.data.backtestId,
+      //     status: 'FAILED',
+      //     error: error.message,
+      //     config: job.data.config
+      //   } as any);
+      // }
 
       throw error;
     }
   }
 
-  @Process('optimize')
-  async processOptimization(job: Job<{
+  private async processOptimization(job: Job<{
     strategyId: string;
     symbol: string;
     startTime: Date;
@@ -102,7 +118,7 @@ export class BacktestProcessor {
         parameterRanges,
         optimizationMetric,
         maxIterations,
-        userId,
+        userId
       } = job.data;
 
       // Generate parameter combinations
@@ -131,7 +147,7 @@ export class BacktestProcessor {
             startTime,
             endTime,
             initialCapital,
-            parameters,
+            parameters
           };
 
           // Run backtest
@@ -156,16 +172,17 @@ export class BacktestProcessor {
 
           // Send progress update every 10% or for last iteration
           if (i % Math.max(1, Math.floor(parameterCombinations.length / 10)) === 0 || i === parameterCombinations.length - 1) {
-            if (userId) {
-              this.webSocketGateway.broadcastBacktestCompleted(userId, {
-                id: `optimization_${job.id}`,
-                status: 'RUNNING',
-                progress,
-                currentBest: bestMetricValue,
-                iterationsCompleted: i + 1,
-                totalIterations: parameterCombinations.length,
-              } as any);
-            }
+            // TODO: Re-enable WebSocket broadcast using proper NestJS pattern
+            // if (userId) {
+            //   this.webSocketGateway.broadcastBacktestCompleted(userId, {
+            //     id: `optimization_${job.id}`,
+            //     status: 'RUNNING',
+            //     progress,
+            //     currentBest: bestMetricValue,
+            //     iterationsCompleted: i + 1,
+            //     totalIterations: parameterCombinations.length
+            //   } as any);
+            // }
           }
 
         } catch (error) {
@@ -182,19 +199,20 @@ export class BacktestProcessor {
         bestParameters: bestParameters || {},
         bestResult: bestResult || (allResults.length > 0 ? allResults[0] : null),
         allResults,
-        totalIterations: parameterCombinations.length,
+        totalIterations: parameterCombinations.length
       };
 
       await job.updateProgress(100);
 
+      // TODO: Re-enable WebSocket broadcast using proper NestJS pattern
       // Broadcast completion
-      if (userId) {
-        this.webSocketGateway.broadcastBacktestCompleted(userId, {
-          id: `optimization_${job.id}`,
-          status: 'COMPLETED',
-          result: optimizationResult,
-        } as any);
-      }
+      // if (userId) {
+      //   this.webSocketGateway.broadcastBacktestCompleted(userId, {
+      //     id: `optimization_${job.id}`,
+      //     status: 'COMPLETED',
+      //     result: optimizationResult
+      //   } as any);
+      // }
 
       this.logger.log(`Optimization completed for strategy ${strategyId}. Best ${optimizationMetric}: ${bestMetricValue}`);
       return optimizationResult;
@@ -205,8 +223,7 @@ export class BacktestProcessor {
     }
   }
 
-  @Process('compare')
-  async processComparison(job: Job<{
+  private async processComparison(job: Job<{
     strategyIds: string[];
     symbol: string;
     startTime: Date;
@@ -235,7 +252,7 @@ export class BacktestProcessor {
               symbol,
               startTime,
               endTime,
-              initialCapital,
+              initialCapital
             };
 
             const result = await this.backtestingService.runBacktest(config);
@@ -245,7 +262,7 @@ export class BacktestProcessor {
               strategyId,
               strategyName: result.strategyId, // This would be populated from strategy data
               result,
-              performanceMetrics,
+              performanceMetrics
             };
           } catch (error) {
             this.logger.warn(`Failed to backtest strategy ${strategyId}:`, error);
@@ -260,16 +277,17 @@ export class BacktestProcessor {
         const progress = Math.floor(((chunkIndex + 1) / chunks.length) * 90);
         await job.updateProgress(progress);
 
+        // TODO: Re-enable WebSocket broadcast using proper NestJS pattern
         // Send progress update
-        if (userId) {
-          this.webSocketGateway.broadcastBacktestCompleted(userId, {
-            id: `comparison_${job.id}`,
-            status: 'RUNNING',
-            progress,
-            completedStrategies: results.length,
-            totalStrategies: strategyIds.length,
-          } as any);
-        }
+        // if (userId) {
+        //   this.webSocketGateway.broadcastBacktestCompleted(userId, {
+        //     id: `comparison_${job.id}`,
+        //     status: 'RUNNING',
+        //     progress,
+        //     completedStrategies: results.length,
+        //     totalStrategies: strategyIds.length
+        //   } as any);
+        // }
       }
 
       // Sort results by performance metric (e.g., total return)
@@ -285,26 +303,27 @@ export class BacktestProcessor {
           totalReturn: result.result.totalReturn,
           sharpeRatio: result.performanceMetrics.sharpeRatio,
           maxDrawdown: result.performanceMetrics.maxDrawdown,
-          winRate: result.performanceMetrics.winRate,
+          winRate: result.performanceMetrics.winRate
         })),
         summary: {
           bestStrategy: results[0],
           worstStrategy: results[results.length - 1],
           averageReturn: results.reduce((sum, r) => sum + r.result.totalReturn, 0) / results.length,
-          averageSharpe: results.reduce((sum, r) => sum + r.performanceMetrics.sharpeRatio, 0) / results.length,
-        },
+          averageSharpe: results.reduce((sum, r) => sum + r.performanceMetrics.sharpeRatio, 0) / results.length
+        }
       };
 
       await job.updateProgress(100);
 
+      // TODO: Re-enable WebSocket broadcast using proper NestJS pattern
       // Broadcast completion
-      if (userId) {
-        this.webSocketGateway.broadcastBacktestCompleted(userId, {
-          id: `comparison_${job.id}`,
-          status: 'COMPLETED',
-          result: comparisonAnalysis,
-        } as any);
-      }
+      // if (userId) {
+      //   this.webSocketGateway.broadcastBacktestCompleted(userId, {
+      //     id: `comparison_${job.id}`,
+      //     status: 'COMPLETED',
+      //     result: comparisonAnalysis
+      //   } as any);
+      // }
 
       this.logger.log(`Comparison completed for ${results.length} strategies`);
       return comparisonAnalysis;
@@ -315,17 +334,17 @@ export class BacktestProcessor {
     }
   }
 
-  @OnQueueActive()
+  @OnWorkerEvent('active')
   onActive(job: Job) {
     this.logger.debug(`Backtest job ${job.id} started processing`);
   }
 
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job, result: any) {
     this.logger.log(`Backtest job ${job.id} completed successfully`);
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job, error: Error) {
     this.logger.error(`Backtest job ${job.id} failed:`, error);
   }

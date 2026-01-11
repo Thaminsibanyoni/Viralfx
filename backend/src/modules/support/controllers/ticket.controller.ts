@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Post,
@@ -10,23 +10,22 @@ import {
   UseGuards,
   Request,
   HttpStatus,
-  HttpCode,
-} from '@nestjs/common';
+  HttpCode, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../auth/enums/user-role.enum';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
+import { UserRole } from "../../../common/enums/user-role.enum";
 import { TicketService } from '../services/ticket.service';
 import { SlaService } from '../services/sla.service';
-import { NotificationService } from '../../notifications/services/notification.service';
+import { NotificationService } from "../../notifications/services/notification.service";
 import { CreateTicketDto } from '../dto/create-ticket.dto';
 import { AddMessageDto } from '../dto/add-message.dto';
 import { UpdateTicketDto } from '../dto/update-ticket.dto';
 import { UpdateTicketStatusDto } from '../dto/update-ticket-status.dto';
 import { AssignTicketDto } from '../dto/assign-ticket.dto';
 import { TicketFilterDto } from '../dto/ticket-filter.dto';
-import { Ticket, TicketStatus, TicketPriority } from '../entities/ticket.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { Ticket, TicketStatus, TicketPriority } from '../entities/ticket.entity';
 
 @ApiTags('tickets')
 @ApiBearerAuth()
@@ -36,13 +35,12 @@ export class TicketController {
   constructor(
     private readonly ticketService: TicketService,
     private readonly slaService: SlaService,
-    private readonly notificationService: NotificationService,
-  ) {}
+    private readonly notificationService: NotificationService) {}
 
   @Get()
   @ApiOperation({ summary: 'Get all tickets with filtering' })
   @ApiResponse({ status: 200, description: 'Tickets retrieved successfully' })
-  async getTickets(@Query() filters: TicketFilterDto, @Request() req) {
+  async getTickets(@Query() filters: TicketFilterDto, @Req() req) {
     const tickets = await this.ticketService.getTickets(filters, req.user);
     return {
       success: true,
@@ -93,10 +91,10 @@ export class TicketController {
   @ApiOperation({ summary: 'Create a new ticket' })
   @ApiResponse({ status: 201, description: 'Ticket created successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
-  async createTicket(@Body() createTicketDto: CreateTicketDto, @Request() req) {
+  async createTicket(@Body() createTicketDto: CreateTicketDto, @Req() req) {
     const ticket = await this.ticketService.createTicket({
       ...createTicketDto,
-      userId: req.user.id,
+      userId: req.user.id
     });
 
     // Send WebSocket notification for new ticket
@@ -119,14 +117,14 @@ export class TicketController {
   async addTicketMessage(
     @Param('id') id: string,
     @Body() addMessageDto: AddMessageDto,
-    @Request() req
+    @Req() req
   ) {
     const message = await this.ticketService.addTicketMessage(id, {
       message: addMessageDto.message,
       isInternal: addMessageDto.isInternal || false,
       authorId: req.user.id,
       authorType: req.user.role === UserRole.SUPPORT ? 'AGENT' : 'USER',
-      attachments: addMessageDto.attachments,
+      attachments: addMessageDto.attachments
     });
 
     // Get ticket details for notification
@@ -136,7 +134,7 @@ export class TicketController {
     await this.notificationService.sendTicketNotification('message_added', {
       ticket,
       message,
-      author: req.user,
+      author: req.user
     });
 
     return {
@@ -166,7 +164,7 @@ export class TicketController {
   async updateTicketStatus(
     @Param('id') id: string,
     @Body() updateTicketStatusDto: UpdateTicketStatusDto,
-    @Request() req
+    @Req() req
   ) {
     const ticket = await this.ticketService.updateTicketStatus(
       id,
@@ -180,7 +178,7 @@ export class TicketController {
       ticket,
       oldStatus: updateTicketStatusDto.previousStatus,
       newStatus: updateTicketStatusDto.status,
-      changedBy: req.user,
+      changedBy: req.user
     });
 
     // Handle SLA for resolved tickets
@@ -204,7 +202,7 @@ export class TicketController {
   async assignTicket(
     @Param('id') id: string,
     @Body() assignTicketDto: AssignTicketDto,
-    @Request() req
+    @Req() req
   ) {
     const ticket = await this.ticketService.assignTicket(
       id,
@@ -216,7 +214,7 @@ export class TicketController {
     await this.notificationService.sendTicketNotification('ticket_assigned', {
       ticket,
       assignedTo: assignTicketDto.assignedTo,
-      assignedBy: req.user,
+      assignedBy: req.user
     });
 
     return {
@@ -233,7 +231,7 @@ export class TicketController {
   async reopenTicket(
     @Param('id') id: string,
     @Body('reason') reason: string,
-    @Request() req
+    @Req() req
   ) {
     const ticket = await this.ticketService.updateTicketStatus(
       id,
@@ -246,7 +244,7 @@ export class TicketController {
     await this.notificationService.sendTicketNotification('ticket_reopened', {
       ticket,
       reason,
-      reopenedBy: req.user,
+      reopenedBy: req.user
     });
 
     return {
@@ -266,7 +264,7 @@ export class TicketController {
     @Param('id') id: string,
     @Body('reason') reason: string,
     @Body('priority') priority: TicketPriority,
-    @Request() req
+    @Req() req
   ) {
     const ticket = await this.ticketService.escalateTicket(id, priority, reason, req.user.id);
 
@@ -274,7 +272,7 @@ export class TicketController {
     await this.notificationService.sendTicketNotification('ticket_escalated', {
       ticket,
       reason,
-      escalatedBy: req.user,
+      escalatedBy: req.user
     });
 
     return {

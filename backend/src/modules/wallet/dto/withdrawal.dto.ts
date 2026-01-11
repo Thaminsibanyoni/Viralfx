@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsUUID, IsNumber, Min, IsObject, IsOptional, IsString, IsEnum, Length, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
-import { WithdrawalDestination } from '../../order-matching/interfaces/order-matching.interface';
+import { WithdrawalDestination } from "../../order-matching/interfaces/order-matching.interface";
 
 export class WithdrawalDto {
   @ApiProperty({ description: 'Wallet ID to withdraw from' })

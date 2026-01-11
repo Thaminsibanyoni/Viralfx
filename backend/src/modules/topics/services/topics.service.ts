@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 import { Topic } from '@prisma/client';
 
@@ -32,8 +32,7 @@ export class TopicsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly redis: Redis,
-  ) {}
+    private readonly redis: Redis) {}
 
   async createTopic(data: CreateTopicData): Promise<Topic> {
     const { slug, ...topicData } = data;
@@ -44,8 +43,8 @@ export class TopicsService {
         OR: [
           { name: { equals: data.name, mode: 'insensitive' } },
           ...(slug ? [{ slug }] : []),
-        ],
-      },
+        ]
+      }
     });
 
     if (existingTopic) {
@@ -62,9 +61,9 @@ export class TopicsService {
         canonical: data.canonical || {
           hashtags: [],
           keywords: [],
-          entities: [],
-        },
-      },
+          entities: []
+        }
+      }
     });
 
     // Invalidate relevant caches
@@ -89,10 +88,10 @@ export class TopicsService {
           select: {
             ingestEvents: true,
             viralSnapshots: true,
-            markets: true,
-          },
-        },
-      },
+            markets: true
+          }
+        }
+      }
     });
 
     if (topic) {
@@ -116,10 +115,10 @@ export class TopicsService {
           select: {
             ingestEvents: true,
             viralSnapshots: true,
-            markets: true,
-          },
-        },
-      },
+            markets: true
+          }
+        }
+      }
     });
 
     if (topic) {
@@ -140,8 +139,8 @@ export class TopicsService {
       data: {
         ...data,
         slug: data.slug || (data.name ? this.generateSlug(data.name) : topic.slug),
-        updatedAt: new Date(),
-      },
+        updatedAt: new Date()
+      }
     });
 
     // Invalidate caches
@@ -164,8 +163,8 @@ export class TopicsService {
       where: { id },
       data: {
         isActive: false,
-        deletedAt: new Date(),
-      },
+        deletedAt: new Date()
+      }
     });
 
     // Invalidate caches
@@ -180,13 +179,12 @@ export class TopicsService {
     query: string,
     category?: string,
     page: number = 1,
-    limit: number = 20,
-  ): Promise<{ topics: Topic[]; total: number }> {
+    limit: number = 20): Promise<{ topics: Topic[]; total: number }> {
     const skip = (page - 1) * limit;
 
     const where: any = {
       isActive: true,
-      deletedAt: null,
+      deletedAt: null
     };
 
     if (query) {
@@ -207,7 +205,7 @@ export class TopicsService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: 'desc' }
       }),
       this.prisma.topic.count({ where }),
     ]);
@@ -232,31 +230,31 @@ export class TopicsService {
         ...(category && { category }),
         viralSnapshots: {
           some: {
-            timestamp: { gte: oneHourAgo },
-          },
-        },
+            timestamp: { gte: oneHourAgo }
+          }
+        }
       },
       include: {
         viralSnapshots: {
           where: {
-            timestamp: { gte: oneHourAgo },
+            timestamp: { gte: oneHourAgo }
           },
           orderBy: { timestamp: 'desc' },
-          take: 1,
+          take: 1
         },
         _count: {
           select: {
             ingestEvents: true,
-            markets: true,
-          },
-        },
+            markets: true
+          }
+        }
       },
       orderBy: {
         viralSnapshots: {
-          _count: 'desc',
-        },
+          _count: 'desc'
+        }
       },
-      take: limit,
+      take: limit
     });
 
     await this.redis.setex(cacheKey, this.TRENDING_CACHE_TTL, JSON.stringify(trendingTopics));
@@ -275,7 +273,7 @@ export class TopicsService {
       where: {
         category,
         isActive: true,
-        deletedAt: null,
+        deletedAt: null
       },
       take: limit,
       orderBy: { createdAt: 'desc' },
@@ -284,10 +282,10 @@ export class TopicsService {
           select: {
             ingestEvents: true,
             viralSnapshots: true,
-            markets: true,
-          },
-        },
-      },
+            markets: true
+          }
+        }
+      }
     });
 
     await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(topics));
@@ -306,8 +304,8 @@ export class TopicsService {
       where: {
         id: { in: sourceTopicIds },
         isActive: true,
-        deletedAt: null,
-      },
+        deletedAt: null
+      }
     });
 
     if (sourceTopics.length !== sourceTopicIds.length) {
@@ -317,31 +315,31 @@ export class TopicsService {
     // Merge ingest events
     await this.prisma.ingestEvent.updateMany({
       where: { topicId: { in: sourceTopicIds } },
-      data: { topicId: targetTopicId },
+      data: { topicId: targetTopicId }
     });
 
     // Merge viral snapshots
     await this.prisma.viralIndexSnapshot.updateMany({
       where: { topicId: { in: sourceTopicIds } },
-      data: { topicId: targetTopicId },
+      data: { topicId: targetTopicId }
     });
 
     // Merge sentiment snapshots
     await this.prisma.sentimentSnapshot.updateMany({
       where: { topicId: { in: sourceTopicIds } },
-      data: { topicId: targetTopicId },
+      data: { topicId: targetTopicId }
     });
 
     // Merge deception snapshots
     await this.prisma.deceptionSnapshot.updateMany({
       where: { topicId: { in: sourceTopicIds } },
-      data: { topicId: targetTopicId },
+      data: { topicId: targetTopicId }
     });
 
     // Update markets (if any)
     await this.prisma.market.updateMany({
       where: { topicId: { in: sourceTopicIds } },
-      data: { topicId: targetTopicId },
+      data: { topicId: targetTopicId }
     });
 
     // Soft delete source topics
@@ -352,11 +350,9 @@ export class TopicsService {
           data: {
             isActive: false,
             deletedAt: new Date(),
-            mergedInto: targetTopicId,
-          },
-        }),
-      ),
-    );
+            mergedInto: targetTopicId
+          }
+        })));
 
     // Update target topic canonical data
     const allHashtags = new Set([
@@ -375,9 +371,9 @@ export class TopicsService {
         canonical: {
           hashtags: Array.from(allHashtags),
           keywords: Array.from(allKeywords),
-          entities: targetTopic.canonical?.entities || [],
-        },
-      },
+          entities: targetTopic.canonical?.entities || []
+        }
+      }
     });
 
     // Invalidate all caches
@@ -399,22 +395,22 @@ export class TopicsService {
         where: { topicId },
         _count: { id: true },
         _max: { timestamp: true },
-        _min: { timestamp: true },
+        _min: { timestamp: true }
       }),
       this.prisma.market.aggregate({
         where: { topicId },
         _count: { id: true },
-        _sum: { totalVolume: true },
+        _sum: { totalVolume: true }
       }),
       this.prisma.sentimentSnapshot.aggregate({
         where: { topicId },
         _count: { id: true },
-        _avg: { sentimentScore: true },
+        _avg: { sentimentScore: true }
       }),
       this.prisma.viralIndexSnapshot.aggregate({
         where: { topicId },
         _count: { id: true },
-        _max: { viralIndex: true },
+        _max: { viralIndex: true }
       }),
     ]);
 
@@ -424,21 +420,21 @@ export class TopicsService {
         name: topic.name,
         category: topic.category,
         createdAt: topic.createdAt,
-        isVerified: topic.isVerified,
+        isVerified: topic.isVerified
       },
       stats: {
         totalIngestEvents: ingestStats._count.id,
         ingestDateRange: {
           start: ingestStats._min.timestamp,
-          end: ingestStats._max.timestamp,
+          end: ingestStats._max.timestamp
         },
         totalMarkets: marketStats._count.id,
         totalVolume: marketStats._sum.totalVolume || 0,
         avgSentimentScore: sentimentStats._avg.sentimentScore || 0,
         totalSentimentSnapshots: sentimentStats._count.id,
         maxViralIndex: viralStats._max.viralIndex || 0,
-        totalViralSnapshots: viralStats._count.id,
-      },
+        totalViralSnapshots: viralStats._count.id
+      }
     };
   }
 

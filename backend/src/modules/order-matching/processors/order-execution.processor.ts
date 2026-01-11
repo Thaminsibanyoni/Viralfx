@@ -1,11 +1,10 @@
-import { Processor, Process, OnQueueFailed, InjectQueue } from '@nestjs/bull';
-import { Job, Queue } from 'bull';
+import {Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
+import { Job, Queue } from 'bullmq';
 import { Logger } from '@nestjs/common';
 
 import { MatchingEngineService } from '../services/matching-engine.service';
 import { OrderBookService } from '../services/order-book.service';
-import { WebSocketGateway } from '../../websocket/gateways/websocket.gateway';
-import { Order } from '../../market-aggregation/entities/order.entity';
+import { Order } from "../../market-aggregation/interfaces/order.interface";
 
 interface OrderExecutionJob {
   orderId: string;
@@ -19,19 +18,16 @@ interface MatchOrdersJob {
 }
 
 @Processor('order-execution')
-export class OrderExecutionProcessor {
+export class OrderExecutionProcessor extends WorkerHost {
   private readonly logger = new Logger(OrderExecutionProcessor.name);
 
   constructor(
     private readonly matchingEngineService: MatchingEngineService,
     private readonly orderBookService: OrderBookService,
-    private readonly webSocketGateway: WebSocketGateway,
     @InjectQueue('order-settlement')
-    private readonly settlementQueue: Queue,
-  ) {}
+    private readonly settlementQueue: Queue) {}
 
-  @Process('execute-order')
-  async executeOrder(job: Job<OrderExecutionJob>): Promise<void> {
+  private async executeOrder(job: Job<OrderExecutionJob>): Promise<void> {
     try {
       const { orderId, userId, orderData } = job.data;
       this.logger.log(`Processing order execution for order ${orderId}`);
@@ -54,10 +50,10 @@ export class OrderExecutionProcessor {
             attempts: 5,
             backoff: {
               type: 'exponential',
-              delay: 5000,
+              delay: 5000
             },
             removeOnComplete: 10,
-            removeOnFail: 50,
+            removeOnFail: 50
           });
           this.logger.log(`Settlement job queued for filled order ${result.order.id}`);
         }
@@ -66,7 +62,7 @@ export class OrderExecutionProcessor {
         await this.webSocketGateway.server?.to(`user:${userId}`).emit('order:rejected', {
           orderId,
           reason: result.errors.join('; '),
-          timestamp: new Date(),
+          timestamp: new Date()
         });
       }
 
@@ -77,8 +73,7 @@ export class OrderExecutionProcessor {
     }
   }
 
-  @Process('match-orders')
-  async matchOrders(job: Job<MatchOrdersJob>): Promise<void> {
+  private async matchOrders(job: Job<MatchOrdersJob>): Promise<void> {
     try {
       const { symbol, force } = job.data;
       this.logger.log(`Processing order matching for symbol ${symbol}`);
@@ -100,7 +95,7 @@ export class OrderExecutionProcessor {
         await this.webSocketGateway.server?.emit('market:matched', {
           symbol,
           matches,
-          timestamp: new Date(),
+          timestamp: new Date()
         });
 
         // Queue settlement for filled orders
@@ -112,10 +107,10 @@ export class OrderExecutionProcessor {
               attempts: 5,
               backoff: {
                 type: 'exponential',
-                delay: 5000,
+                delay: 5000
               },
               removeOnComplete: 10,
-              removeOnFail: 50,
+              removeOnFail: 50
             })
           );
 
@@ -125,10 +120,10 @@ export class OrderExecutionProcessor {
               attempts: 5,
               backoff: {
                 type: 'exponential',
-                delay: 5000,
+                delay: 5000
               },
               removeOnComplete: 10,
-              removeOnFail: 50,
+              removeOnFail: 50
             })
           );
 
@@ -146,8 +141,7 @@ export class OrderExecutionProcessor {
     }
   }
 
-  @Process('process-stop-orders')
-  async processStopOrders(job: Job<{ symbol: string; currentPrice: number }>): Promise<void> {
+  private async processStopOrders(job: Job<{ symbol: string; currentPrice: number }>): Promise<void> {
     try {
       const { symbol, currentPrice } = job.data;
       this.logger.log(`Processing stop orders for ${symbol} at price ${currentPrice}`);
@@ -165,13 +159,13 @@ export class OrderExecutionProcessor {
         await job.data.queue?.add('execute-order', {
           orderId: order.id,
           userId: order.userId,
-          orderData: order,
+          orderData: order
         }, {
           attempts: 3,
           backoff: {
             type: 'exponential',
-            delay: 1000,
-          },
+            delay: 1000
+          }
         });
       }
 
@@ -182,8 +176,7 @@ export class OrderExecutionProcessor {
     }
   }
 
-  @Process('cleanup-expired-orders')
-  async cleanupExpiredOrders(): Promise<void> {
+  private async cleanupExpiredOrders(): Promise<void> {
     try {
       this.logger.log('Cleaning up expired orders');
 
@@ -196,7 +189,7 @@ export class OrderExecutionProcessor {
     }
   }
 
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   async onQueueFailed(job: Job, error: Error): Promise<void> {
     this.logger.error(`Order execution job ${job.id} failed:`, error);
 
@@ -206,7 +199,7 @@ export class OrderExecutionProcessor {
         type: 'ORDER_EXECUTION_FAILURE',
         jobId: job.id,
         error: error.message,
-        data: job.data,
+        data: job.data
       });
     }
   }

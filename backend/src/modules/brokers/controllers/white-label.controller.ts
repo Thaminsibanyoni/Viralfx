@@ -13,17 +13,17 @@ import {
   ValidationPipe,
   ParseFilePipe,
   MaxFileSizeValidator,
-  FileTypeValidator,
+  FileTypeValidator
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { WhiteLabelService } from '../services/white-label.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { BrokerGuard } from '../guards/broker.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { GetUser } from '../../auth/decorators/get-user.decorator';
-import { User } from '../../users/entities/user.entity';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { BrokerAuthGuard } from '../guards/broker-auth.guard';
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
+import { CurrentUser } from "../../auth/decorators/current-user.decorator";
+import { User } from "../../../common/enums/user-role.enum";
 import { IsOptional, IsString, IsEnum, IsUrl, IsArray, IsObject } from 'class-validator';
 
 enum WhiteLabelCategory {
@@ -145,7 +145,7 @@ class UploadAssetDto {
 
 @ApiTags('White Label')
 @Controller('brokers/white-label')
-@UseGuards(JwtAuthGuard, BrokerGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, BrokerAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class WhiteLabelController {
   constructor(private readonly whiteLabelService: WhiteLabelService) {}
@@ -162,8 +162,8 @@ export class WhiteLabelController {
       message: 'Templates retrieved successfully',
       data: {
         templates,
-        categories: Object.values(WhiteLabelCategory),
-      },
+        categories: Object.values(WhiteLabelCategory)
+      }
     };
   }
 
@@ -177,7 +177,7 @@ export class WhiteLabelController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Template details retrieved successfully',
-      data: template,
+      data: template
     };
   }
 
@@ -187,12 +187,12 @@ export class WhiteLabelController {
   @ApiResponse({ status: 201, description: 'Configuration created successfully' })
   async createConfig(
     @Body(ValidationPipe) createDto: CreateWhiteLabelDto,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -205,7 +205,7 @@ export class WhiteLabelController {
     return {
       statusCode: HttpStatus.CREATED,
       message: 'White-label configuration created successfully',
-      data: config,
+      data: config
     };
   }
 
@@ -213,11 +213,11 @@ export class WhiteLabelController {
   @Roles('ADMIN', 'BROKER')
   @ApiOperation({ summary: 'Get current white-label configuration' })
   @ApiResponse({ status: 200, description: 'Configuration retrieved successfully' })
-  async getConfig(@GetUser() user: User) {
+  async getConfig(@CurrentUser() user: User) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -226,7 +226,7 @@ export class WhiteLabelController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Configuration retrieved successfully',
-      data: config,
+      data: config
     };
   }
 
@@ -236,12 +236,12 @@ export class WhiteLabelController {
   @ApiResponse({ status: 200, description: 'Configuration updated successfully' })
   async updateConfig(
     @Body(ValidationPipe) updateDto: UpdateWhiteLabelDto,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -253,7 +253,7 @@ export class WhiteLabelController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Configuration updated successfully',
-      data: config,
+      data: config
     };
   }
 
@@ -263,12 +263,12 @@ export class WhiteLabelController {
   @ApiResponse({ status: 200, description: 'Deployment initiated successfully' })
   async deploy(
     @Body(ValidationPipe) deployDto: DeployWhiteLabelDto,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -281,7 +281,7 @@ export class WhiteLabelController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Deployment initiated successfully',
-      data: deployment,
+      data: deployment
     };
   }
 
@@ -297,17 +297,16 @@ export class WhiteLabelController {
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
           new FileTypeValidator({ fileType: /(jpg|jpeg|png|gif|svg|ico)$/ }),
-        ],
-      }),
-    )
+        ]
+      }))
     file: Express.Multer.File,
     @Body(ValidationPipe) uploadDto: UploadAssetDto,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -320,7 +319,7 @@ export class WhiteLabelController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Asset uploaded successfully',
-      data: result,
+      data: result
     };
   }
 
@@ -328,11 +327,11 @@ export class WhiteLabelController {
   @Roles('ADMIN', 'BROKER')
   @ApiOperation({ summary: 'Generate custom CSS' })
   @ApiResponse({ status: 200, description: 'CSS generated successfully' })
-  async generateCustomCSS(@GetUser() user: User) {
+  async generateCustomCSS(@CurrentUser() user: User) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -344,8 +343,8 @@ export class WhiteLabelController {
       message: 'Custom CSS generated successfully',
       data: {
         css,
-        contentType: 'text/css',
-      },
+        contentType: 'text/css'
+      }
     };
   }
 
@@ -353,11 +352,11 @@ export class WhiteLabelController {
   @Roles('ADMIN', 'BROKER')
   @ApiOperation({ summary: 'Get deployment analytics' })
   @ApiResponse({ status: 200, description: 'Analytics retrieved successfully' })
-  async getAnalytics(@GetUser() user: User) {
+  async getAnalytics(@CurrentUser() user: User) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -366,7 +365,7 @@ export class WhiteLabelController {
     return {
       statusCode: HttpStatus.OK,
       message: 'Analytics retrieved successfully',
-      data: analytics,
+      data: analytics
     };
   }
 
@@ -374,11 +373,11 @@ export class WhiteLabelController {
   @Roles('ADMIN', 'BROKER')
   @ApiOperation({ summary: 'Get white-label preview' })
   @ApiResponse({ status: 200, description: 'Preview generated successfully' })
-  async getPreview(@GetUser() user: User) {
+  async getPreview(@CurrentUser() user: User) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -391,8 +390,8 @@ export class WhiteLabelController {
       data: {
         config,
         css,
-        previewUrl: `${process.env.API_BASE_URL}/white-label/${user.brokerId}/preview`,
-      },
+        previewUrl: `${process.env.API_BASE_URL}/white-label/${user.brokerId}/preview`
+      }
     };
   }
 
@@ -402,7 +401,7 @@ export class WhiteLabelController {
   @ApiResponse({ status: 200, description: 'Configuration validated successfully' })
   async validateConfig(
     @Body() config: any,
-    @GetUser() user: User
+    @CurrentUser() user: User
   ) {
     try {
       await this.whiteLabelService.validateConfig(config);
@@ -412,8 +411,8 @@ export class WhiteLabelController {
         message: 'Configuration is valid',
         data: {
           isValid: true,
-          errors: [],
-        },
+          errors: []
+        }
       };
     } catch (error) {
       return {
@@ -421,8 +420,8 @@ export class WhiteLabelController {
         message: 'Configuration validation failed',
         data: {
           isValid: false,
-          errors: [error.message],
-        },
+          errors: [error.message]
+        }
       };
     }
   }
@@ -446,8 +445,8 @@ export class WhiteLabelController {
           `${subdomain}-platform`,
           `${subdomain}-fx`,
           `${subdomain}-social`,
-        ],
-      },
+        ]
+      }
     };
   }
 
@@ -455,11 +454,11 @@ export class WhiteLabelController {
   @Roles('ADMIN', 'BROKER')
   @ApiOperation({ summary: 'Get available white-label features' })
   @ApiResponse({ status: 200, description: 'Available features retrieved' })
-  async getAvailableFeatures(@GetUser() user: User) {
+  async getAvailableFeatures(@CurrentUser() user: User) {
     if (!user.brokerId) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
-        message: 'User is not associated with a broker',
+        message: 'User is not associated with a broker'
       };
     }
 
@@ -488,25 +487,25 @@ export class WhiteLabelController {
         STARTER: {
           maxCustomDomains: 0,
           maxIntegrations: 2,
-          allowedModules: ['TRADING', 'ANALYTICS'],
+          allowedModules: ['TRADING', 'ANALYTICS']
         },
         PROFESSIONAL: {
           maxCustomDomains: 1,
           maxIntegrations: 5,
-          allowedModules: ['TRADING', 'ANALYTICS', 'SOCIAL_TRADING', 'RISK_MANAGEMENT'],
+          allowedModules: ['TRADING', 'ANALYTICS', 'SOCIAL_TRADING', 'RISK_MANAGEMENT']
         },
         ENTERPRISE: {
           maxCustomDomains: -1, // Unlimited
           maxIntegrations: -1, // Unlimited
-          allowedModules: '*', // All modules
-        },
-      },
+          allowedModules: '*' // All modules
+        }
+      }
     };
 
     return {
       statusCode: HttpStatus.OK,
       message: 'Available features retrieved successfully',
-      data: features,
+      data: features
     };
   }
 }

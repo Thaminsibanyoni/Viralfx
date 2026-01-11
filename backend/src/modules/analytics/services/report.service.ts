@@ -1,15 +1,14 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 
-import { BacktestingService } from './backtesting.service';
-import { PerformanceService } from './performance.service';
-import { AnalyticsService } from './analytics.service';
+import { BacktestingService } from "./backtesting.service";
+import { PerformanceService } from "./performance.service";
+import { AnalyticsService } from "./analytics.service";
 import { BacktestResult } from '../interfaces/backtesting.interface';
-import { BacktestingResult } from '../../../database/entities/backtesting-result.entity';
+// TypeORM entities removed - using Prisma instead
+// import { BacktestingResult } from "../../../database/entities/backtesting-result.entity";
 import {
   ReportConfig,
   Report,
@@ -17,7 +16,7 @@ import {
   ChartData,
   DashboardData,
   TrendAnalytics,
-  PerformanceMetrics,
+  PerformanceMetrics
 } from '../interfaces/analytics.interface';
 
 @Injectable()
@@ -28,11 +27,9 @@ export class ReportService {
     private readonly backtestingService: BacktestingService,
     private readonly performanceService: PerformanceService,
     private readonly analyticsService: AnalyticsService,
-    @InjectRepository(BacktestingResult)
-    private readonly backtestingResultRepository: Repository<BacktestingResult>,
+    // TypeORM repository removed - using Prisma instead
     @InjectQueue('analytics-report') private readonly reportQueue: Queue,
-    @Inject('REDIS_CLIENT') private readonly redis: Redis,
-  ) {}
+    @Inject('REDIS_CLIENT') private readonly redis: Redis) {}
 
   /**
    * Generate a comprehensive backtest report
@@ -47,16 +44,16 @@ export class ReportService {
           entityType: 'strategy',
           entityId: backtestId,
           period: 'ALL_TIME',
-          format: 'json',
+          format: 'json'
         },
         status: 'generating',
         metadata: {
           generatedAt: new Date(),
           generatedBy: 'system',
           executionTime: 0,
-          dataSize: 0,
+          dataSize: 0
         },
-        createdAt: new Date(),
+        createdAt: new Date()
       };
 
       // Cache initial report state
@@ -66,7 +63,7 @@ export class ReportService {
       await this.reportQueue.add('generate-backtest-report', {
         reportId,
         backtestId,
-        timestamp: new Date(),
+        timestamp: new Date()
       });
 
       return report;
@@ -90,9 +87,9 @@ export class ReportService {
           generatedAt: new Date(),
           generatedBy: userId || 'system',
           executionTime: 0,
-          dataSize: 0,
+          dataSize: 0
         },
-        createdAt: new Date(),
+        createdAt: new Date()
       };
 
       // Cache initial report state
@@ -103,7 +100,7 @@ export class ReportService {
         reportId,
         config,
         userId,
-        timestamp: new Date(),
+        timestamp: new Date()
       });
 
       return report;
@@ -134,17 +131,17 @@ export class ReportService {
           format: 'json',
           options: {
             symbol,
-            period: period.start.toISOString() + ',' + period.end.toISOString(),
-          },
+            period: period.start.toISOString() + ',' + period.end.toISOString()
+          }
         },
         status: 'generating',
         metadata: {
           generatedAt: new Date(),
           generatedBy: userId || 'system',
           executionTime: 0,
-          dataSize: 0,
+          dataSize: 0
         },
-        createdAt: new Date(),
+        createdAt: new Date()
       };
 
       // Cache initial report state
@@ -157,7 +154,7 @@ export class ReportService {
         symbol,
         period,
         userId,
-        timestamp: new Date(),
+        timestamp: new Date()
       });
 
       return report;
@@ -232,7 +229,7 @@ export class ReportService {
         reports: paginatedReports,
         total,
         page,
-        limit,
+        limit
       };
     } catch (error) {
       this.logger.error('Failed to get report history:', error);
@@ -291,7 +288,7 @@ export class ReportService {
             symbol,
             {
               start: new Date(startDate),
-              end: new Date(endDate),
+              end: new Date(endDate)
             },
             userId
           )).id;
@@ -311,9 +308,9 @@ export class ReportService {
       const startTime = Date.now();
 
       // Fetch the actual backtest result from the database
-      const backtestResultEntity = await this.backtestingResultRepository.findOne({
+      const backtestResultEntity = await this.prisma.backtestingresultrepository.findFirst({
         where: { id: backtestId },
-        relations: ['strategy'],
+        relations: ['strategy']
       });
 
       if (!backtestResultEntity) {
@@ -348,7 +345,7 @@ export class ReportService {
         executionTime: backtestResultEntity.executionTime,
         metadata: backtestResultEntity.metadata,
         createdAt: backtestResultEntity.createdAt,
-        updatedAt: backtestResultEntity.updatedAt,
+        updatedAt: backtestResultEntity.updatedAt
       };
 
       // Calculate additional metrics
@@ -370,11 +367,11 @@ export class ReportService {
           equityCurve: equityCurveData,
           returns: this.formatReturnsForChart(backtestResult.equity),
           drawdown: this.formatDrawdownForChart(backtestResult.equity),
-          tradeDistribution: this.formatTradeDistributionForChart(backtestResult.trades),
+          tradeDistribution: this.formatTradeDistributionForChart(backtestResult.trades)
         },
         tradeAnalysis,
         performanceSummary,
-        riskAnalysis: this.analyzeRisk(backtestResult, performanceMetrics),
+        riskAnalysis: this.analyzeRisk(backtestResult, performanceMetrics)
       };
 
       const report: Report = {
@@ -384,7 +381,7 @@ export class ReportService {
           entityType: 'strategy',
           entityId: backtestId,
           period: 'ALL_TIME',
-          format: 'json',
+          format: 'json'
         },
         status: 'completed',
         data: reportData,
@@ -393,10 +390,10 @@ export class ReportService {
           generatedAt: new Date(),
           generatedBy: 'system',
           executionTime: Date.now() - startTime,
-          dataSize: JSON.stringify(reportData).length,
+          dataSize: JSON.stringify(reportData).length
         },
         completedAt: new Date(),
-        createdAt: new Date(),
+        createdAt: new Date()
       };
 
       // Save report to cache
@@ -431,15 +428,15 @@ export class ReportService {
         entity: {
           type: config.entityType,
           id: config.entityId,
-          period: config.period,
+          period: config.period
         },
         currentMetrics: performanceMetrics,
         historicalMetrics: historicalData,
         charts: {
           performanceTrend: this.formatPerformanceTrendForChart(historicalData),
-          metricComparison: this.formatMetricComparisonForChart(performanceMetrics),
+          metricComparison: this.formatMetricComparisonForChart(performanceMetrics)
         },
-        insights: this.generatePerformanceInsights(performanceMetrics, historicalData),
+        insights: this.generatePerformanceInsights(performanceMetrics, historicalData)
       };
 
       const report: Report = {
@@ -452,10 +449,10 @@ export class ReportService {
           generatedAt: new Date(),
           generatedBy: userId || 'system',
           executionTime: Date.now() - startTime,
-          dataSize: JSON.stringify(reportData).length,
+          dataSize: JSON.stringify(reportData).length
         },
         completedAt: new Date(),
-        createdAt: new Date(),
+        createdAt: new Date()
       };
 
       // Save report to cache
@@ -493,7 +490,7 @@ export class ReportService {
           if (backtestHistory.results.length > 0) {
             backtestResults.push({
               strategyId,
-              result: backtestHistory.results[0], // Get latest result
+              result: backtestHistory.results[0] // Get latest result
             });
           }
         } catch (error) {
@@ -508,7 +505,7 @@ export class ReportService {
         comparison: {
           symbol,
           period: period.start.toISOString() + ' - ' + period.end.toISOString(),
-          strategies: strategyIds,
+          strategies: strategyIds
         },
         metrics: comparisonData,
         backtests: backtestResults,
@@ -516,9 +513,9 @@ export class ReportService {
         charts: {
           performanceComparison: this.formatPerformanceComparisonForChart(comparisonData),
           riskReturnScatter: this.formatRiskReturnScatterForChart(comparisonData),
-          metricHeatmap: this.formatMetricHeatmapForChart(comparisonData),
+          metricHeatmap: this.formatMetricHeatmapForChart(comparisonData)
         },
-        insights: this.generateComparisonInsights(comparisonData, ranking),
+        insights: this.generateComparisonInsights(comparisonData, ranking)
       };
 
       const report: Report = {
@@ -528,7 +525,7 @@ export class ReportService {
           entityType: 'strategy',
           entityId: strategyIds.join(','),
           period: 'ALL_TIME',
-          format: 'json',
+          format: 'json'
         },
         status: 'completed',
         data: reportData,
@@ -537,10 +534,10 @@ export class ReportService {
           generatedAt: new Date(),
           generatedBy: userId || 'system',
           executionTime: Date.now() - startTime,
-          dataSize: JSON.stringify(reportData).length,
+          dataSize: JSON.stringify(reportData).length
         },
         completedAt: new Date(),
-        createdAt: new Date(),
+        createdAt: new Date()
       };
 
       // Save report to cache
@@ -565,13 +562,13 @@ export class ReportService {
       title: 'Equity Curve',
       data: equity.map(point => ({
         time: point.timestamp.toISOString(),
-        value: point.equity,
+        value: point.equity
       })),
       config: {
         xAxis: 'time',
         yAxis: 'value',
-        color: '#10B981',
-      },
+        color: '#10B981'
+      }
     };
   }
 
@@ -581,13 +578,13 @@ export class ReportService {
       title: 'Returns Over Time',
       data: equity.map(point => ({
         time: point.timestamp.toISOString(),
-        value: point.returns * 100, // Convert to percentage
+        value: point.returns * 100 // Convert to percentage
       })),
       config: {
         xAxis: 'time',
         yAxis: 'value',
-        color: '#3B82F6',
-      },
+        color: '#3B82F6'
+      }
     };
   }
 
@@ -598,13 +595,13 @@ export class ReportService {
       title: 'Drawdown',
       data: drawdownSeries.map(point => ({
         time: point.timestamp.toISOString(),
-        value: point.drawdown,
+        value: point.drawdown
       })),
       config: {
         xAxis: 'time',
         yAxis: 'value',
-        color: '#EF4444',
-      },
+        color: '#EF4444'
+      }
     };
   }
 
@@ -617,13 +614,13 @@ export class ReportService {
       title: 'Trade Distribution',
       data: bins.map(bin => ({
         range: bin.range,
-        count: bin.count,
+        count: bin.count
       })),
       config: {
         xAxis: 'range',
         yAxis: 'count',
-        color: '#8B5CF6',
-      },
+        color: '#8B5CF6'
+      }
     };
   }
 
@@ -633,13 +630,13 @@ export class ReportService {
       title: 'Performance Trend',
       data: historicalData.map((point: any) => ({
         time: point.timestamp,
-        value: point.totalReturn * 100,
+        value: point.totalReturn * 100
       })),
       config: {
         xAxis: 'time',
         yAxis: 'value',
-        color: '#10B981',
-      },
+        color: '#10B981'
+      }
     };
   }
 
@@ -658,8 +655,8 @@ export class ReportService {
       config: {
         xAxis: 'metric',
         yAxis: 'value',
-        color: '#3B82F6',
-      },
+        color: '#3B82F6'
+      }
     };
   }
 
@@ -669,7 +666,7 @@ export class ReportService {
       totalReturn: metrics.totalReturn * 100,
       sharpeRatio: metrics.sharpeRatio,
       maxDrawdown: metrics.maxDrawdown * 100,
-      winRate: metrics.winRate,
+      winRate: metrics.winRate
     }));
 
     return {
@@ -679,8 +676,8 @@ export class ReportService {
       config: {
         xAxis: 'strategy',
         yAxis: 'value',
-        color: '#8B5CF6',
-      },
+        color: '#8B5CF6'
+      }
     };
   }
 
@@ -688,7 +685,7 @@ export class ReportService {
     const data = Object.entries(comparisonData).map(([strategyId, metrics]) => ({
       x: metrics.maxDrawdown * 100,
       y: metrics.totalReturn * 100,
-      name: strategyId,
+      name: strategyId
     }));
 
     return {
@@ -698,8 +695,8 @@ export class ReportService {
       config: {
         xAxis: 'maxDrawdown',
         yAxis: 'totalReturn',
-        color: '#EF4444',
-      },
+        color: '#EF4444'
+      }
     };
   }
 
@@ -712,7 +709,7 @@ export class ReportService {
         data.push({
           strategy: strategyId,
           metric,
-          value: metricsData[metric as keyof PerformanceMetrics],
+          value: metricsData[metric as keyof PerformanceMetrics]
         });
       });
     });
@@ -724,8 +721,8 @@ export class ReportService {
       config: {
         xAxis: 'strategy',
         yAxis: 'metric',
-        color: '#10B981',
-      },
+        color: '#10B981'
+      }
     };
   }
 
@@ -738,7 +735,7 @@ export class ReportService {
         bestTrade: null,
         worstTrade: null,
         averageHoldTime: 0,
-        profitFactor: 0,
+        profitFactor: 0
       };
     }
 
@@ -754,7 +751,7 @@ export class ReportService {
       worstTrade: losingTrades.reduce((worst, trade) =>
         trade.profit < (worst?.profit || 0) ? trade : worst, null),
       averageHoldTime: trades.reduce((sum, t) => sum + t.holdPeriod, 0) / trades.length,
-      profitFactor: this.calculateProfitFactor(trades),
+      profitFactor: this.calculateProfitFactor(trades)
     };
   }
 
@@ -763,7 +760,7 @@ export class ReportService {
       overall: metrics.totalReturn >= 0 ? 'Profitable' : 'Loss-making',
       riskAdjustedReturn: metrics.sharpeRatio > 1 ? 'Excellent' : metrics.sharpeRatio > 0.5 ? 'Good' : 'Poor',
       consistency: metrics.winRate > 70 ? 'High' : metrics.winRate > 50 ? 'Medium' : 'Low',
-      riskLevel: metrics.maxDrawdown < 0.1 ? 'Low' : metrics.maxDrawdown < 0.2 ? 'Medium' : 'High',
+      riskLevel: metrics.maxDrawdown < 0.1 ? 'Low' : metrics.maxDrawdown < 0.2 ? 'Medium' : 'High'
     };
   }
 
@@ -774,7 +771,7 @@ export class ReportService {
       var95: this.calculateVaR(backtestResult.equity, 0.05),
       beta: metrics.beta,
       alpha: metrics.alpha,
-      riskOfRuin: this.calculateRiskOfRuin(backtestResult.trades),
+      riskOfRuin: this.calculateRiskOfRuin(backtestResult.trades)
     };
   }
 
@@ -821,7 +818,7 @@ export class ReportService {
       sharpeRatio: metrics.sharpeRatio,
       maxDrawdown: metrics.maxDrawdown,
       winRate: metrics.winRate,
-      hasBacktest: backtestResults.some(r => r.strategyId === strategyId),
+      hasBacktest: backtestResults.some(r => r.strategyId === strategyId)
     }));
 
     return ranking.sort((a, b) => b.totalReturn - a.totalReturn);
@@ -844,7 +841,7 @@ export class ReportService {
 
     const bins = Array.from({ length: binCount }, (_, i) => ({
       range: `${(min + i * binSize).toFixed(2)}-${(min + (i + 1) * binSize).toFixed(2)}`,
-      count: 0,
+      count: 0
     }));
 
     values.forEach(value => {

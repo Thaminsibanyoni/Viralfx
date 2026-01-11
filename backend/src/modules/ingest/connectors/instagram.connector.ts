@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
-import { BaseConnector, Content, ContentMetrics, MediaUrl } from './base.connector';
+import { BaseConnector, Content, ContentMetrics, MediaUrl } from "./base.connector";
 import { firstValueFrom } from 'rxjs';
 
 @Injectable()
@@ -17,8 +17,7 @@ export class InstagramConnector extends BaseConnector {
   constructor(
     @InjectRedis() redis: Redis,
     config: ConfigService,
-    httpService: HttpService,
-  ) {
+    httpService: HttpService) {
     super(redis, config, 'instagram');
     this.httpService = httpService;
     this.accessToken = config.get<string>('INSTAGRAM_ACCESS_TOKEN') || '';
@@ -128,7 +127,7 @@ export class InstagramConnector extends BaseConnector {
       comments: rawPost.comments_count || 0,
       shares: 0, // Instagram doesn't provide share counts
       views: rawPost.media_type === 'VIDEO' ? (rawPost.play_count || 0) : 0, // Only for videos
-      saves: rawPost.saved_count || 0,
+      saves: rawPost.saved_count || 0
     };
 
     // Calculate engagement
@@ -146,7 +145,7 @@ export class InstagramConnector extends BaseConnector {
       mentions,
       location: rawPost.location ? {
         name: rawPost.location.name,
-        coordinates: null, // Instagram doesn't provide exact coordinates
+        coordinates: null // Instagram doesn't provide exact coordinates
       } : null,
       language: this.detectLanguage(rawPost.caption || ''),
       timestamp: new Date(parseInt(rawPost.timestamp) * 1000),
@@ -157,8 +156,8 @@ export class InstagramConnector extends BaseConnector {
         isCommentEnabled: rawPost.comments_enabled,
         permalink: rawPost.permalink,
         thumbnailUrl: rawPost.thumbnail_url,
-        igId: rawPost.ig_id,
-      },
+        igId: rawPost.ig_id
+      }
     };
   }
 
@@ -176,7 +175,7 @@ export class InstagramConnector extends BaseConnector {
         // First, get hashtag ID
         const hashtagResponse = await this.makeApiRequest('/ig_hashtag_search', {
           user_id: await this.getUserId(),
-          q: cleanHashtag,
+          q: cleanHashtag
         });
 
         if (!hashtagResponse.data?.length) {
@@ -197,7 +196,7 @@ export class InstagramConnector extends BaseConnector {
             user_id: await this.getUserId(),
             fields: 'id,caption,media_type,media_url,thumbnail_url,timestamp,like_count,comments_count,play_count,saved_count,owner,location,children',
             limit: 25,
-            after: after || undefined,
+            after: after || undefined
           });
 
           if (mediaResponse.data) {
@@ -281,7 +280,7 @@ export class InstagramConnector extends BaseConnector {
           lat: 0, // Instagram location search requires lat/lng
           lng: 0,
           distance: 1000,
-          q: locationName,
+          q: locationName
         });
 
         if (!locationResponse.data?.length) {
@@ -294,7 +293,7 @@ export class InstagramConnector extends BaseConnector {
         const mediaResponse = await this.makeApiRequest(`/${locationId}/recent_media`, {
           user_id: await this.getUserId(),
           fields: 'id,caption,media_type,media_url,thumbnail_url,timestamp,like_count,comments_count,play_count,saved_count,owner,location,children',
-          limit: 20,
+          limit: 20
         });
 
         if (mediaResponse.data) {
@@ -336,7 +335,7 @@ export class InstagramConnector extends BaseConnector {
         const mediaResponse = await this.makeApiRequest('/me/media', {
           fields: 'id,caption,media_type,media_url,thumbnail_url,timestamp,like_count,comments_count,play_count,saved_count,owner,location,children',
           limit: 25,
-          after: after || undefined,
+          after: after || undefined
         });
 
         if (mediaResponse.data) {
@@ -421,7 +420,7 @@ export class InstagramConnector extends BaseConnector {
       url: media.media_url || '',
       type,
       thumbnail: media.thumbnail_url,
-      size: media.media_size,
+      size: media.media_size
     };
   }
 
@@ -432,8 +431,8 @@ export class InstagramConnector extends BaseConnector {
         this.httpService.get(url, {
           params: {
             access_token: this.accessToken,
-            ...params,
-          },
+            ...params
+          }
         })
       );
 

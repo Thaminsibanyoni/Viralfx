@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { WebSocketGateway } from '../websocket/websocket.gateway';
-import { VPMXResult, RegionalVPMXData } from './interfaces/vpmx.interface';
+import { VPMXResult, RegionalVPMXData } from "./interfaces/vpmx.interface";
 import { RedisService } from '../redis/redis.service';
 
 @Injectable()
@@ -11,9 +10,7 @@ export class VPMXIndexService {
   private readonly REGIONAL_INDEXES_KEY = 'vpmx:regional:indexes';
 
   constructor(
-    private readonly wsGateway: WebSocketGateway,
-    private readonly redis: RedisService,
-  ) {}
+    private readonly redis: RedisService) {}
 
   /**
    * Update real-time index with new VPMX result
@@ -49,7 +46,7 @@ export class VPMXIndexService {
       symbol: result.vtsSymbol,
       value: result.value,
       timestamp: result.timestamp,
-      metadata: result.metadata,
+      metadata: result.metadata
     });
 
     // Keep only top 100 entries by value
@@ -85,7 +82,7 @@ export class VPMXIndexService {
         entries: [],
         totalValue: 0,
         averageValue: 0,
-        lastUpdated: new Date(),
+        lastUpdated: new Date()
       };
     }
 
@@ -94,7 +91,7 @@ export class VPMXIndexService {
       symbol: result.vtsSymbol,
       value: result.value,
       timestamp: result.timestamp,
-      metadata: result.metadata,
+      metadata: result.metadata
     });
 
     // Update regional metrics
@@ -126,19 +123,19 @@ export class VPMXIndexService {
         value: result.value,
         timestamp: result.timestamp,
         components: result.components,
-        metadata: result.metadata,
-      },
+        metadata: result.metadata
+      }
     };
 
     // Broadcast to general VPMX topic
-    await this.wsGateway.broadcast(this.WEBSOCKET_TOPIC, payload);
+    // await this.wsGateway.broadcast(this.WEBSOCKET_TOPIC, payload);
 
     // Also broadcast to symbol-specific topic
-    const symbolTopic = `vpmx:${result.vtsSymbol}`;
-    await this.wsGateway.broadcast(symbolTopic, {
-      type: 'SYMBOL_UPDATE',
-      ...payload.data,
-    });
+    // const symbolTopic = `vpmx:${result.vtsSymbol}`;
+    // await this.wsGateway.broadcast(symbolTopic, {
+    //   type: 'SYMBOL_UPDATE',
+    //   ...payload.data
+    // });
   }
 
   /**
@@ -159,7 +156,7 @@ export class VPMXIndexService {
       volume: 0,
       count: 0,
       startTime: timestamp,
-      lastUpdate: timestamp,
+      lastUpdate: timestamp
     };
 
     // Update aggregate values
@@ -187,7 +184,7 @@ export class VPMXIndexService {
       entries: [],
       totalValue: 0,
       averageValue: 0,
-      lastUpdated: new Date(),
+      lastUpdated: new Date()
     };
   }
 
@@ -235,7 +232,7 @@ export class VPMXIndexService {
       oneHourChange: changes.oneHour,
       oneHourChangePercent: changes.oneHourPercent,
       twentyFourHourChange: changes.twentyFourHour,
-      twentyFourHourChangePercent: changes.twentyFourHourPercent,
+      twentyFourHourChangePercent: changes.twentyFourHourPercent
     };
   }
 
@@ -251,7 +248,7 @@ export class VPMXIndexService {
         symbol: entry.symbol,
         value: entry.value,
         timestamp: entry.timestamp,
-        metadata: entry.metadata,
+        metadata: entry.metadata
       }));
   }
 
@@ -271,7 +268,7 @@ export class VPMXIndexService {
         symbol: entry.symbol,
         value: entry.value,
         timestamp: entry.timestamp,
-        metadata: entry.metadata,
+        metadata: entry.metadata
       }));
   }
 
@@ -281,10 +278,10 @@ export class VPMXIndexService {
   async broadcastMarketUpdate(marketData: any): Promise<void> {
     const payload = {
       type: 'MARKET_UPDATE',
-      data: marketData,
+      data: marketData
     };
 
-    await this.wsGateway.broadcast('vpmx:markets', payload);
+    // await this.wsGateway.broadcast('vpmx:markets', payload);
   }
 
   /**
@@ -293,11 +290,11 @@ export class VPMXIndexService {
   async subscribeToSymbols(symbols: string[], clientId: string): Promise<void> {
     for (const symbol of symbols) {
       const topic = `vpmx:${symbol}`;
-      await this.wsGateway.subscribe(clientId, topic);
+      // await this.wsGateway.subscribe(clientId, topic);
     }
 
     // Also subscribe to general updates
-    await this.wsGateway.subscribe(clientId, this.WEBSOCKET_TOPIC);
+    // await this.wsGateway.subscribe(clientId, this.WEBSOCKET_TOPIC);
   }
 
   /**
@@ -306,7 +303,7 @@ export class VPMXIndexService {
   async unsubscribeFromSymbols(symbols: string[], clientId: string): Promise<void> {
     for (const symbol of symbols) {
       const topic = `vpmx:${symbol}`;
-      await this.wsGateway.unsubscribe(clientId, topic);
+      // await this.wsGateway.unsubscribe(clientId, topic);
     }
   }
 
@@ -316,8 +313,7 @@ export class VPMXIndexService {
   async getHistoricalChartData(
     vtsSymbol: string,
     interval: string,
-    limit: number,
-  ): Promise<any[]> {
+    limit: number): Promise<any[]> {
     const chartKey = `vpmx:chart:${vtsSymbol}:${interval}`;
 
     // Try to get cached chart data
@@ -338,8 +334,7 @@ export class VPMXIndexService {
   async cacheChartDataPoint(
     vtsSymbol: string,
     interval: string,
-    dataPoint: any,
-  ): Promise<void> {
+    dataPoint: any): Promise<void> {
     const chartKey = `vpmx:chart:${vtsSymbol}:${interval}`;
 
     // Add new data point
@@ -366,8 +361,7 @@ export class VPMXIndexService {
    */
   private async calculatePercentageChanges(
     vtsSymbol: string,
-    currentValue: number,
-  ): Promise<any> {
+    currentValue: number): Promise<any> {
     const now = Date.now();
     const oneHourAgo = now - (60 * 60 * 1000);
     const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
@@ -384,7 +378,7 @@ export class VPMXIndexService {
       oneHour: 0,
       oneHourPercent: 0,
       twentyFourHour: 0,
-      twentyFourHourPercent: 0,
+      twentyFourHourPercent: 0
     };
 
     if (oneHourValue) {

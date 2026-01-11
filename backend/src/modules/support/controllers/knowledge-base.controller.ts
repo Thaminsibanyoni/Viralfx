@@ -1,4 +1,4 @@
-import {
+import { 
   Controller,
   Get,
   Post,
@@ -10,19 +10,18 @@ import {
   UseGuards,
   Request,
   HttpStatus,
-  HttpCode,
-} from '@nestjs/common';
+  HttpCode, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../auth/enums/user-role.enum';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
+import { UserRole } from "../../../common/enums/user-role.enum";
 import { KnowledgeBaseService } from '../services/knowledge-base.service';
 import { CreateArticleDto } from '../dto/create-article.dto';
 import { UpdateArticleDto } from '../dto/update-article.dto';
 import { ArticleFilterDto } from '../dto/article-filter.dto';
 import { SearchArticlesDto } from '../dto/search-articles.dto';
-import { KnowledgeBaseArticle, ArticleStatus } from '../entities/knowledge-base-article.entity';
+// COMMENTED OUT (TypeORM entity deleted): import { KnowledgeBaseArticle, ArticleStatus } from '../entities/knowledge-base-article.entity';
 
 @ApiTags('knowledge-base')
 @ApiBearerAuth()
@@ -49,7 +48,7 @@ export class KnowledgeBaseController {
   async getPublicArticles(@Query() filters: ArticleFilterDto) {
     return await this.knowledgeBaseService.getArticles({
       ...filters,
-      status: ArticleStatus.PUBLISHED,
+      status: ArticleStatus.PUBLISHED
     });
   }
 
@@ -78,7 +77,7 @@ export class KnowledgeBaseController {
     const results = await this.knowledgeBaseService.searchArticles(searchDto.query, {
       categoryId: searchDto.categoryId,
       tags: searchDto.tags,
-      limit: searchDto.limit,
+      limit: searchDto.limit
     });
     return {
       success: true,
@@ -127,10 +126,10 @@ export class KnowledgeBaseController {
   @ApiResponse({ status: 201, description: 'Article created successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @Roles(UserRole.ADMIN, UserRole.SUPPORT)
-  async createArticle(@Body() createArticleDto: CreateArticleDto, @Request() req) {
+  async createArticle(@Body() createArticleDto: CreateArticleDto, @Req() req) {
     return await this.knowledgeBaseService.createArticle({
       ...createArticleDto,
-      authorId: req.user.id,
+      authorId: req.user.id
     });
   }
 

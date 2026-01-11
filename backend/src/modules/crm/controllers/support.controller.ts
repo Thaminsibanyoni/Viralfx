@@ -12,17 +12,17 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  Req,
+  Req
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiConsumes } from '@nestjs/swagger';
 import { SupportService } from '../services/support.service';
 import { CreateTicketDto } from '../dto/create-ticket.dto';
 import { UpdateTicketDto } from '../dto/update-ticket.dto';
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from "../../../common/enums/user-role.enum";
 
 @ApiTags('CRM - Support')
 @ApiBearerAuth()
@@ -37,18 +37,17 @@ export class SupportController {
   @ApiResponse({ status: 400, description: 'Bad Request' })
   async createTicket(
     @Body() createTicketDto: CreateTicketDto,
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const userId = req.user.id;
     const ticket = await this.supportService.createTicket({
       ...createTicketDto,
-      userId,
+      userId
     });
 
     return {
       success: true,
       message: 'Ticket created successfully',
-      data: ticket,
+      data: ticket
     };
   }
 
@@ -64,8 +63,7 @@ export class SupportController {
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
   async getTickets(
     @Query() query: any,
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const filters = {
       status: query.status,
       category: query.category,
@@ -73,7 +71,7 @@ export class SupportController {
       assignedTo: query.assignedTo,
       userId: req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.SUPPORT ? req.user.id : query.userId,
       page: parseInt(query.page) || 1,
-      limit: parseInt(query.limit) || 10,
+      limit: parseInt(query.limit) || 10
     };
 
     const result = await this.supportService.getTickets(filters);
@@ -85,8 +83,8 @@ export class SupportController {
         page: result.page,
         limit: result.limit,
         total: result.total,
-        totalPages: Math.ceil(result.total / result.limit),
-      },
+        totalPages: Math.ceil(result.total / result.limit)
+      }
     };
   }
 
@@ -97,13 +95,12 @@ export class SupportController {
   @ApiResponse({ status: 403, description: 'Access denied' })
   async getTicketById(
     @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const ticket = await this.supportService.getTicketById(id, req.user);
 
     return {
       success: true,
-      data: ticket,
+      data: ticket
     };
   }
 
@@ -115,14 +112,13 @@ export class SupportController {
   async updateTicket(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateTicketDto: UpdateTicketDto,
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const ticket = await this.supportService.updateTicket(id, updateTicketDto, req.user);
 
     return {
       success: true,
       message: 'Ticket updated successfully',
-      data: ticket,
+      data: ticket
     };
   }
 
@@ -135,12 +131,11 @@ export class SupportController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body('content') content: string,
     @UploadedFile() attachment?: Express.Multer.File,
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const messageData = {
       content,
       attachment,
-      authorId: req.user.id,
+      authorId: req.user.id
     };
 
     const message = await this.supportService.addMessage(id, messageData);
@@ -148,7 +143,7 @@ export class SupportController {
     return {
       success: true,
       message: 'Message added successfully',
-      data: message,
+      data: message
     };
   }
 
@@ -159,13 +154,12 @@ export class SupportController {
   @ApiResponse({ status: 403, description: 'Access denied' })
   async getTicketMessages(
     @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const messages = await this.supportService.getTicketMessages(id, req.user);
 
     return {
       success: true,
-      data: messages,
+      data: messages
     };
   }
 
@@ -178,19 +172,17 @@ export class SupportController {
   async assignTicket(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() assignmentData: { assignedToId: string; reason: string },
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const assignment = await this.supportService.assignTicket(
       id,
       assignmentData.assignedToId,
       assignmentData.reason,
-      req.user.id,
-    );
+      req.user.id);
 
     return {
       success: true,
       message: 'Ticket assigned successfully',
-      data: assignment,
+      data: assignment
     };
   }
 
@@ -202,19 +194,17 @@ export class SupportController {
   async closeTicket(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() closeData: { reason: string; satisfactionRating?: number },
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const ticket = await this.supportService.closeTicket(
       id,
       closeData.reason,
       closeData.satisfactionRating,
-      req.user,
-    );
+      req.user);
 
     return {
       success: true,
       message: 'Ticket closed successfully',
-      data: ticket,
+      data: ticket
     };
   }
 
@@ -226,7 +216,7 @@ export class SupportController {
 
     return {
       success: true,
-      data: categories,
+      data: categories
     };
   }
 
@@ -238,7 +228,7 @@ export class SupportController {
 
     return {
       success: true,
-      data: priorities,
+      data: priorities
     };
   }
 
@@ -249,13 +239,12 @@ export class SupportController {
   @ApiResponse({ status: 403, description: 'Access denied' })
   async getSLAStatus(
     @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: any,
-  ) {
+    @Req() req: any) {
     const slaStatus = await this.supportService.getSLAStatus(id, req.user);
 
     return {
       success: true,
-      data: slaStatus,
+      data: slaStatus
     };
   }
 }
