@@ -8,7 +8,7 @@ import { PaymentMethod, BrokerTier } from '../enums/broker.enum';
 import { InitiatePaymentDto } from '../dto/payment.dto';
 import { PaymentGatewayService } from "../../../modules/payment/services/payment-gateway.service";
 import { NotificationService } from "../../../modules/notifications/services/notification.service";
-import { InvoiceGeneratorService } from "../../billing/services/invoice-generator.service";
+import { InvoiceGeneratorService } from "../../../modules/billing/services/invoice-generator.service";
 import { StorageService } from "../../../modules/storage/services/storage.service";
 
 // Bill status enum to replace deleted entity

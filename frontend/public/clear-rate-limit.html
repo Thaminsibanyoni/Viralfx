@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Rate Limit</title>
+    <style>
+        body { font-family: Arial; padding: 20px; text-align: center; }
+        .success { color: green; font-size: 18px; }
+        .info { color: blue; font-size: 14px; margin: 10px 0; }
+        button { padding: 15px 30px; font-size: 18px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 5px; }
+        button:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+    <h1>🔓 Clear Login Rate Limiting</h1>
+    <p class="info">This will clear all login attempt counters from your browser storage.</p>
+
+    <button onclick="clearAllRateLimits()">Clear All Rate Limits</button>
+
+    <div id="result" style="margin-top: 30px;"></div>
+
+    <script>
+        function clearAllRateLimits() {
+            const resultDiv = document.getElementById('result');
+            let cleared = 0;
+
+            // Clear all login_attempts_* keys
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('login_attempts_')) {
+                    localStorage.removeItem(key);
+                    cleared++;
+                }
+            }
+
+            // Also clear auth tokens
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('refreshToken');
+            sessionStorage.removeItem('authToken');
+            sessionStorage.removeItem('refreshToken');
+
+            resultDiv.innerHTML = `
+                <h2 class="success">✅ Cleared ${cleared} rate limit entries!</h2>
+                <p class="info">You can now try logging in again.</p>
+                <p class="info">
+                    <strong>Next Steps:</strong><br>
+                    1. Go to <a href="http://localhost:5173">http://localhost:5173</a><br>
+                    2. Login with: user@user.com / 1234<br>
+                    3. Or for SuperAdmin: admin@admin.com / 1234
+                </p>
+            `;
+        }
+    </script>
+</body>
+</html>

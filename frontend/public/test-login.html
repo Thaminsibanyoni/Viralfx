@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .success { color: green; }
+        .error { color: red; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+        #result { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>🧪 API Connection Test</h1>
+    <p>Click the button to test login to backend:</p>
+
+    <button onclick="testLogin()">Test Login</button>
+
+    <div id="result"></div>
+
+    <script>
+        async function testLogin() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>⏳ Testing...</p>';
+
+            try {
+                const response = await fetch('http://localhost:3000/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        identifier: 'user@user.com',
+                        password: '1234'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <h2 class="success">✅ SUCCESS!</h2>
+                        <p><strong>Email:</strong> ${data.data.user.email}</p>
+                        <p><strong>Name:</strong> ${data.data.user.firstName} ${data.data.user.lastName}</p>
+                        <p><strong>Balance:</strong> R${data.data.user.balanceUsd}</p>
+                        <p><strong>Token:</strong> ${data.data.tokens.accessToken.substring(0, 50)}...</p>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<h2 class="error">❌ Login Failed</h2><p>${data.error}</p>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<h2 class="error">❌ Error</h2><p>${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

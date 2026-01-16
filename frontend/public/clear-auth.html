@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Auth State - ViralFX</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .button {
+            background: #FF4D4F;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            margin: 10px 0;
+            width: 100%;
+        }
+        .button:hover {
+            background: #ff7875;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #2a2a2a;
+            border-radius: 8px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .success {
+            border-left: 4px solid #52C41A;
+        }
+        h1 {
+            color: #FFB300;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧹 Clear Frontend Auth State</h1>
+    <p>This will clear all authentication tokens and session data from your browser.</p>
+
+    <button class="button" onclick="clearAuthState()">Clear All Auth Data</button>
+
+    <div id="result" class="result"></div>
+
+    <script>
+        function clearAuthState() {
+            const result = document.getElementById('result');
+            result.className = 'result';
+            result.textContent = 'Clearing...';
+
+            const itemsCleared = [];
+
+            // Clear localStorage
+            try {
+                const localStorageKeys = Object.keys(localStorage);
+                localStorageKeys.forEach(key => {
+                    const value = localStorage.getItem(key);
+                    if (key.toLowerCase().includes('token') ||
+                        key.toLowerCase().includes('auth') ||
+                        key.toLowerCase().includes('user') ||
+                        key.toLowerCase().includes('session')) {
+                        itemsCleared.push(`localStorage: ${key}`);
+                        localStorage.removeItem(key);
+                    }
+                });
+            } catch (e) {
+                itemsCleared.push(`localStorage error: ${e.message}`);
+            }
+
+            // Clear sessionStorage
+            try {
+                const sessionStorageKeys = Object.keys(sessionStorage);
+                sessionStorageKeys.forEach(key => {
+                    const value = sessionStorage.getItem(key);
+                    if (key.toLowerCase().includes('token') ||
+                        key.toLowerCase().includes('auth') ||
+                        key.toLowerCase().includes('user') ||
+                        key.toLowerCase().includes('session')) {
+                        itemsCleared.push(`sessionStorage: ${key}`);
+                        sessionStorage.removeItem(key);
+                    }
+                });
+            } catch (e) {
+                itemsCleared.push(`sessionStorage error: ${e.message}`);
+            }
+
+            // Clear cookies
+            try {
+                const cookies = document.cookie.split(';');
+                cookies.forEach(cookie => {
+                    const cookieParts = cookie.split('=');
+                    const cookieName = cookieParts[0].trim();
+                    if (cookieName.toLowerCase().includes('token') ||
+                        cookieName.toLowerCase().includes('auth') ||
+                        cookieName.toLowerCase().includes('session')) {
+                        itemsCleared.push(`cookie: ${cookieName}`);
+                        document.cookie = cookieName + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                    }
+                });
+            } catch (e) {
+                itemsCleared.push(`cookie error: ${e.message}`);
+            }
+
+            // Clear IndexedDB (more thorough)
+            if (window.indexedDB) {
+                const dbs = ['zustand', 'localforage'];
+                dbs.forEach(dbName => {
+                    const request = indexedDB.deleteDatabase(dbName);
+                    request.onsuccess = () => {
+                        itemsCleared.push(`IndexedDB: ${dbName}`);
+                    };
+                    request.onerror = () => {
+                        // Ignore errors for non-existent DBs
+                    };
+                });
+            }
+
+            result.className = 'result success';
+            result.textContent = `✅ Cleared ${itemsCleared.length} items:\n\n${itemsCleared.join('\n')}\n\n✅ Auth state cleared!\n\nYou can now close this window and try logging in again.`;
+        }
+    </script>
+</body>
+</html>

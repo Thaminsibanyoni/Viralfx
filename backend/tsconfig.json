@@ -20,6 +20,8 @@
     "noImplicitReturns": false,
     "noImplicitThis": false,
     "strict": false,
+    "noErrorTruncation": true,
+    "types": [],
     "paths": {
       "@/*": ["src/*"]
     }

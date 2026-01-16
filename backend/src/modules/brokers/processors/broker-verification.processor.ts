@@ -1,5 +1,6 @@
 import { Processor } from '@nestjs/bullmq';
 import { OnWorkerEvent } from '@nestjs/bullmq';
+import { WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { FSCAService } from '../services/fsca.service';
@@ -567,14 +568,14 @@ export class BrokerVerificationProcessor extends WorkerHost {
     await this.prismaService.auditLog.create({
       data: {
         action: 'BROKER_VERIFICATION',
-        entityType: 'BROKER_VERIFICATION',
+        entity: 'BROKER_VERIFICATION',
         entityId: brokerId,
-        oldValues: null,
-        newValues: JSON.stringify({
+        changes: null,
+        metadata: {
           activity,
           details,
           timestamp: new Date().toISOString()
-        }),
+        },
         userId: null,
         ipAddress: null,
         userAgent: 'Bull Processor'

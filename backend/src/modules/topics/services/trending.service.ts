@@ -59,25 +59,25 @@ export class TrendingService {
     // Get topics with recent activity
     const topics = await this.prisma.topic.findMany({
       where: {
-        isActive: true,
+        status: 'ACTIVE',
         deletedAt: null,
         ...(category && { category }),
         viralSnapshots: {
           some: {
-            timestamp: { gte: timeAgo }
+            ts: { gte: timeAgo }
           }
         }
       },
       include: {
         viralSnapshots: {
           where: {
-            timestamp: { gte: timeAgo }
+            ts: { gte: timeAgo }
           },
-          orderBy: { timestamp: 'desc' }
+          orderBy: { ts: 'desc' }
         },
         ingestEvents: {
           where: {
-            timestamp: { gte: timeAgo },
+            ingestedAt: { gte: timeAgo },
             ...(region && { metadata: { path: ['region'], equals: region } })
           }
         },
@@ -85,7 +85,7 @@ export class TrendingService {
           select: {
             ingestEvents: {
               where: {
-                timestamp: { gte: timeAgo }
+                ingestedAt: { gte: timeAgo }
               }
             }
           }
@@ -231,9 +231,9 @@ export class TrendingService {
     const snapshots = await this.prisma.viralIndexSnapshot.findMany({
       where: {
         topicId,
-        timestamp: { gte: startTime }
+        ts: { gte: startTime }
       },
-      orderBy: { timestamp: 'asc' }
+      orderBy: { ts: 'asc' }
     });
 
     // Group snapshots by intervals
@@ -241,7 +241,7 @@ export class TrendingService {
     const grouped: { [key: number]: number[] } = {};
 
     for (const snapshot of snapshots) {
-      const intervalKey = Math.floor(snapshot.timestamp.getTime() / intervalMs) * intervalMs;
+      const intervalKey = Math.floor(snapshot.ts.getTime() / intervalMs) * intervalMs;
       if (!grouped[intervalKey]) {
         grouped[intervalKey] = [];
       }
@@ -265,15 +265,15 @@ export class TrendingService {
 
     const topics = await this.prisma.topic.findMany({
       where: {
-        isActive: true,
+        status: 'ACTIVE',
         deletedAt: null
       },
       include: {
         viralSnapshots: {
           where: {
-            timestamp: { gte: baselineStart }
+            ts: { gte: baselineStart }
           },
-          orderBy: { timestamp: 'asc' }
+          orderBy: { ts: 'asc' }
         }
       }
     });
@@ -281,8 +281,8 @@ export class TrendingService {
     const spikes: Array<any> = [];
 
     for (const topic of topics) {
-      const windowSnapshots = topic.viralSnapshots.filter(s => s.timestamp >= windowStart);
-      const baselineSnapshots = topic.viralSnapshots.filter(s => s.timestamp >= baselineStart && s.timestamp < windowStart);
+      const windowSnapshots = topic.viralSnapshots.filter(s => s.ts >= windowStart);
+      const baselineSnapshots = topic.viralSnapshots.filter(s => s.ts >= baselineStart && s.ts < windowStart);
 
       if (windowSnapshots.length > 0 && baselineSnapshots.length > 0) {
         const currentScore = windowSnapshots.reduce((sum, s) => sum + s.viralIndex, 0) / windowSnapshots.length;
@@ -347,7 +347,7 @@ export class TrendingService {
     const latest = viralSnapshots[0];
     const earliest = viralSnapshots[viralSnapshots.length - 1];
 
-    const timeDiff = (latest.timestamp.getTime() - earliest.timestamp.getTime()) / (1000 * 60); // minutes
+    const timeDiff = (latest.ts.getTime() - earliest.ts.getTime()) / (1000 * 60); // minutes
     const indexDiff = latest.viralIndex - earliest.viralIndex;
 
     const velocity = timeDiff > 0 ? indexDiff / timeDiff : 0;
@@ -386,7 +386,7 @@ export class TrendingService {
       select: { category: true },
       distinct: ['category'],
       where: {
-        isActive: true,
+        status: 'ACTIVE',
         deletedAt: null
       }
     });

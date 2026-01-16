@@ -31,9 +31,9 @@ import { TrendingService } from '../services/trending.service';
 import { CreateTopicDto } from '../dto/create-topic.dto';
 
 @ApiTags('Topics')
-@Controller('topics')
 @UseGuards(JwtAuthGuard, ThrottlerGuard)
 @ApiBearerAuth()
+@Controller('topics')
 export class TopicsController {
   constructor(
     private readonly topicsService: TopicsService,
@@ -192,6 +192,8 @@ export class TopicsController {
   }
 
   @Post()
+  @UseGuards(JwtAuthGuard, ThrottlerGuard, RolesGuard)
+  @ApiBearerAuth()
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Create new topic (Admin only)' })
   @ApiResponse({ status: 201, description: 'Topic created successfully' })
@@ -202,6 +204,8 @@ export class TopicsController {
   }
 
   @Put(':id')
+  @UseGuards(JwtAuthGuard, ThrottlerGuard, RolesGuard)
+  @ApiBearerAuth()
   @Roles('ADMIN')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update topic (Admin only)' })
@@ -215,6 +219,8 @@ export class TopicsController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, ThrottlerGuard, RolesGuard)
+  @ApiBearerAuth()
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Delete topic (Admin only)' })
   @ApiParam({ name: 'id', description: 'Topic ID' })

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Register Test - ViralFX</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        button {
+            background: #FFB300;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+        }
+        button:hover {
+            background: #FFA000;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { border-left: 4px solid #52C41A; }
+        .error { border-left: 4px solid #FF4D4F; }
+        h2 { color: #FFB300; }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .form-group {
+            margin: 10px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #FFB300;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 ViralFX Register Test</h1>
+    <p>This page tests the registration functionality directly from the browser.</p>
+
+    <div class="test-section">
+        <h2>👤 User Registration Test</h2>
+        <div class="form-group">
+            <label>Email:</label>
+            <input type="email" id="user-email" value="testuser@example.com">
+        </div>
+        <div class="form-group">
+            <label>Username:</label>
+            <input type="text" id="user-username" value="testuser123">
+        </div>
+        <div class="form-group">
+            <label>Password:</label>
+            <input type="password" id="user-password" value="Password123">
+        </div>
+        <div class="form-group">
+            <label>First Name:</label>
+            <input type="text" id="user-firstname" value="Test">
+        </div>
+        <div class="form-group">
+            <label>Last Name:</label>
+            <input type="text" id="user-lastname" value="User">
+        </div>
+        <button onclick="testUserRegister()">Test User Registration</button>
+        <div id="user-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🏢 Broker Registration Test</h2>
+        <div class="form-group">
+            <label>Company Email:</label>
+            <input type="email" id="broker-email" value="testbroker@example.com">
+        </div>
+        <div class="form-group">
+            <label>Company Name:</label>
+            <input type="text" id="broker-company" value="Test Brokerage">
+        </div>
+        <div class="form-group">
+            <label>Password:</label>
+            <input type="password" id="broker-password" value="Password123">
+        </div>
+        <div class="form-group">
+            <label>Tier:</label>
+            <select id="broker-tier" style="width: 100%; padding: 8px; background: #1a1a1a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                <option value="STANDARD">STANDARD</option>
+                <option value="PREMIUM">PREMIUM</option>
+                <option value="ENTERPRISE">ENTERPRISE</option>
+            </select>
+        </div>
+        <button onclick="testBrokerRegister()">Test Broker Registration</button>
+        <div id="broker-result" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api/v1';
+
+        async function testUserRegister() {
+            const result = document.getElementById('user-result');
+            result.className = 'result';
+            result.textContent = 'Testing...';
+
+            const data = {
+                email: document.getElementById('user-email').value,
+                username: document.getElementById('user-username').value,
+                password: document.getElementById('user-password').value,
+                firstName: document.getElementById('user-firstname').value,
+                lastName: document.getElementById('user-lastname').value,
+                dateOfBirth: '1990-01-01T00:00:00.000Z',
+                phone: '+27123456789',
+                idNumber: '9001011234567',
+                address: '123 Test Street',
+                city: 'Johannesburg',
+                province: 'Gauteng',
+                postalCode: '2000',
+                country: 'ZA',
+                acceptTerms: true,
+                acceptPrivacy: true,
+                acceptRisk: true,
+                acceptFSCA: true
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const responseData = await response.json();
+
+                if (response.ok && responseData.success) {
+                    result.className = 'result success';
+                    result.textContent = `✅ REGISTRATION SUCCESSFUL! (HTTP ${response.status})\n\n${JSON.stringify(responseData, null, 2)}`;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = `❌ REGISTRATION FAILED (HTTP ${response.status})\n\n${JSON.stringify(responseData, null, 2)}`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ ERROR\n\n${error.message}\n\nStack: ${error.stack}`;
+            }
+        }
+
+        async function testBrokerRegister() {
+            const result = document.getElementById('broker-result');
+            result.className = 'result';
+            result.textContent = 'Testing...';
+
+            const data = {
+                companyName: document.getElementById('broker-company').value,
+                email: document.getElementById('broker-email').value,
+                password: document.getElementById('broker-password').value,
+                tier: document.getElementById('broker-tier').value,
+                phone: '+27123456789',
+                address: '456 Broker Street',
+                city: 'Johannesburg',
+                province: 'Gauteng',
+                postalCode: '2001',
+                country: 'ZA',
+                registrationNumber: '2023/123456/07',
+                taxNumber: '1234567890',
+                fsdNumber: 'FSP 12345',
+                acceptTerms: true
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/broker/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const responseData = await response.json();
+
+                if (response.ok && responseData.success) {
+                    result.className = 'result success';
+                    result.textContent = `✅ BROKER REGISTRATION SUCCESSFUL! (HTTP ${response.status})\n\n${JSON.stringify(responseData, null, 2)}`;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = `❌ BROKER REGISTRATION FAILED (HTTP ${response.status})\n\n${JSON.stringify(responseData, null, 2)}`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ ERROR\n\n${error.message}\n\nStack: ${error.stack}`;
+            }
+        }
+    </script>
+</body>
+</html>

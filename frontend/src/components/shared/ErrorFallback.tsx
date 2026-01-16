@@ -1,6 +1,5 @@
 import React from 'react';
 import { Result, Button, Typography, Card, Space, Divider, message } from 'antd';
-import { useNavigate } from 'react-router-dom';
 import {
   ExclamationCircleOutlined, HomeOutlined, ReloadOutlined, CopyOutlined, BugOutlined, } from '@ant-design/icons';
 
@@ -12,7 +11,6 @@ interface ErrorFallbackProps {
 }
 
 const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, resetErrorBoundary }) => {
-  const navigate = useNavigate();
   const isDev = process.env.NODE_ENV === 'development';
 
   const handleCopyError = () => {
@@ -31,7 +29,7 @@ User Agent: ${navigator.userAgent}
   };
 
   const handleGoHome = () => {
-    navigate('/');
+    window.location.href = '/';
     resetErrorBoundary();
   };
 

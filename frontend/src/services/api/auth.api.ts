@@ -5,13 +5,35 @@ import type {
 class AuthAPI {
   // Authentication endpoints
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    const response = await apiClient.post('/auth/login', credentials);
-    return response.data;
+    // Transform email to identifier for backend compatibility
+    const loginData = {
+      identifier: credentials.email || credentials.identifier || credentials.username || '',
+      password: credentials.password,
+      twoFactorCode: credentials.twoFactorCode,
+      deviceFingerprint: credentials.deviceFingerprint,
+      userAgent: credentials.userAgent,
+    };
+    const response = await apiClient.post('/auth/login', loginData);
+
+    // Handle both wrapped and unwrapped responses
+    // Backend returns: { success, data: { user, tokens, ... } }
+    // apiClient.post returns AxiosResponse where response.data is the body
+    if (response.data && response.data.data) {
+      // Wrapped response - extract inner data
+      return response.data.data as LoginResponse;
+    }
+    // Unwrapped response or error
+    return response.data as LoginResponse;
   }
 
   async register(userData: RegisterRequest): Promise<RegisterResponse> {
     const response = await apiClient.post('/auth/register', userData);
-    return response.data;
+
+    // Handle both wrapped and unwrapped responses
+    if (response.data && response.data.data) {
+      return response.data.data as RegisterResponse;
+    }
+    return response.data as RegisterResponse;
   }
 
   async logout(allSessions: boolean = false): Promise<void> {

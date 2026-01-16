@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head><title>API Debug</title></head>
+<body>
+<h1>API Response Structure Debug</h1>
+<button onclick="testLogin()">Test Login API</button>
+<pre id="result"></pre>
+
+<script>
+async function testLogin() {
+    try {
+        const response = await fetch('http://localhost:3000/api/v1/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                identifier: 'user@user.com',
+                password: '1234'
+            })
+        });
+
+        const data = await response.json();
+        document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+
+        console.log('Full response:', data);
+        console.log('Has data?', !!data.data);
+        if (data.data) {
+            console.log('data keys:', Object.keys(data.data));
+            console.log('Has user?', !!data.data.user);
+            console.log('Has tokens?', !!data.data.tokens);
+        }
+    } catch (error) {
+        document.getElementById('result').textContent = 'Error: ' + error.message;
+    }
+}
+</script>
+</body>
+</html>

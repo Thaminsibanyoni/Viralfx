@@ -21,7 +21,7 @@ import { SocialMediaPost } from '../interfaces/social-data-integration.interface
 import { ConfigService } from '@nestjs/config';
 
 @ApiTags('oracle')
-@Controller('api/oracle')
+@Controller('oracle')
 @UsePipes(new ValidationPipe({ transform: true }))
 export class OracleController {
   private readonly logger = new Logger(OracleController.name);

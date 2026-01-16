@@ -1,4 +1,4 @@
-import { 
+import {
   Controller,
   Get,
   Query,
@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  Param,
   Request, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';

@@ -3,7 +3,10 @@ import { Link } from 'react-router-dom';
 import {
   Row, Col, Card, Typography, Button, Space, Statistic, Carousel, List, Avatar, Rate, Divider, message, } from 'antd';
 import {
-  ArrowRightOutlined, PlayCircleOutlined, SafetyCertificateOutlined, TrophyOutlined, RocketOutlined, SecurityScanOutlined, DollarCircleOutlined, ThunderboltOutlined, CheckCircleOutlined, StarOutlined, TwitterOutlined, InstagramOutlined, VideoCameraOutlined, } from '@ant-design/icons';
+  ArrowRightOutlined, SafetyCertificateOutlined, TrophyOutlined, RocketOutlined, SecurityScanOutlined, DollarCircleOutlined, ThunderboltOutlined, CheckCircleOutlined, StarOutlined, InstagramOutlined, } from '@ant-design/icons';
+import { XIcon, TikTokIcon } from '../components/icons/SocialIcons';
+import FAQSection from '../components/home/FAQSection';
+import LiveTrendingMarkets from '../components/home/LiveTrendingMarkets';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 
@@ -299,41 +302,11 @@ const Home: React.FC = () => {
                           boxShadow: '0 8px 24px rgba(75, 0, 130, 0.4)',
                         }}
                       >
-                        Start Trading Free
+                        Start Trading
                         <ArrowRightOutlined style={{ marginLeft: '8px' }} />
                       </Button>
                     </Link>
-                    <Button
-                      size="large"
-                      icon={<PlayCircleOutlined />}
-                      style={{
-                        borderColor: '#FFB300',
-                        color: '#FFB300',
-                        height: '56px',
-                        padding: '0 24px',
-                      }}
-                      onClick={() => message.info('Platform demo coming soon!')}
-                    >
-                      Watch Demo
-                    </Button>
                   </Space>
-
-                  <div style={{ marginTop: '32px' }}>
-                    <Space split={<Divider type="vertical" style={{ borderColor: 'rgba(255, 179, 0, 0.3)' }} />}>
-                      <Space>
-                        <CheckCircleOutlined style={{ color: '#52C41A' }} />
-                        <Text style={{ color: '#B8BCC8' }}>No credit card required</Text>
-                      </Space>
-                      <Space>
-                        <CheckCircleOutlined style={{ color: '#52C41A' }} />
-                        <Text style={{ color: '#B8BCC8' }}>ZAR 10,000 demo account</Text>
-                      </Space>
-                      <Space>
-                        <CheckCircleOutlined style={{ color: '#52C41A' }} />
-                        <Text style={{ color: '#B8BCC8' }}>Cancel anytime</Text>
-                      </Space>
-                    </Space>
-                  </div>
                 </motion.div>
               </Col>
 
@@ -366,15 +339,15 @@ const Home: React.FC = () => {
                         marginBottom: '32px'
                       }}>
                         <div>
-                          <TwitterOutlined style={{ fontSize: '32px', color: '#1DA1F2' }} />
-                          <div style={{ fontSize: '12px', color: '#B8BCC8', marginTop: '4px' }}>Twitter</div>
+                          <XIcon style={{ fontSize: '32px', color: '#000000' }} />
+                          <div style={{ fontSize: '12px', color: '#B8BCC8', marginTop: '4px' }}>X</div>
                         </div>
                         <div>
                           <InstagramOutlined style={{ fontSize: '32px', color: '#E4405F' }} />
                           <div style={{ fontSize: '12px', color: '#B8BCC8', marginTop: '4px' }}>Instagram</div>
                         </div>
                         <div>
-                          <VideoCameraOutlined style={{ fontSize: '32px', color: '#000000' }} />
+                          <TikTokIcon style={{ fontSize: '32px', color: '#000000' }} />
                           <div style={{ fontSize: '12px', color: '#B8BCC8', marginTop: '4px' }}>TikTok</div>
                         </div>
                       </div>
@@ -440,6 +413,27 @@ const Home: React.FC = () => {
                 />
               </Col>
             </Row>
+          </div>
+        </section>
+
+        {/* Live Trending Markets Section */}
+        <section style={{ padding: '80px 20px', background: '#0E0E10' }}>
+          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+              style={{ textAlign: 'center', marginBottom: '64px' }}
+            >
+              <Title level={2} style={{ color: '#FFB300', marginBottom: '16px' }}>
+                Live Trending Markets
+              </Title>
+              <Text style={{ color: '#B8BCC8', fontSize: '18px' }}>
+                Real-time social media trends powered by AI analysis
+              </Text>
+            </motion.div>
+            <LiveTrendingMarkets />
           </div>
         </section>
 
@@ -550,7 +544,7 @@ const Home: React.FC = () => {
           </div>
         </section>
 
-        {/* Testimonials Section */}
+        {/* FAQ Section */}
         <section style={{ padding: '80px 20px', background: '#0E0E10' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
             <motion.div
@@ -561,128 +555,13 @@ const Home: React.FC = () => {
               style={{ textAlign: 'center', marginBottom: '64px' }}
             >
               <Title level={2} style={{ color: '#FFB300', marginBottom: '16px' }}>
-                What Our Traders Say
+                Frequently Asked Questions
               </Title>
               <Text style={{ color: '#B8BCC8', fontSize: '18px' }}>
-                Join thousands of successful South African traders
+                Learn how the ViralFX system works
               </Text>
             </motion.div>
-
-            <Row gutter={[32, 32]}>
-              <Col xs={24} lg={8}>
-                <motion.div
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.1 }}
-                  viewport={{ once: true }}
-                >
-                  <Card
-                    style={{
-                      background: 'rgba(26, 26, 28, 0.8)',
-                      border: '1px solid rgba(255, 179, 0, 0.2)',
-                      borderRadius: '16px',
-                      height: '100%',
-                    }}
-                    bodyStyle={{ padding: '32px' }}
-                  >
-                    <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                      <Avatar size={64} src={testimonials[0].avatar} />
-                      <Title level={5} style={{ color: '#FFB300', margin: '12px 0 4px' }}>
-                        {testimonials[0].name}
-                      </Title>
-                      <Text style={{ color: '#B8BCC8', fontSize: '14px' }}>
-                        {testimonials[0].role}
-                      </Text>
-                    </div>
-                    <Rate disabled value={testimonials[0].rating} style={{ color: '#FFB300', marginBottom: '16px' }} />
-                    <Text style={{ color: '#B8BCC8', display: 'block', lineHeight: '1.6', marginBottom: '16px' }}>
-                      "{testimonials[0].content}"
-                    </Text>
-                    <div style={{ textAlign: 'center' }}>
-                      <Text style={{ color: '#52C41A', fontSize: '18px', fontWeight: 'bold' }}>
-                        {testimonials[0].profit}
-                      </Text>
-                    </div>
-                  </Card>
-                </motion.div>
-              </Col>
-
-              <Col xs={24} lg={8}>
-                <motion.div
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.2 }}
-                  viewport={{ once: true }}
-                >
-                  <Card
-                    style={{
-                      background: 'rgba(26, 26, 28, 0.8)',
-                      border: '1px solid rgba(255, 179, 0, 0.2)',
-                      borderRadius: '16px',
-                      height: '100%',
-                    }}
-                    bodyStyle={{ padding: '32px' }}
-                  >
-                    <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                      <Avatar size={64} src={testimonials[1].avatar} />
-                      <Title level={5} style={{ color: '#FFB300', margin: '12px 0 4px' }}>
-                        {testimonials[1].name}
-                      </Title>
-                      <Text style={{ color: '#B8BCC8', fontSize: '14px' }}>
-                        {testimonials[1].role}
-                      </Text>
-                    </div>
-                    <Rate disabled value={testimonials[1].rating} style={{ color: '#FFB300', marginBottom: '16px' }} />
-                    <Text style={{ color: '#B8BCC8', display: 'block', lineHeight: '1.6', marginBottom: '16px' }}>
-                      "{testimonials[1].content}"
-                    </Text>
-                    <div style={{ textAlign: 'center' }}>
-                      <Text style={{ color: '#52C41A', fontSize: '18px', fontWeight: 'bold' }}>
-                        {testimonials[1].profit}
-                      </Text>
-                    </div>
-                  </Card>
-                </motion.div>
-              </Col>
-
-              <Col xs={24} lg={8}>
-                <motion.div
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.3 }}
-                  viewport={{ once: true }}
-                >
-                  <Card
-                    style={{
-                      background: 'rgba(26, 26, 28, 0.8)',
-                      border: '1px solid rgba(255, 179, 0, 0.2)',
-                      borderRadius: '16px',
-                      height: '100%',
-                    }}
-                    bodyStyle={{ padding: '32px' }}
-                  >
-                    <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                      <Avatar size={64} src={testimonials[2].avatar} />
-                      <Title level={5} style={{ color: '#FFB300', margin: '12px 0 4px' }}>
-                        {testimonials[2].name}
-                      </Title>
-                      <Text style={{ color: '#B8BCC8', fontSize: '14px' }}>
-                        {testimonials[2].role}
-                      </Text>
-                    </div>
-                    <Rate disabled value={testimonials[2].rating} style={{ color: '#FFB300', marginBottom: '16px' }} />
-                    <Text style={{ color: '#B8BCC8', display: 'block', lineHeight: '1.6', marginBottom: '16px' }}>
-                      "{testimonials[2].content}"
-                    </Text>
-                    <div style={{ textAlign: 'center' }}>
-                      <Text style={{ color: '#52C41A', fontSize: '18px', fontWeight: 'bold' }}>
-                        {testimonials[2].profit}
-                      </Text>
-                    </div>
-                  </Card>
-                </motion.div>
-              </Col>
-            </Row>
+            <FAQSection />
           </div>
         </section>
 
@@ -699,8 +578,7 @@ const Home: React.FC = () => {
                 Ready to Trade Viral Trends?
               </Title>
               <Text style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '20px', display: 'block', marginBottom: '40px', lineHeight: '1.6' }}>
-                Join thousands of South African traders who are already profiting from viral market movements.
-                Start with a free demo account and upgrade when you're ready.
+                Start trading viral trends with AI-powered insights
               </Text>
               <Space size="large">
                 <Link to="/register">
@@ -717,7 +595,7 @@ const Home: React.FC = () => {
                       boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)',
                     }}
                   >
-                    Start Free Trial
+                    Start Trading
                   </Button>
                 </Link>
                 <Link to="/markets">
@@ -737,12 +615,6 @@ const Home: React.FC = () => {
                   </Button>
                 </Link>
               </Space>
-
-              <div style={{ marginTop: '32px' }}>
-                <Text style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '14px' }}>
-                  No credit card required • ZAR 10,000 demo account • Cancel anytime
-                </Text>
-              </div>
             </motion.div>
           </div>
         </section>

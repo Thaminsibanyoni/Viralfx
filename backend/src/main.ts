@@ -61,7 +61,7 @@ async function bootstrap() {
       origin: corsOrigin === '*' ? true : corsOrigin.split(','),
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Correlation-ID']
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Correlation-ID', 'X-Request-ID']
     });
 
     // Compression middleware
@@ -273,7 +273,7 @@ async function bootstrap() {
     // ========================================================================
 
     const port = configService.get('PORT', 3000);
-    const host = configService.get('HOST', '127.0.0.1');
+    const host = configService.get('HOST', '0.0.0.0'); // Bind to all interfaces
 
     await app.listen(port, host);
 

@@ -100,19 +100,19 @@ export const productsApi = {
     page?: number;
     limit?: number;
   }) => {
-    const response = await apiClient.get('/api/v1/api-marketplace/products', { params });
+    const response = await apiClient.get('/api-marketplace/products', { params });
     return response.data;
   },
 
   // Get product by slug
   getProduct: async (slug: string) => {
-    const response = await apiClient.get(`/api/v1/api-marketplace/products/${slug}`);
+    const response = await apiClient.get(`/api-marketplace/products/${slug}`);
     return response.data;
   },
 
   // Get product plans
   getProductPlans: async (productId: string) => {
-    const response = await apiClient.get(`/api/v1/api-marketplace/products/${productId}/plans`);
+    const response = await apiClient.get(`/api-marketplace/products/${productId}/plans`);
     return response.data;
   },
 
@@ -127,19 +127,19 @@ export const productsApi = {
     features?: string[];
     isActive?: boolean;
   }) => {
-    const response = await apiClient.post('/api/v1/api-marketplace/products', data);
+    const response = await apiClient.post('/api-marketplace/products', data);
     return response.data;
   },
 
   // Update product (Admin only)
   updateProduct: async (id: string, data: Partial<ApiProduct>) => {
-    const response = await apiClient.patch(`/api/v1/api-marketplace/products/${id}`, data);
+    const response = await apiClient.patch(`/api-marketplace/products/${id}`, data);
     return response.data;
   },
 
   // Delete product (Admin only)
   deleteProduct: async (id: string) => {
-    await apiClient.delete(`/api/v1/api-marketplace/products/${id}`);
+    await apiClient.delete(`/api-marketplace/products/${id}`);
   },
 };
 
@@ -148,13 +148,13 @@ export const plansApi = {
   // Get all plans
   getPlans: async (productId?: string) => {
     const params = productId ? { productId } : {};
-    const response = await apiClient.get('/api/v1/api-marketplace/plans', { params });
+    const response = await apiClient.get('/api-marketplace/plans', { params });
     return response.data;
   },
 
   // Get plan by code
   getPlan: async (code: string) => {
-    const response = await apiClient.get(`/api/v1/api-marketplace/plans/${code}`);
+    const response = await apiClient.get(`/api-marketplace/plans/${code}`);
     return response.data;
   },
 
@@ -169,19 +169,19 @@ export const plansApi = {
     quota?: number;
     description?: string;
   }) => {
-    const response = await apiClient.post(`/api/v1/api-marketplace/products/${productId}/plans`, data);
+    const response = await apiClient.post(`/api-marketplace/products/${productId}/plans`, data);
     return response.data;
   },
 
   // Update plan (Admin only)
   updatePlan: async (id: string, data: Partial<ApiPlan>) => {
-    const response = await apiClient.patch(`/api/v1/api-marketplace/plans/${id}`, data);
+    const response = await apiClient.patch(`/api-marketplace/plans/${id}`, data);
     return response.data;
   },
 
   // Delete plan (Admin only)
   deletePlan: async (id: string) => {
-    await apiClient.delete(`/api/v1/api-marketplace/plans/${id}`);
+    await apiClient.delete(`/api-marketplace/plans/${id}`);
   },
 };
 
@@ -189,13 +189,13 @@ export const plansApi = {
 export const keysApi = {
   // Get all keys for the authenticated user
   getKeys: async () => {
-    const response = await apiClient.get('/api/v1/api-marketplace/keys');
+    const response = await apiClient.get('/api-marketplace/keys');
     return response.data;
   },
 
   // Get key by ID
   getKey: async (id: string) => {
-    const response = await apiClient.get(`/api/v1/api-marketplace/keys/${id}`);
+    const response = await apiClient.get(`/api-marketplace/keys/${id}`);
     return response.data;
   },
 
@@ -207,7 +207,7 @@ export const keysApi = {
     isSandbox?: boolean;
     metadata?: Record<string, any>;
   }) => {
-    const response = await apiClient.post('/api/v1/api-marketplace/keys', data);
+    const response = await apiClient.post('/api-marketplace/keys', data);
     return response.data;
   },
 
@@ -217,19 +217,19 @@ export const keysApi = {
     ipWhitelist?: string[];
     metadata?: Record<string, any>;
   }) => {
-    const response = await apiClient.patch(`/api/v1/api-marketplace/keys/${id}`, data);
+    const response = await apiClient.patch(`/api-marketplace/keys/${id}`, data);
     return response.data;
   },
 
   // Revoke key
   revokeKey: async (id: string) => {
-    const response = await apiClient.post(`/api/v1/api-marketplace/keys/${id}/revoke`);
+    const response = await apiClient.post(`/api-marketplace/keys/${id}/revoke`);
     return response.data;
   },
 
   // Rotate key
   rotateKey: async (id: string) => {
-    const response = await apiClient.post(`/api/v1/api-marketplace/keys/${id}/rotate`);
+    const response = await apiClient.post(`/api-marketplace/keys/${id}/rotate`);
     return response.data;
   },
 
@@ -239,7 +239,7 @@ export const keysApi = {
     endDate?: string;
     groupBy?: 'hour' | 'day' | 'month';
   }) => {
-    const response = await apiClient.get(`/api/v1/api-marketplace/keys/${id}/usage`, { params });
+    const response = await apiClient.get(`/api-marketplace/keys/${id}/usage`, { params });
     return response.data;
   },
 };
@@ -256,7 +256,7 @@ export const usageApi = {
     page?: number;
     limit?: number;
   }) => {
-    const response = await apiClient.get('/api/v1/api-marketplace/usage', { params });
+    const response = await apiClient.get('/api-marketplace/usage', { params });
     return response.data;
   },
 
@@ -268,7 +268,7 @@ export const usageApi = {
     startDate?: string;
     endDate?: string;
   }) => {
-    const response = await apiClient.get('/api/v1/api-marketplace/usage/export', {
+    const response = await apiClient.get('/api-marketplace/usage/export', {
       params,
       responseType: params.format === 'csv' ? 'blob' : 'json',
     });
@@ -285,7 +285,7 @@ export const usageApi = {
     page?: number;
     limit?: number;
   }) => {
-    const response = await apiClient.get('/api/v1/admin/api-marketplace/usage', { params });
+    const response = await apiClient.get('/admin/api-marketplace/usage', { params });
     return response.data;
   },
 
@@ -294,7 +294,7 @@ export const usageApi = {
     period?: string;
     limit?: number;
   }) => {
-    const response = await apiClient.get('/api/v1/admin/api-marketplace/usage/top-users', { params });
+    const response = await apiClient.get('/admin/api-marketplace/usage/top-users', { params });
     return response.data;
   },
 };
@@ -309,25 +309,25 @@ export const billingApi = {
     page?: number;
     limit?: number;
   }) => {
-    const response = await apiClient.get('/api/v1/api-marketplace/billing/invoices', { params });
+    const response = await apiClient.get('/api-marketplace/billing/invoices', { params });
     return response.data;
   },
 
   // Get invoice details
   getInvoice: async (id: string) => {
-    const response = await apiClient.get(`/api/v1/api-marketplace/billing/invoices/${id}`);
+    const response = await apiClient.get(`/api-marketplace/billing/invoices/${id}`);
     return response.data;
   },
 
   // Initiate payment for invoice
   payInvoice: async (id: string, gateway: 'paystack' | 'payfast' | 'ozow') => {
-    const response = await apiClient.post(`/api/v1/api-marketplace/billing/invoices/${id}/pay`, { gateway });
+    const response = await apiClient.post(`/api-marketplace/billing/invoices/${id}/pay`, { gateway });
     return response.data;
   },
 
   // Download invoice PDF
   downloadInvoicePdf: async (id: string) => {
-    const response = await apiClient.get(`/api/v1/api-marketplace/billing/invoices/${id}/pdf`, {
+    const response = await apiClient.get(`/api-marketplace/billing/invoices/${id}/pdf`, {
       responseType: 'blob',
     });
     return response.data;
@@ -342,7 +342,7 @@ export const billingApi = {
       end: string;
     };
   }) => {
-    const response = await apiClient.post('/api/v1/admin/api-marketplace/billing/invoices/generate', data);
+    const response = await apiClient.post('/admin/api-marketplace/billing/invoices/generate', data);
     return response.data;
   },
 };
@@ -351,13 +351,13 @@ export const billingApi = {
 export const webhooksApi = {
   // Get user's webhooks
   getWebhooks: async () => {
-    const response = await apiClient.get('/api/v1/api-marketplace/webhooks');
+    const response = await apiClient.get('/api-marketplace/webhooks');
     return response.data;
   },
 
   // Get webhook by ID
   getWebhook: async (id: string) => {
-    const response = await apiClient.get(`/api/v1/api-marketplace/webhooks/${id}`);
+    const response = await apiClient.get(`/api-marketplace/webhooks/${id}`);
     return response.data;
   },
 
@@ -368,19 +368,19 @@ export const webhooksApi = {
     secret?: string;
     isActive?: boolean;
   }) => {
-    const response = await apiClient.post('/api/v1/api-marketplace/webhooks', data);
+    const response = await apiClient.post('/api-marketplace/webhooks', data);
     return response.data;
   },
 
   // Update webhook
   updateWebhook: async (id: string, data: Partial<ApiWebhook>) => {
-    const response = await apiClient.patch(`/api/v1/api-marketplace/webhooks/${id}`, data);
+    const response = await apiClient.patch(`/api-marketplace/webhooks/${id}`, data);
     return response.data;
   },
 
   // Delete webhook
   deleteWebhook: async (id: string) => {
-    await apiClient.delete(`/api/v1/api-marketplace/webhooks/${id}`);
+    await apiClient.delete(`/api-marketplace/webhooks/${id}`);
   },
 
   // Test webhook
@@ -388,7 +388,7 @@ export const webhooksApi = {
     event?: string;
     data?: Record<string, any>;
   }) => {
-    const response = await apiClient.post(`/api/v1/api-marketplace/webhooks/${id}/test`, data);
+    const response = await apiClient.post(`/api-marketplace/webhooks/${id}/test`, data);
     return response.data;
   },
 
@@ -401,7 +401,7 @@ export const webhooksApi = {
     page?: number;
     limit?: number;
   }) => {
-    const response = await apiClient.get(`/api/v1/api-marketplace/webhooks/${id}/logs`, { params });
+    const response = await apiClient.get(`/api-marketplace/webhooks/${id}/logs`, { params });
     return response.data;
   },
 };
@@ -417,13 +417,13 @@ export const adminApi = {
     page?: number;
     limit?: number;
   }) => {
-    const response = await apiClient.get('/api/v1/admin/api-marketplace/keys', { params });
+    const response = await apiClient.get('/admin/api-marketplace/keys', { params });
     return response.data;
   },
 
   // Get platform statistics (Admin only)
   getPlatformStats: async () => {
-    const response = await apiClient.get('/api/v1/admin/api-marketplace/stats');
+    const response = await apiClient.get('/admin/api-marketplace/stats');
     return response.data;
   },
 
@@ -437,7 +437,7 @@ export const adminApi = {
     page?: number;
     limit?: number;
   }) => {
-    const response = await apiClient.get('/api/v1/admin/api-marketplace/invoices', { params });
+    const response = await apiClient.get('/admin/api-marketplace/invoices', { params });
     return response.data;
   },
 };

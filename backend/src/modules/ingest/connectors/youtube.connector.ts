@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { InjectRedis } from '@nestjs-modules/ioredis';
@@ -14,6 +14,7 @@ export class YouTubeConnector extends BaseConnector {
   private readonly apiKey: string;
   private quotaUsage: number = 0;
   private readonly dailyQuotaLimit: number = 10000;
+  private readonly logger: Logger;
 
   constructor(
     @InjectRedis() redis: Redis,
@@ -23,13 +24,15 @@ export class YouTubeConnector extends BaseConnector {
     super(redis, config, 'youtube');
     this.httpService = httpService;
     this.apiKey = config.get<string>('YOUTUBE_API_KEY') || '';
+    this.logger = new Logger(YouTubeConnector.name);
+
     if (this.apiKey) {
       this.youtubeClient = google.youtube({
         version: 'v3',
         auth: this.apiKey
       });
     } else {
-      console.warn('YouTube API key not configured');
+      this.logger.warn('YouTube API key not configured');
     }
   }
 
@@ -41,7 +44,7 @@ export class YouTubeConnector extends BaseConnector {
     query: string,
     maxResults: number = 20,
     filters: any = {}
-  ): Promise<Content[]> {
+  ): Promise<any[]> {
     try {
       const response = await this.youtubeClient.search.list({
         part: 'snippet',
@@ -69,7 +72,7 @@ export class YouTubeConnector extends BaseConnector {
         }
       }));
     } catch (error) {
-      console.error('YouTube search error:', error);
+      this.logger.error('YouTube search error:', error);
       return [];
     }
   }
@@ -101,7 +104,7 @@ export class YouTubeConnector extends BaseConnector {
         }
       };
     } catch (error) {
-      console.error('YouTube content details error:', error);
+      this.logger.error('YouTube content details error:', error);
       return null;
     }
   }
@@ -125,7 +128,7 @@ export class YouTubeConnector extends BaseConnector {
         engagement: 0
       };
     } catch (error) {
-      console.error('YouTube metrics error:', error);
+      this.logger.error('YouTube metrics error:', error);
       return null;
     }
   }
@@ -141,6 +144,73 @@ export class YouTubeConnector extends BaseConnector {
       limit: this.dailyQuotaLimit,
       remaining: this.dailyQuotaLimit - this.quotaUsage
     };
+  }
+
+  // Implementation of abstract collectContent method from BaseConnector
+  async collectContent(): Promise<Content[]> {
+    this.logger.log('📺 Collecting trending YouTube content for South Africa');
+
+    try {
+      // South African trending queries
+      const saQueries = [
+        'South Africa trends',
+        'Mzansi viral',
+        'South Africa viral videos',
+        'SA trending'
+      ];
+
+      const allContent: any[] = [];
+
+      for (const query of saQueries) {
+        try {
+          const content = await this.searchContent(query, 10, {
+            sortOrder: 'relevance'
+          });
+          allContent.push(...content);
+          this.incrementQuota(content.length * 100); // Approximate quota cost
+        } catch (error) {
+          this.logger.warn(`Failed to search YouTube for query "${query}":`, error.message);
+        }
+      }
+
+      // Map YouTube API response to Content interface
+      const mappedContent: Content[] = allContent.map((item: any) => ({
+        nativeId: item.id,
+        textContent: `${item.title}. ${item.description}`.substring(0, 500),
+        authorId: item.metadata?.channelId || '',
+        authorHandle: item.author,
+        platform: 'youtube' as any,
+        contentType: 'video' as any,
+        hashtags: item.metadata?.tags?.map((tag: string) => `#${tag.replace(/\s+/g, '')}`) || [],
+        mentions: [],
+        mediaUrls: [
+          {
+            url: item.url,
+            type: 'video' as any,
+            thumbnails: item.metadata?.thumbnails
+          }
+        ],
+        metrics: {
+          views: item.metadata?.statistics?.viewCount || 0,
+          likes: item.metadata?.statistics?.likeCount || 0,
+          comments: item.metadata?.statistics?.commentCount || 0,
+          shares: 0
+        },
+        timestamp: item.publishedAt,
+        location: null,
+        language: 'en',
+        metadata: {
+          verified: false,
+          ...item.metadata
+        }
+      }));
+
+      this.logger.log(`✅ Collected ${mappedContent.length} YouTube videos`);
+      return mappedContent;
+    } catch (error) {
+      this.logger.error('❌ Failed to collect YouTube content:', error);
+      return [];
+    }
   }
 
   private incrementQuota(amount: number): void {

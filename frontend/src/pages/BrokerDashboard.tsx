@@ -1,22 +1,43 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import {
-  Layout, Row, Col, Card, Statistic, Table, Progress, Space, Typography, Button, Tabs, Avatar, Tag, Timeline, Alert, Select, DatePicker, List, Divider, Tooltip, } from 'antd';
-import {
-  TeamOutlined, TrophyOutlined, DollarOutlined, RiseOutlined, UserOutlined, StarOutlined, LinkOutlined, EyeOutlined, RiseOutlined, BarChartOutlined, CalendarOutlined, MessageOutlined, CheckCircleOutlined, ClockCircleOutlined, WarningOutlined, } from '@ant-design/icons';
+  Users,
+  DollarSign,
+  TrendingUp,
+  Activity,
+  UserPlus,
+  BarChart3,
+  MessageSquare,
+  Crown,
+  Calendar,
+  Filter,
+  ArrowUpRight,
+  ArrowDownRight,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useBrokerStore } from '../stores/brokerStore';
-import { Broker, BrokerClient, BrokerAnalytics, BrokerBill } from '../types/broker';
+import { BrokerClient } from '../types/broker';
 import { toast } from 'react-hot-toast';
 import dayjs from 'dayjs';
-
-const {Content} = Layout;
-const {Title, Text} = Typography;
-const {Option} = Select;
-const {RangePicker} = DatePicker;
+import GlassCard from '../components/ui/GlassCard';
+import StatCard from '../components/ui/StatCard';
+import Table from '../components/ui/Table';
+import Tabs from '../components/ui/Tabs';
+import Progress from '../components/ui/Progress';
 
 const BrokerDashboard: React.FC = () => {
-  const {user} = useAuthStore();
-  const {broker, brokerStats, brokerClients, brokerAnalytics, fetchBrokerData, fetchBrokerAnalytics} = useBrokerStore();
+  const { user } = useAuthStore();
+  const {
+    broker,
+    brokerStats,
+    brokerClients,
+    brokerAnalytics,
+    fetchBrokerData,
+    fetchBrokerAnalytics,
+  } = useBrokerStore();
 
   const [loading, setLoading] = useState(true);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -25,21 +46,8 @@ const BrokerDashboard: React.FC = () => {
     dayjs(),
   ]);
   const [activeTab, setActiveTab] = useState('overview');
-
-  // ViralFX color scheme
-  const viralFxColors = {
-    primaryPurple: '#4B0082',
-    primaryPurpleLight: '#6a1b9a',
-    accentGold: '#FFB300',
-    successGreen: '#4caf50',
-    errorRed: '#f44336',
-    warningOrange: '#ff9800',
-    textPrimary: '#212121',
-    textSecondary: '#757575',
-    backgroundPrimary: '#ffffff',
-    backgroundSecondary: '#f5f5f5',
-    borderDefault: '#d9d9d9',
-  };
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('createdAt');
 
   useEffect(() => {
     const loadData = async () => {
@@ -78,34 +86,37 @@ const BrokerDashboard: React.FC = () => {
 
   const getCommissionProgress = () => {
     if (!brokerStats) return 0;
-    const monthlyTarget = 50000; // Example monthly target
+    const monthlyTarget = 50000;
     return Math.min((brokerStats.totalCommission / monthlyTarget) * 100, 100);
   };
 
   const getTierProgress = () => {
     if (!broker) return 0;
-    const currentTierIndex = ['STARTER', 'VERIFIED', 'PREMIUM', 'ENTERPRISE'].indexOf(broker.tier);
+    const currentTierIndex = ['STARTER', 'VERIFIED', 'PREMIUM', 'ENTERPRISE'].indexOf(
+      broker.tier
+    );
     const maxTierIndex = 3;
     return ((currentTierIndex + 1) / (maxTierIndex + 1)) * 100;
   };
 
+  // Client table columns
   const clientColumns = [
     {
       title: 'Client',
       dataIndex: 'client',
       key: 'client',
-      render: (client: any) => (
-        <Space>
-          <Avatar size="small" src={client.avatarUrl} icon={<UserOutlined />} />
-          <div>
-            <div style={{ fontWeight: 500 }}>
-              {client.firstName} {client.lastName}
-            </div>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              {client.email}
-            </Text>
+      render: (_: any, record: BrokerClient) => (
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-purple flex items-center justify-center text-white font-semibold shadow-glow">
+            {record.client?.firstName?.[0] || 'U'}
           </div>
-        </Space>
+          <div>
+            <p className="text-sm font-medium text-white">
+              {record.client?.firstName} {record.client?.lastName}
+            </p>
+            <p className="text-xs text-gray-400">{record.client?.email}</p>
+          </div>
+        </div>
       ),
     },
     {
@@ -113,57 +124,77 @@ const BrokerDashboard: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => (
-        <Tag
-          color={status === 'ACTIVE' ? 'green' : status === 'PENDING' ? 'orange' : 'default'}
+        <span
+          className={`px-3 py-1 rounded-full text-xs font-medium ${
+            status === 'ACTIVE'
+              ? 'bg-success-500/20 text-success-400'
+              : status === 'PENDING'
+              ? 'bg-warning-500/20 text-warning-400'
+              : 'bg-gray-500/20 text-gray-400'
+          }`}
         >
           {status}
-        </Tag>
+        </span>
       ),
     },
     {
       title: 'Total Volume',
       dataIndex: 'totalVolume',
       key: 'totalVolume',
-      render: (volume: number) => `R${volume.toLocaleString()}`,
+      render: (volume: number) => (
+        <span className="text-sm text-gray-300">
+          R{volume.toLocaleString()}
+        </span>
+      ),
     },
     {
       title: 'Commission',
       dataIndex: 'totalCommission',
       key: 'totalCommission',
       render: (commission: number) => (
-        <Text style={{ color: viralFxColors.successGreen, fontWeight: 500 }}>
+        <span className="text-sm font-semibold text-success-500">
           R{commission.toLocaleString()}
-        </Text>
+        </span>
       ),
     },
     {
       title: 'Joined',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (date: string) => dayjs(date).format('MMM DD, YYYY'),
+      render: (date: string) => (
+        <span className="text-sm text-gray-400">
+          {dayjs(date).format('MMM DD, YYYY')}
+        </span>
+      ),
     },
   ];
 
+  // Bills table columns
   const billColumns = [
     {
       title: 'Period',
       dataIndex: 'period',
       key: 'period',
+      render: (period: string) => (
+        <span className="text-sm font-medium text-gray-300">{period}</span>
+      ),
     },
     {
       title: 'Commission',
       dataIndex: 'commissionAmount',
       key: 'commissionAmount',
-      render: (amount: number) => `R${amount.toLocaleString()}`,
+      render: (amount: number) => (
+        <span className="text-sm text-gray-300">R{amount.toLocaleString()}</span>
+      ),
     },
     {
       title: 'Bonus',
       dataIndex: 'bonusAmount',
       key: 'bonusAmount',
       render: (amount: number) => (
-        <Text style={{ color: viralFxColors.accentGold, fontWeight: 500 }}>
+        <span className="text-sm font-semibold text-gold-600">
           +R{amount.toLocaleString()}
-        </Text>
+        </span>
       ),
     },
     {
@@ -171,9 +202,9 @@ const BrokerDashboard: React.FC = () => {
       dataIndex: 'totalAmount',
       key: 'totalAmount',
       render: (amount: number) => (
-        <Text style={{ fontWeight: 600, color: viralFxColors.primaryPurple }}>
+        <span className="text-sm font-bold text-primary-700">
           R{amount.toLocaleString()}
-        </Text>
+        </span>
       ),
     },
     {
@@ -181,441 +212,362 @@ const BrokerDashboard: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => (
-        <Tag
-          color={status === 'PAID' ? 'green' : status === 'PENDING' ? 'orange' : 'default'}
+        <span
+          className={`px-3 py-1 rounded-full text-xs font-medium ${
+            status === 'PAID'
+              ? 'bg-success-500/20 text-success-400'
+              : status === 'PENDING'
+              ? 'bg-warning-500/20 text-warning-400'
+              : 'bg-gray-500/20 text-gray-400'
+          }`}
         >
           {status}
-        </Tag>
+        </span>
       ),
     },
   ];
 
   const renderOverview = () => (
-    <div>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+    >
       {/* Stats Cards */}
-      <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card
-            style={{
-              border: `1px solid ${viralFxColors.borderDefault}`,
-              borderRadius: '8px',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-            }}
-          >
-            <Statistic
-              title="Total Clients"
-              value={brokerStats?.totalClients || 0}
-              prefix={<TeamOutlined style={{ color: viralFxColors.primaryPurple }} />}
-              valueStyle={{ color: viralFxColors.primaryPurple }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card
-            style={{
-              border: `1px solid ${viralFxColors.borderDefault}`,
-              borderRadius: '8px',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-            }}
-          >
-            <Statistic
-              title="Total Commission"
-              value={brokerStats?.totalCommission || 0}
-              precision={2}
-              prefix="R"
-              valueStyle={{ color: viralFxColors.successGreen }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card
-            style={{
-              border: `1px solid ${viralFxColors.borderDefault}`,
-              borderRadius: '8px',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-            }}
-          >
-            <Statistic
-              title="Monthly Volume"
-              value={brokerStats?.monthlyVolume || 0}
-              precision={2}
-              prefix="R"
-              valueStyle={{ color: viralFxColors.accentGold }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card
-            style={{
-              border: `1px solid ${viralFxColors.borderDefault}`,
-              borderRadius: '8px',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-            }}
-          >
-            <Statistic
-              title="Active Now"
-              value={brokerStats?.activeClients || 0}
-              prefix={<RiseOutlined style={{ color: viralFxColors.warningOrange }} />}
-              valueStyle={{ color: viralFxColors.warningOrange }}
-            />
-          </Card>
-        </Col>
-      </Row>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard
+          icon={<Users className="w-6 h-6" />}
+          label="Total Clients"
+          value={brokerStats?.totalClients || 0}
+          trend="up"
+          trendValue="+12.5%"
+          variant="purple"
+          delay={0}
+        />
+        <StatCard
+          icon={<DollarSign className="w-6 h-6" />}
+          label="Total Commission"
+          value={brokerStats?.totalCommission || 0}
+          prefix="R"
+          trend="up"
+          trendValue="+18.2%"
+          variant="success"
+          delay={100}
+        />
+        <StatCard
+          icon={<TrendingUp className="w-6 h-6" />}
+          label="Monthly Volume"
+          value={brokerStats?.monthlyVolume || 0}
+          prefix="R"
+          trend="up"
+          trendValue="+8.7%"
+          variant="gold"
+          delay={200}
+        />
+        <StatCard
+          icon={<Activity className="w-6 h-6" />}
+          label="Active Now"
+          value={brokerStats?.activeClients || 0}
+          trend="neutral"
+          trendValue="Live"
+          variant="warning"
+          delay={300}
+        />
+      </div>
 
       {/* Progress Cards */}
-      <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
-        <Col xs={24} lg={12}>
-          <Card
-            title="Monthly Commission Target"
-            style={{
-              border: `1px solid ${viralFxColors.borderDefault}`,
-              borderRadius: '8px',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-            }}
-          >
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <GlassCard title="Monthly Commission Target" className="h-full">
+          <div className="space-y-4">
             <Progress
               percent={getCommissionProgress()}
-              strokeColor={{
-                '0%': viralFxColors.primaryPurple,
-                '100%': viralFxColors.accentGold,
-              }}
-              format={(percent) => `${percent.toFixed(1)}%`}
+              format={(percent) => `${percent?.toFixed(1)}%`}
             />
-            <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between' }}>
-              <Text type="secondary">Current: R{(brokerStats?.totalCommission || 0).toLocaleString()}</Text>
-              <Text type="secondary">Target: R50,000</Text>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400">
+                Current: R{(brokerStats?.totalCommission || 0).toLocaleString()}
+              </span>
+              <span className="text-gray-400">Target: R50,000</span>
             </div>
-          </Card>
-        </Col>
-        <Col xs={24} lg={12}>
-          <Card
-            title="Tier Progress"
-            style={{
-              border: `1px solid ${viralFxColors.borderDefault}`,
-              borderRadius: '8px',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-            }}
-          >
+          </div>
+        </GlassCard>
+
+        <GlassCard title="Tier Progress" className="h-full">
+          <div className="space-y-4">
             <Progress
               percent={getTierProgress()}
-              strokeColor={{
-                '0%': viralFxColors.primaryPurple,
-                '100%': viralFxColors.accentGold,
-              }}
-              format={(percent) => `${percent.toFixed(0)}%`}
+              format={(percent) => `${percent?.toFixed(0)}%`}
             />
-            <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between' }}>
-              <Tag color="purple" style={{ margin: 0 }}>
+            <div className="flex justify-between items-center">
+              <span className="px-3 py-1 rounded-full bg-primary-700/20 text-primary-700 text-sm font-medium">
                 {broker?.tier || 'STARTER'}
-              </Tag>
-              <Text type="secondary">Next: Premium</Text>
+              </span>
+              <span className="text-gray-400 text-sm">Next: Premium</span>
             </div>
-          </Card>
-        </Col>
-      </Row>
+          </div>
+        </GlassCard>
+      </div>
 
-      {/* Recent Activity */}
-      <Row gutter={[24, 24]}>
-        <Col xs={24} lg={16}>
-          <Card
-            title="Recent Client Activity"
-            style={{
-              border: `1px solid ${viralFxColors.borderDefault}`,
-              borderRadius: '8px',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-            }}
-          >
-            <Timeline
-              items={[
-                {
-                  color: viralFxColors.successGreen,
-                  children: (
-                    <div>
-                      <Text strong>New client registered</Text>
-                      <br />
-                      <Text type="secondary">John Doe joined 2 hours ago</Text>
-                    </div>
-                  ),
-                },
-                {
-                  color: viralFxColors.accentGold,
-                  children: (
-                    <div>
-                      <Text strong>Commission earned</Text>
-                      <br />
-                      <Text type="secondary">R250 from client trades</Text>
-                    </div>
-                  ),
-                },
-                {
-                  color: viralFxColors.primaryPurple,
-                  children: (
-                    <div>
-                      <Text strong>Tier upgrade achieved</Text>
-                      <br />
-                      <Text type="secondary">Moved to Verified tier</Text>
-                    </div>
-                  ),
-                },
-              ]}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} lg={8}>
-          <Card
-            title="Quick Actions"
-            style={{
-              border: `1px solid ${viralFxColors.borderDefault}`,
-              borderRadius: '8px',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-            }}
-          >
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Button
-                type="primary"
-                icon={<UserOutlined />}
-                block
-                style={{
-                  backgroundColor: viralFxColors.primaryPurple,
-                  borderColor: viralFxColors.primaryPurple,
-                }}
-              >
+      {/* Recent Activity & Quick Actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <GlassCard title="Recent Client Activity" hoverable>
+            <div className="space-y-6">
+              <div className="flex gap-4">
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-full bg-success-500/20 text-success-500 flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div className="absolute top-12 left-1/2 w-0.5 h-16 bg-primary-700/30 -translate-x-1/2" />
+                </div>
+                <div className="flex-1 pb-6">
+                  <p className="text-sm font-semibold text-white">New client registered</p>
+                  <p className="text-sm text-gray-400 mt-1">John Doe joined 2 hours ago</p>
+                  <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    2 hours ago
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-full bg-gold-600/20 text-gold-600 flex items-center justify-center">
+                    <DollarSign className="w-5 h-5" />
+                  </div>
+                  <div className="absolute top-12 left-1/2 w-0.5 h-16 bg-primary-700/30 -translate-x-1/2" />
+                </div>
+                <div className="flex-1 pb-6">
+                  <p className="text-sm font-semibold text-white">Commission earned</p>
+                  <p className="text-sm text-gray-400 mt-1">R250 from client trades</p>
+                  <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    5 hours ago
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div>
+                  <div className="w-10 h-10 rounded-full bg-primary-700/20 text-primary-700 flex items-center justify-center">
+                    <Crown className="w-5 h-5" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-white">Tier upgrade achieved</p>
+                  <p className="text-sm text-gray-400 mt-1">Moved to Verified tier</p>
+                  <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    1 day ago
+                  </p>
+                </div>
+              </div>
+            </div>
+          </GlassCard>
+        </div>
+
+        <div>
+          <GlassCard title="Quick Actions" className="h-full">
+            <div className="space-y-3">
+              <button className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-gradient-viral text-white font-medium shadow-glow hover:shadow-glow-gold transition-all hover:scale-105">
+                <UserPlus className="w-4 h-4" />
                 Invite New Client
-              </Button>
-              <Button
-                icon={<BarChartOutlined />}
-                block
-              >
+              </button>
+              <button className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-primary-700/30 text-gray-300 font-medium hover:bg-primary-700/20 transition-all">
+                <BarChart3 className="w-4 h-4" />
                 View Analytics
-              </Button>
-              <Button
-                icon={<MessageOutlined />}
-                block
-              >
+              </button>
+              <button className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-primary-700/30 text-gray-300 font-medium hover:bg-primary-700/20 transition-all">
+                <MessageSquare className="w-4 h-4" />
                 Contact Support
-              </Button>
-            </Space>
-          </Card>
-        </Col>
-      </Row>
-    </div>
+              </button>
+            </div>
+          </GlassCard>
+        </div>
+      </div>
+    </motion.div>
   );
 
   const renderClients = () => (
-    <Card
+    <GlassCard
       title="Client Management"
-      style={{
-        border: `1px solid ${viralFxColors.borderDefault}`,
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-      }}
-    >
-      <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
-        <Space>
-          <Select placeholder="Filter by status" style={{ width: 150 }} allowClear>
-            <Option value="ACTIVE">Active</Option>
-            <Option value="PENDING">Pending</Option>
-            <Option value="INACTIVE">Inactive</Option>
-          </Select>
-          <Select placeholder="Sort by" style={{ width: 150 }}>
-            <Option value="createdAt">Join Date</Option>
-            <Option value="totalVolume">Volume</Option>
-            <Option value="totalCommission">Commission</Option>
-          </Select>
-        </Space>
-        <Button
-          type="primary"
-          icon={<UserOutlined />}
-          style={{
-            backgroundColor: viralFxColors.primaryPurple,
-            borderColor: viralFxColors.primaryPurple,
-          }}
-        >
+      extra={
+        <button className="px-4 py-2 rounded-lg bg-gradient-viral text-white font-medium shadow-glow hover:shadow-glow-gold transition-all hover:scale-105 flex items-center gap-2">
+          <UserPlus className="w-4 h-4" />
           Invite Client
-        </Button>
+        </button>
+      }
+    >
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 mb-6">
+        <div className="flex-1 min-w-[200px]">
+          <div className="relative">
+            <select
+              className="w-full px-4 py-2.5 rounded-lg bg-dark-800/50 border border-primary-700/30 text-gray-300 focus:outline-none focus:border-primary-700 appearance-none cursor-pointer"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">All Statuses</option>
+              <option value="ACTIVE">Active</option>
+              <option value="PENDING">Pending</option>
+              <option value="INACTIVE">Inactive</option>
+            </select>
+            <Filter className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+          </div>
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <div className="relative">
+            <select
+              className="w-full px-4 py-2.5 rounded-lg bg-dark-800/50 border border-primary-700/30 text-gray-300 focus:outline-none focus:border-primary-700 appearance-none cursor-pointer"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="createdAt">Sort by Join Date</option>
+              <option value="totalVolume">Sort by Volume</option>
+              <option value="totalCommission">Sort by Commission</option>
+            </select>
+            <ArrowUpRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+          </div>
+        </div>
       </div>
 
+      {/* Table */}
       <Table
         columns={clientColumns}
-        dataSource={brokerClients}
-        rowKey="id"
+        data={brokerClients || []}
         loading={loading}
         pagination={{
+          current: 1,
           pageSize: 10,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} clients`,
+          total: brokerClients?.length || 0,
+          onChange: () => {},
         }}
+        onRowClick={(client) => console.log('Client clicked:', client)}
       />
-    </Card>
+    </GlassCard>
   );
 
   const renderAnalytics = () => (
-    <div>
-      <Card
-        title="Analytics Dashboard"
-        style={{
-          border: `1px solid ${viralFxColors.borderDefault}`,
-          borderRadius: '8px',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-          marginBottom: '24px',
-        }}
-      >
-        <div style={{ marginBottom: '16px' }}>
-          <RangePicker
-            value={dateRange}
-            onChange={(dates) => dates && setDateRange(dates)}
-            style={{ marginRight: '16px' }}
-          />
-          <Select defaultValue="revenue" style={{ width: 150 }}>
-            <Option value="revenue">Revenue</Option>
-            <Option value="clients">Clients</Option>
-            <Option value="volume">Volume</Option>
-          </Select>
+    <GlassCard title="Analytics Dashboard">
+      {/* Date Range and Metric Selectors */}
+      <div className="flex flex-wrap gap-3 mb-8">
+        <div className="flex-1 min-w-[300px]">
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-dark-800/50 border border-primary-700/30">
+            <Calendar className="w-4 h-4 text-gray-500" />
+            <span className="text-sm text-gray-300">
+              {dateRange[0].format('MMM DD, YYYY')} - {dateRange[1].format('MMM DD, YYYY')}
+            </span>
+          </div>
         </div>
+        <div className="flex-1 min-w-[200px]">
+          <select
+            className="w-full px-4 py-2.5 rounded-lg bg-dark-800/50 border border-primary-700/30 text-gray-300 focus:outline-none focus:border-primary-700 appearance-none cursor-pointer"
+            defaultValue="revenue"
+          >
+            <option value="revenue">Revenue</option>
+            <option value="clients">Clients</option>
+            <option value="volume">Volume</option>
+          </select>
+        </div>
+      </div>
 
-        {/* Analytics content would go here - charts, graphs, etc. */}
-        <div style={{ textAlign: 'center', padding: '40px' }}>
-          <RiseOutlined style={{ fontSize: '48px', color: viralFxColors.primaryPurple, marginBottom: '16px' }} />
-          <Title level={4}>Analytics Charts Coming Soon</Title>
-          <Text type="secondary">Detailed analytics and reporting dashboard will be available here.</Text>
+      {/* Placeholder for Analytics Charts */}
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="w-20 h-20 rounded-full bg-gradient-purple flex items-center justify-center mb-6 shadow-glow">
+          <BarChart3 className="w-10 h-10 text-white" />
         </div>
-      </Card>
-    </div>
+        <h3 className="text-2xl font-bold text-white mb-2">Analytics Charts Coming Soon</h3>
+        <p className="text-gray-400 max-w-md">
+          Detailed analytics and reporting dashboard will be available here, including
+          revenue trends, client growth, and performance metrics.
+        </p>
+      </div>
+    </GlassCard>
   );
 
   const renderBills = () => (
-    <Card
-      title="Commission Bills"
-      style={{
-        border: `1px solid ${viralFxColors.borderDefault}`,
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-      }}
-    >
+    <GlassCard title="Commission Bills">
       <Table
         columns={billColumns}
-        dataSource={[]} // Would come from brokerBills
-        rowKey="id"
+        data={[]} // Would come from brokerBills
         loading={loading}
         pagination={{
+          current: 1,
           pageSize: 10,
-          showSizeChanger: true,
-          showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} bills`,
+          total: 0,
+          onChange: () => {},
         }}
+        onRowClick={(bill) => console.log('Bill clicked:', bill)}
       />
-    </Card>
+    </GlassCard>
   );
 
-  const tabItems = [
-    {
-      key: 'overview',
-      label: 'Overview',
-      children: renderOverview(),
-    },
-    {
-      key: 'clients',
-      label: 'Clients',
-      children: renderClients(),
-    },
-    {
-      key: 'analytics',
-      label: 'Analytics',
-      children: renderAnalytics(),
-    },
-    {
-      key: 'bills',
-      label: 'Bills',
-      children: renderBills(),
-    },
-  ];
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'overview':
+        return renderOverview();
+      case 'clients':
+        return renderClients();
+      case 'analytics':
+        return renderAnalytics();
+      case 'bills':
+        return renderBills();
+      default:
+        return renderOverview();
+    }
+  };
 
   if (loading) {
     return (
-      <Layout style={{ minHeight: '100vh', background: viralFxColors.backgroundSecondary }}>
-        <Content style={{ padding: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
-            <div style={{ fontSize: '18px', color: viralFxColors.textSecondary }}>Loading broker dashboard...</div>
+      <div className="min-h-screen bg-dark-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-20 h-20 rounded-full bg-gradient-purple flex items-center justify-center mx-auto mb-4 shadow-glow animate-pulse">
+            <BarChart3 className="w-10 h-10 text-white" />
           </div>
-        </Content>
-      </Layout>
+          <p className="text-gray-400 text-lg">Loading broker dashboard...</p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Layout style={{ minHeight: '100vh', background: viralFxColors.backgroundSecondary }}>
-      <Content style={{ padding: '24px' }}>
-        {/* Header */}
-        <div style={{
-          marginBottom: '24px',
-          background: viralFxColors.backgroundPrimary,
-          padding: '24px',
-          borderRadius: '12px',
-          border: `1px solid ${viralFxColors.borderDefault}`,
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <h1 style={{
-                margin: 0,
-                color: viralFxColors.textPrimary,
-                fontSize: '28px',
-                fontWeight: 600,
-                background: `linear-gradient(135deg, ${viralFxColors.primaryPurple}, ${viralFxColors.primaryPurpleLight})`,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}>
-                Broker Dashboard
-              </h1>
-              <p style={{
-                margin: '8px 0 0 0',
-                color: viralFxColors.textSecondary,
-                fontSize: '16px'
-              }}>
-                Manage your brokerage business and track performance
-              </p>
-            </div>
-            {broker && (
-              <div style={{
-                padding: '12px 20px',
-                background: `linear-gradient(135deg, ${viralFxColors.accentGold}, ${viralFxColors.warningOrange})`,
-                borderRadius: '8px',
-                color: '#fff',
-                fontWeight: 500,
-                fontSize: '14px',
-                textAlign: 'center',
-                boxShadow: '0 2px 8px rgba(255, 179, 0, 0.3)'
-              }}>
-                <div style={{ fontWeight: 600, marginBottom: '4px' }}>🏆 {broker.tier}</div>
-                <div style={{ fontSize: '12px', opacity: 0.9 }}>{broker.companyName}</div>
-              </div>
-            )}
-          </div>
+    <div className="min-h-screen bg-dark-950 p-6 lg:p-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-4xl font-bold bg-gradient-viral bg-clip-text text-transparent mb-2">
+            Broker Dashboard
+          </h1>
+          <p className="text-gray-400">
+            Manage your brokerage business and track performance
+          </p>
         </div>
+        {broker && (
+          <div className="flex items-center gap-4 px-6 py-4 bg-gradient-gold rounded-xl shadow-glow-gold border border-gold-600/30">
+            <Crown className="w-6 h-6 text-gold-800" />
+            <div>
+              <div className="text-sm font-bold text-gold-900">{broker.tier}</div>
+              <div className="text-xs text-gold-800">{broker.companyName}</div>
+            </div>
+          </div>
+        )}
+      </div>
 
-        {/* Dashboard Content */}
-        <Card
-          style={{
-            borderRadius: '12px',
-            border: `1px solid ${viralFxColors.borderDefault}`,
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-          }}
-        >
-          <Tabs
-            activeKey={activeTab}
-            onChange={setActiveTab}
-            items={tabItems}
-            size="large"
-            tabBarStyle={{
-              marginBottom: '24px',
-              borderBottom: `2px solid ${viralFxColors.borderDefault}`,
-            }}
-          />
-        </Card>
-      </Content>
-    </Layout>
+      {/* Tabs */}
+      <Tabs
+        items={[
+          { key: 'overview', label: 'Overview' },
+          { key: 'clients', label: 'Clients' },
+          { key: 'analytics', label: 'Analytics' },
+          { key: 'bills', label: 'Bills' },
+        ]}
+        activeKey={activeTab}
+        onChange={setActiveTab}
+      />
+
+      {/* Content */}
+      <div className="mt-6">{renderTabContent()}</div>
+    </div>
   );
 };
 

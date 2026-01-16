@@ -56,7 +56,7 @@ const Register: React.FC = () => {
   const referralCode = searchParams.get('ref');
 
   const {register, user} = useAuthStore();
-  const {brokers, fetchBrokers} = useBrokerStore();
+  const {brokers, fetchAvailableBrokers} = useBrokerStore();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -66,8 +66,8 @@ const Register: React.FC = () => {
   }, [user, navigate]);
 
   useEffect(() => {
-    fetchBrokers();
-  }, [fetchBrokers]);
+    fetchAvailableBrokers();
+  }, [fetchAvailableBrokers]);
 
   useEffect(() => {
     if (referralCode) {

@@ -79,12 +79,15 @@ export class AuthService {
    */
   async login(loginDto: LoginDto): Promise<{ user: User; tokens: any; requires2FA: boolean }> {
     try {
+      // Normalize identifier - accept email, identifier, or username
+      const identifier = loginDto.email || loginDto.identifier || loginDto.username || '';
+
       // Find user by email or username
       const user = await this.prisma.user.findFirst({
         where: {
           OR: [
-            { email: loginDto.identifier },
-            { username: loginDto.identifier }
+            { email: identifier },
+            { username: identifier }
           ]
         }
       });

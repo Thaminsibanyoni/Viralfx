@@ -20,6 +20,8 @@ interface ApiResponse<T = any> {
 
 class ApiClient {
   private instance: AxiosInstance;
+  private isRefreshing: boolean = false;
+  private refreshSubscribers: Array<(token: string) => void> = [];
 
   constructor() {
     this.instance = axios.create({
@@ -79,6 +81,22 @@ class ApiClient {
 
         // Handle token refresh for 401 errors
         if (error.response?.status === 401 && originalRequest && !this.isRetryRequest(originalRequest)) {
+          // Prevent multiple concurrent refresh attempts
+          if (this.isRefreshing) {
+            // Queue the request if a refresh is already in progress
+            return new Promise((resolve, reject) => {
+              this.refreshSubscribers.push((token: string) => {
+                if (originalRequest.headers) {
+                  originalRequest.headers.Authorization = `Bearer ${token}`;
+                }
+                originalRequest._retry = true;
+                resolve(this.instance(originalRequest));
+              });
+            });
+          }
+
+          this.isRefreshing = true;
+
           try {
             await this.refreshToken();
 
@@ -88,12 +106,19 @@ class ApiClient {
               originalRequest.headers.Authorization = `Bearer ${token}`;
               originalRequest._retry = true;
 
+              // Process queued requests
+              this.refreshSubscribers.forEach(callback => callback(token));
+              this.refreshSubscribers = [];
+
               return this.instance(originalRequest);
             }
           } catch (refreshError) {
-            // Token refresh failed, redirect to login
+            // Token refresh failed, clear queue and redirect to login
+            this.refreshSubscribers = [];
             this.handleAuthError();
             return Promise.reject(refreshError);
+          } finally {
+            this.isRefreshing = false;
           }
         }
 
@@ -150,14 +175,36 @@ class ApiClient {
   }
 
   private handleAuthError(): void {
+    // Prevent redirect loops - only redirect if not already on login page
+    const currentPath = window.location.pathname;
+    if (currentPath === '/login' || currentPath === '/register') {
+      return;
+    }
+
     // Clear stored tokens
     localStorage.removeItem('authToken');
     localStorage.removeItem('refreshToken');
     sessionStorage.removeItem('authToken');
     sessionStorage.removeItem('refreshToken');
 
-    // Redirect to login
-    window.location.href = '/login';
+    // Use React Router's navigate instead of hard redirect to preserve state
+    // Only use hard redirect as fallback
+    if (!this.isReactRouterAvailable()) {
+      window.location.href = '/login';
+    } else {
+      // Trigger a custom event that the app can listen to
+      window.dispatchEvent(new CustomEvent('auth:logout'));
+    }
+  }
+
+  private isReactRouterAvailable(): boolean {
+    // Check if we're in a React app context
+    try {
+      return document.querySelector('[data-reactroot]') !== null ||
+             window.__REACT_DEVTOOLS_GLOBAL_HOOK__ !== undefined;
+    } catch {
+      return false;
+    }
   }
 
   private handleError(error: AxiosError): void {

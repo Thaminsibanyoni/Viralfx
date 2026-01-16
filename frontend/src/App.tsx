@@ -46,6 +46,11 @@ const WalletPage = lazy(() => import('./pages/wallet/WalletPage'));
 const ChatPage = lazy(() => import('./pages/chat/ChatPage'));
 const Settings = lazy(() => import('./pages/Settings'));
 const BrokerDashboard = lazy(() => import('./pages/BrokerDashboard'));
+const Trading = lazy(() => import('./pages/Trading'));
+
+// VPMX Admin pages
+const VPMXAdminDashboard = lazy(() => import('./pages/admin/VPMXAdminDashboard'));
+const VPMXMarketManager = lazy(() => import('./pages/admin/VPMXMarketManager'));
 
 // CRM pages
 const CRMDashboard = lazy(() => import('./pages/crm/CRMDashboard'));
@@ -83,13 +88,35 @@ const EnhancedProtectedRoute = lazy(() => import('./components/auth/EnhancedProt
 
 // Store
 import { useAuthStore } from './stores/authStore';
+import { useState, useEffect } from 'react';
 
 function App() {
-  const {isAuthenticated, _user, isLoading} = useAuthStore();
+  const { isAuthenticated, isLoading, isInitialized } = useAuthStore();
+  const [showLoader, setShowLoader] = useState(true);
+  const [hasTimedOut, setHasTimedOut] = useState(false);
 
   // Show loading spinner while checking auth state
-  if (isLoading) {
-    return <LoadingSpinner />;
+  useEffect(() => {
+    // If initialized, show the app
+    if (isInitialized) {
+      setShowLoader(false);
+      return;
+    }
+
+    // Timeout fallback after 5 seconds to prevent infinite loading
+    const timeout = setTimeout(() => {
+      if (!isInitialized) {
+        console.warn('Auth initialization timed out after 5 seconds');
+        setHasTimedOut(true);
+        setShowLoader(false);
+      }
+    }, 5000);
+
+    return () => clearTimeout(timeout);
+  }, [isInitialized]);
+
+  if (showLoader && !hasTimedOut) {
+    return <LoadingSpinner fullScreen={true} />;
   }
 
   return (
@@ -178,6 +205,7 @@ function App() {
             <Route path="/settings/*" element={<Settings />} />
             <Route path="/referral" element={<ReferralDashboard />} />
             <Route path="/broker/dashboard" element={<BrokerDashboard />} />
+            <Route path="/trade" element={<Trading />} />
             <Route path="/crm" element={<CRMDashboard />} />
 
             {/* Developer Portal routes */}
@@ -286,6 +314,10 @@ function App() {
                 </EnhancedProtectedRoute>
               } />
             </Route>
+
+            {/* VPMX Admin routes */}
+            <Route path="vpmx" element={<VPMXAdminDashboard />} />
+            <Route path="vpmx/markets" element={<VPMXMarketManager />} />
           </Route>
 
           {/* SuperAdmin routes */}

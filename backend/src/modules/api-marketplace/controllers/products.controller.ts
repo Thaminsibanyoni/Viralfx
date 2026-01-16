@@ -20,8 +20,8 @@ import { ProductsService } from '../services/products.service';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { ApiProduct, ProductWithPlans } from '../interfaces/api-marketplace.interface';
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
-import { AdminAuthGuard } from "../../auth/guards/admin-auth.guard";
-import { Permissions } from "../../auth/decorators/permissions.decorator";
+import { AdminAuthGuard } from "../../admin/guards/admin-auth.guard";
+import { Permissions } from "../../admin/decorators/permissions.decorator";
 
 @ApiTags('API Marketplace - Products')
 @Controller('api/v1/api-marketplace/products')

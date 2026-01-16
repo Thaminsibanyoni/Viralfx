@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Test - ViralFX</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        button {
+            background: #FFB300;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+        }
+        button:hover {
+            background: #FFA000;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success { border-left: 4px solid #52C41A; }
+        .error { border-left: 4px solid #FF4D4F; }
+        h2 { color: #FFB300; }
+    </style>
+</head>
+<body>
+    <h1>🔧 ViralFX Login Test</h1>
+    <p>This page tests the login functionality directly from the browser.</p>
+
+    <div class="test-section">
+        <h2>✅ Backend Health Check</h2>
+        <button onclick="testHealth()">Test Backend Health</button>
+        <div id="health-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔐 User Login Test</h2>
+        <p>Email: user@user.com | Password: Password123</p>
+        <button onclick="testUserLogin()">Test User Login</button>
+        <div id="user-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🏢 Broker Login Test</h2>
+        <p>Email: broker@broker.com | Password: Password123</p>
+        <button onclick="testBrokerLogin()">Test Broker Login</button>
+        <div id="broker-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>👨‍💼 Admin Login Test</h2>
+        <p>Email: admin@admin.com | Password: Password123</p>
+        <button onclick="testAdminLogin()">Test Admin Login</button>
+        <div id="admin-result" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api/v1';
+
+        async function testHealth() {
+            const result = document.getElementById('health-result');
+            result.className = 'result';
+            result.textContent = 'Testing...';
+
+            try {
+                const response = await fetch(`${API_BASE}/health`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+                result.className = 'result success';
+                result.textContent = `✅ SUCCESS (HTTP ${response.status})\n\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ ERROR\n\n${error.message}\n\nStack: ${error.stack}`;
+            }
+        }
+
+        async function testUserLogin() {
+            const result = document.getElementById('user-result');
+            result.className = 'result';
+            result.textContent = 'Testing...';
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        identifier: 'user@user.com',
+                        password: 'Password123'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    result.className = 'result success';
+                    result.textContent = `✅ LOGIN SUCCESSFUL! (HTTP ${response.status})\n\nUser: ${data.data.user.email}\nRole: ${data.data.user.role}\nToken: ${data.data.tokens.accessToken.substring(0, 50)}...`;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = `❌ LOGIN FAILED (HTTP ${response.status})\n\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ ERROR\n\n${error.message}\n\nStack: ${error.stack}`;
+            }
+        }
+
+        async function testBrokerLogin() {
+            const result = document.getElementById('broker-result');
+            result.className = 'result';
+            result.textContent = 'Testing...';
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/broker/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        identifier: 'broker@broker.com',
+                        password: 'Password123'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    result.className = 'result success';
+                    result.textContent = `✅ LOGIN SUCCESSFUL! (HTTP ${response.status})\n\nBroker: ${data.data.broker.email}\nTier: ${data.data.broker.tier}`;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = `❌ LOGIN FAILED (HTTP ${response.status})\n\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ ERROR\n\n${error.message}\n\nStack: ${error.stack}`;
+            }
+        }
+
+        async function testAdminLogin() {
+            const result = document.getElementById('admin-result');
+            result.className = 'result';
+            result.textContent = 'Testing...';
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/admin/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        identifier: 'admin@admin.com',
+                        password: 'Password123'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    result.className = 'result success';
+                    result.textContent = `✅ LOGIN SUCCESSFUL! (HTTP ${response.status})\n\nAdmin: ${data.data.admin.email}\nToken: ${data.data.tokens.accessToken.substring(0, 50)}...`;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = `❌ LOGIN FAILED (HTTP ${response.status})\n\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ ERROR\n\n${error.message}\n\nStack: ${error.stack}`;
+            }
+        }
+
+        // Auto-run health check on page load
+        window.onload = () => testHealth();
+    </script>
+</body>
+</html>

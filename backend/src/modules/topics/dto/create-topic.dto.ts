@@ -2,16 +2,69 @@ import { IsString, IsOptional, IsEnum, IsArray, IsObject, MaxLength, ValidateNes
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-interface CanonicalEntity {
+export interface CanonicalEntity {
   type: string;
   value: string;
   confidence: number;
 }
 
-interface CanonicalData {
+export interface CanonicalData {
   hashtags: string[];
   keywords: string[];
   entities: CanonicalEntity[];
+}
+
+/**
+ * Type guard to check if a value is a valid CanonicalEntity
+ */
+export function isCanonicalEntity(value: unknown): value is CanonicalEntity {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    'value' in value &&
+    'confidence' in value &&
+    typeof (value as any).type === 'string' &&
+    typeof (value as any).value === 'string' &&
+    typeof (value as any).confidence === 'number' &&
+    (value as any).confidence >= 0 &&
+    (value as any).confidence <= 1
+  );
+}
+
+/**
+ * Type guard to check if a value is a valid CanonicalData
+ */
+export function isCanonicalData(value: unknown): value is CanonicalData {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'hashtags' in value &&
+    'keywords' in value &&
+    'entities' in value &&
+    Array.isArray((value as any).hashtags) &&
+    Array.isArray((value as any).keywords) &&
+    Array.isArray((value as any).entities) &&
+    (value as any).hashtags.every((item: unknown) => typeof item === 'string') &&
+    (value as any).keywords.every((item: unknown) => typeof item === 'string') &&
+    (value as any).entities.every((item: unknown) => isCanonicalEntity(item))
+  );
+}
+
+/**
+ * Safely cast a value to CanonicalData with type validation
+ * Returns a default empty structure if the value is invalid or null
+ */
+export function asCanonicalData(value: unknown): CanonicalData {
+  if (value === null || value === undefined) {
+    return { hashtags: [], keywords: [], entities: [] };
+  }
+
+  if (isCanonicalData(value)) {
+    return value;
+  }
+
+  return { hashtags: [], keywords: [], entities: [] };
 }
 
 export class CanonicalDataDto implements CanonicalData {

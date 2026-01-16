@@ -76,7 +76,7 @@ model User {
   notifications Notification[]
   chatMessages  ChatMessage[]
   sessions      Session[]
-  auditLogs     AuditLog[]
+  // auditLogs     AuditLog[]  // Removed to allow both User and Admin IDs in AuditLog
   oracleProofs  OracleProof[]
   brokerClients BrokerClient[]
   deviceTokens  DeviceToken[]
@@ -191,6 +191,16 @@ model Broker {
   status                  BrokerStatus @default(PENDING)
   contactEmail            String
   contactPhone            String?
+
+  // Authentication
+  password                String?
+  lastLoginAt             DateTime?
+  lastLoginIp             String?
+  twoFactorEnabled        Boolean  @default(false)
+  twoFactorSecret         String?
+  loginAttempts           Int      @default(0)
+  lockedUntil             DateTime?
+
   physicalAddress         String
   postalAddress           String?
   website                 String?
@@ -672,12 +682,18 @@ model Topic {
   totalBets     Int      @default(0)
   metadata      Json?    // Extended metadata for VTS
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  // Soft delete fields
+  deletedAt     DateTime? @map("deleted_at")
+  mergedInto    String?   @map("merged_into")
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   // Relations
   ingestEvents  IngestEvent[]
   viralSnapshots ViralIndexSnapshot[]
+  sentimentSnapshots SentimentSnapshot[]
+  deceptionSnapshots DeceptionSnapshot[]
   markets       Market[]
   watchlists    Watchlist[]
 
@@ -692,6 +708,8 @@ model Topic {
   @@index([symbol])
   @@index([region])
   @@index([version])
+  @@index([deletedAt])
+  @@map("Topic")
 }
 
 enum TopicStatus {
@@ -786,6 +804,7 @@ model SentimentSnapshot {
 
   ts            DateTime @default(now())
 
+  topic         Topic     @relation(fields: [topicId], references: [id], onDelete: Cascade)
   ingestEvent   IngestEvent @relation(fields: [ingestEventId], references: [id], onDelete: Cascade)
 
   @@index([topicId, ts])
@@ -817,6 +836,7 @@ model DeceptionSnapshot {
 
   ts            DateTime @default(now())
 
+  topic         Topic     @relation(fields: [topicId], references: [id], onDelete: Cascade)
   ingestEvent   IngestEvent @relation(fields: [ingestEventId], references: [id], onDelete: Cascade)
 
   @@index([topicId, ts])
@@ -1432,10 +1452,11 @@ model AuditLog {
   ipAddress   String?
   userAgent   String?
 
+  severity   String?
   createdAt   DateTime @default(now())
 
-  // Relations
-  user        User?    @relation(fields: [userId], references: [id])
+  // Relations - removed foreign key to allow both User and Admin IDs
+  // user        User?    @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([entity, entityId])
@@ -3252,6 +3273,94 @@ model VPMXWeighting {
   @@index([isDefault])
 }
 
+// VPMX Trading Market - For trading social momentum as an asset class
+// This is DIFFERENT from VPMX prediction markets (binary yes/no bets)
+model VPMXTradingMarket {
+  id                String   @id @default(cuid())
+  symbol            String   @unique // V:CC:SEC:TICKER format
+  name              String
+  category          String   // Entertainment, Technology, Politics, Sports, Music, Fashion, Business
+
+  // Market configuration
+  status            String   @default("active") // active, paused, frozen, archived
+  tradingEnabled    Boolean  @default(true) @map("trading_enabled")
+  maxExposure       Float    @map("max_exposure") // Maximum total exposure allowed
+  currentExposure   Float    @default(0) @map("current_exposure") // Current total exposure
+
+  // VPMX scoring
+  vpmxScore         Int      @default(0) @map("vpmx_score") // 0-100
+  vpmxRank          Int?     @map("vpmx_rank")
+  vpmxChange24h     Float?   @map("vpmx_change_24h")
+
+  // Market controls
+  regions           String[] // Allowed regions [ZA, NG, KE, GH, EG, VE, CO, BR, GLOBAL]
+  timeframes        String[] // Available timeframes [1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w]
+
+  // Risk metrics
+  longShortRatio   Float?   @map("long_short_ratio") // L/S imbalance
+  liquidity         Int      @default(0) // Liquidity pool utilization %
+  volatility        Float?   // Volatility percentage
+
+  // Metadata
+  createdBy         String   @map("created_by")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  frozenAt          DateTime? @map("frozen_at")
+  thawedAt          DateTime? @map("thawed_at")
+  archivedAt        DateTime? @map("archived_at")
+
+  // Relations
+  candleAuditLogs   CandleAuditLog[]
+  rebuildJobs       CandleRebuildJob[]
+  aggregationRules  CandleAggregationRule?
+  volumeRules       VolumeWeightingRule?
+
+  @@index([symbol, status])
+  @@index([status])
+  @@index([category])
+  @@index([createdBy])
+}
+
+// Original VPMX prediction market (binary yes/no betting)
+model VPMXPredictionMarket {
+  id            String   @id @default(cuid())
+  vtsSymbol     String   @map("vts_symbol")
+  question      String
+  description   String?
+
+  // Market configuration
+  outcomeType   String   @map("outcome_type") // BINARY, MULTI, RANGE
+  strikePrice   Float?   @map("strike_price") // For RANGE markets
+  expiryDate    DateTime @map("expiry_date")
+
+  // Settlement criteria
+  resolutionCriteria String @map("resolution_criteria")
+  settlementType     String @map("settlement_type") // AUTOMATIC, MANUAL, ORACLE
+  oracleParams       Json?  @map("oracle_params")
+
+  // Market status
+  status        String   @default("PENDING") // PENDING, ACTIVE, PAUSED, SETTLED, CANCELLED
+  liquidityPool Float    @default(0) @map("liquidity_pool")
+  volume24h     Float    @default(0) @map("volume_24h")
+
+  // Current odds/prices
+  yesPrice      Float    @map("yes_price")
+  noPrice       Float    @map("no_price")
+
+  // Market creation
+  createdBy     String   @map("created_by")
+  creatorStake  Float    @default(0) @map("creator_stake")
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  settledAt     DateTime? @map("settled_at")
+
+  @@index([vtsSymbol, status])
+  @@index([expiryDate, status])
+  @@index([outcomeType])
+  @@index([createdBy])
+}
+
 model VPMXMarket {
   id            String   @id @default(cuid())
   vtsSymbol     String   @map("vts_symbol")
@@ -3464,4 +3573,243 @@ model VPMXUserFairness {
   @@index([isWhale])
   @@index([isRestricted])
   @@index([deletedAt])
+}
+
+// ============= VPMX GOVERNANCE - CANDLE ENGINE =============
+
+// Candle rebuild jobs for recomputing historical candles
+model CandleRebuildJob {
+  id              String   @id @default(cuid())
+  marketId        String   @map("market_id")
+  timeframe       String   // 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w
+
+  // Date range
+  startDate       DateTime @map("start_date")
+  endDate         DateTime @map("end_date")
+
+  // Job status
+  status          String   @default("pending") // pending, in_progress, completed, failed
+  progress        Float    @default(0) // 0-100
+  error           String?  @db.Text
+
+  // Configuration
+  force           Boolean  @default(false) // Force rebuild even if candles exist
+
+  // Metadata
+  requestedBy     String   @map("requested_by")
+  createdAt       DateTime @default(now())
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+
+  // Relations
+  market          VPMXTradingMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@index([marketId, timeframe])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Candle aggregation rules per market
+model CandleAggregationRule {
+  id              String   @id @default(cuid())
+  marketId        String   @map("market_id")
+
+  // Aggregation weights (must sum to 1)
+  volumeWeight    Float    @default(0.4) @map("volume_weight")
+  vpmxWeight      Float    @default(0.3) @map("vpmx_weight")
+  engagementWeight Float   @default(0.3) @map("engagement_weight")
+
+  // Smoothing configuration
+  enableSmoothing Boolean  @default(false) @map("enable_smoothing")
+  smoothingPeriod Int      @default(5) @map("smoothing_period") // EMA period
+
+  // Status
+  normalized      Boolean  @default(false) // Whether weights are normalized
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  market          VPMXTradingMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@unique([marketId])
+  @@index([marketId])
+}
+
+// Volume weighting rules for engagement types
+model VolumeWeightingRule {
+  id              String   @id @default(cuid())
+  marketId        String   @map("market_id")
+
+  // Engagement type weights
+  mentionsWeight  Float    @default(0.4) @map("mentions_weight")
+  sharesWeight    Float    @default(0.3) @map("shares_weight")
+  likesWeight     Float    @default(0.2) @map("likes_weight")
+  commentsWeight  Float    @default(0.1) @map("comments_weight")
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  market          VPMXTradingMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@unique([marketId])
+  @@index([marketId])
+}
+
+// Audit logs for candle-specific operations
+model CandleAuditLog {
+  id              String   @id @default(cuid())
+  marketId        String   @map("market_id")
+
+  // Action details
+  action          String   // REBUILD, AGGREGATION_CHANGED, TIMEFRAME_TOGGLED
+  timeframe       String?
+  previousValue   Json?
+  newValue        Json?
+
+  // Metadata
+  reason          String?  @db.Text
+  performedBy     String   @map("performed_by")
+  createdAt       DateTime @default(now())
+
+  // Relations
+  market          VPMXTradingMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@index([marketId, createdAt])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ============= VPMX GOVERNANCE - ORACLE =============
+
+// Oracle signal sources (Twitter, TikTok, Instagram, Reddit)
+model OracleSource {
+  id              String   @id @default(cuid())
+  source          String   @unique // twitter, tiktok, instagram, reddit
+  name            String   // Display name (e.g., "Twitter API")
+
+  // Health status
+  status          String   @default("active") // active, degraded, offline
+  mode            String   @default("LIVE") // LIVE, SIMULATED, SEED
+
+  // Quality metrics
+  confidenceScore Float    @default(0) @map("confidence_score") // 0-100
+  deceptionRisk   Float    @default(0) @map("deception_risk") // 0-100
+
+  // Statistics
+  signalCount     Int      @default(0) @map("signal_count")
+  lastSignalAt    DateTime? @map("last_signal_at")
+  lastHealthCheck DateTime? @map("last_health_check")
+
+  // Notes and metadata
+  notes           String?  @db.Text
+  metadata        Json?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  signals         OracleSignal[]
+
+  @@index([status])
+  @@index([mode])
+  @@index([source])
+}
+
+// Individual oracle signals from sources
+model OracleSignal {
+  id              String   @id @default(cuid())
+  source          String   // twitter, tiktok, instagram, reddit
+
+  // Trend identification
+  trendName       String   @map("trend_name")
+  trendId         String?  @map("trend_id") // Topic ID
+  hashtags        String[] // Array of hashtags
+
+  // Signal data
+  vpmxScore       Float    @map("vpmx_score") // 0-100
+  confidenceScore Float    @map("confidence_score") // 0-100
+  deceptionRisk   Float    @map("deception_risk") // 0-100
+
+  // Engagement metrics
+  mentions        Int?
+  shares          Int?
+  likes           Int?
+  comments        Int?
+
+  // Status
+  status          String   @default("pending") // pending, approved, rejected, flagged
+
+  // Approval workflow
+  approvedAt      DateTime? @map("approved_at")
+  approvedBy      String?  @map("approved_by")
+  approvalNotes   String?  @map("approval_notes") @db.Text
+
+  rejectedAt      DateTime? @map("rejected_at")
+  rejectedBy      String?  @map("rejected_by")
+  rejectionReason String?  @map("rejection_reason") @db.Text
+
+  flaggedAt       DateTime? @map("flagged_at")
+  flaggedBy       String?  @map("flagged_by")
+  flagReason      String?  @map("flag_reason") @db.Text
+  requiresReview  Boolean  @default(false) @map("requires_review")
+
+  // Manual adjustments
+  adjustedAt      DateTime? @map("adjusted_at")
+  adjustedBy      String?  @map("adjusted_by")
+  adjustmentReason String? @map("adjustment_reason") @db.Text
+
+  // Metadata
+  detectedAt      DateTime @default(now()) @map("detected_at")
+  metadata        Json?
+
+  // Relations
+  oracleSource    OracleSource? @relation(fields: [source], references: [source], onDelete: Cascade)
+
+  @@index([source, status])
+  @@index([trendName])
+  @@index([status])
+  @@index([detectedAt])
+  @@index([confidenceScore])
+  @@index([deceptionRisk])
+}
+
+// ============= VPMX GOVERNANCE - RISK MANAGEMENT =============
+
+// Circuit breaker events for risk management
+model CircuitBreakerEvent {
+  id              String   @id @default(cuid())
+  marketId        String?  @map("market_id") // null if system-wide
+
+  // Breaker details
+  breakerType     String   @map("breaker_type") // VOLATILITY, EXPOSURE, LIQUIDITY, MANIPULATION
+  severity        String   // low, medium, high, critical
+
+  // Threshold info
+  threshold       Float
+  actualValue     Float    @map("actual_value")
+
+  // Status
+  status          String   @default("active") // active, cleared, expired
+
+  // Actions
+  triggeredAt     DateTime @default(now()) @map("triggered_at")
+  triggeredBy     String   @map("triggered_by") // 'system' or admin email
+  reason          String?  @db.Text
+
+  // Resolution
+  clearedAt       DateTime? @map("cleared_at")
+  clearedBy       String?  @map("cleared_by")
+  clearReason     String?  @map("clear_reason") @db.Text
+
+  // Metadata
+  metadata        Json?
+
+  @@index([marketId, status])
+  @@index([breakerType])
+  @@index([status])
+  @@index([triggeredAt])
 }

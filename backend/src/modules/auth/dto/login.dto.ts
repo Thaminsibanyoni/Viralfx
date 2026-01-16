@@ -1,12 +1,18 @@
-import { IsEmail, IsString, IsOptional } from "class-validator";
+import { IsString, IsOptional } from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
 
 export class LoginDto {
-  @ApiProperty()
-  @IsEmail()
-  email: string;
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  email?: string;
 
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  identifier?: string;
+
+  @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
   username?: string;
@@ -14,4 +20,19 @@ export class LoginDto {
   @ApiProperty()
   @IsString()
   password: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  twoFactorCode?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  deviceFingerprint?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  userAgent?: string;
 }

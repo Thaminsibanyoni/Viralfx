@@ -21,8 +21,7 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [rateLimitMessage, setRateLimitMessage] = useState('');
-  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const {login, user, twoFactorRequired} = useAuthStore();
   const navigate = useNavigate();
@@ -42,61 +41,31 @@ const Login: React.FC = () => {
     }
   }, [twoFactorRequired]);
 
-  useEffect(() => {
-    const attemptKey = `login_attempts_${form.getFieldValue('email') || 'anonymous'}`;
-    const attempts = parseInt(localStorage.getItem(attemptKey) || '0', 10);
-    const lastAttempt = parseInt(localStorage.getItem(`${attemptKey}_time`) || '0', 10);
-
-    if (attempts >= 3 && Date.now() - lastAttempt < 3600000) { // 1 hour
-      const remainingTime = Math.ceil((3600000 - (Date.now() - lastAttempt)) / 60000);
-      setRateLimitMessage(`Too many login attempts. Please try again in ${remainingTime} minutes.`);
-      setLoginAttempts(attempts);
-    }
-  }, []);
-
   const onFinish = async (values: LoginForm) => {
     setLoading(true);
-    setRateLimitMessage('');
+    setErrorMessage('');
 
     try {
-      const attemptKey = `login_attempts_${values.email}`;
-      const currentAttempts = parseInt(localStorage.getItem(attemptKey) || '0', 10);
-      const lastAttempt = parseInt(localStorage.getItem(`${attemptKey}_time`) || '0', 10);
-
-      if (currentAttempts >= 3 && Date.now() - lastAttempt < 3600000) {
-        const remainingTime = Math.ceil((3600000 - (Date.now() - lastAttempt)) / 60000);
-        setRateLimitMessage(`Too many login attempts. Please try again in ${remainingTime} minutes.`);
-        return;
-      }
-
-      await login(values.email, values.password, values.twoFactorCode);
+      await login({
+        email: values.email,
+        password: values.password,
+        rememberMe: values.rememberMe
+      });
 
       if (requiresTwoFactor) {
         message.info('Please enter your 2FA code');
         return;
       }
 
-      localStorage.removeItem(attemptKey);
-      localStorage.removeItem(`${attemptKey}_time`);
-
       message.success('Login successful!');
       navigate(from, { replace: true });
     } catch (error: any) {
-      const attemptKey = `login_attempts_${values.email}`;
-      const newAttempts = loginAttempts + 1;
-
-      localStorage.setItem(attemptKey, newAttempts.toString());
-      localStorage.setItem(`${attemptKey}_time`, Date.now().toString());
-      setLoginAttempts(newAttempts);
-
-      if (newAttempts >= 3) {
-        setRateLimitMessage('Too many failed attempts. Please try again in 1 hour.');
-      }
-
       if (error.message?.includes('2FA') || error.message?.includes('two factor')) {
         setRequiresTwoFactor(true);
+        setErrorMessage('Please enter your 2FA code');
         message.warning('Please enter your 2FA code');
       } else {
+        setErrorMessage(error.message || 'Login failed. Please check your credentials.');
         message.error(error.message || 'Login failed. Please check your credentials.');
       }
     } finally {
@@ -155,12 +124,14 @@ const Login: React.FC = () => {
           }}
           bodyStyle={{ padding: '32px' }}
         >
-          {rateLimitMessage && (
+          {errorMessage && (
             <Alert
-              message="Rate Limited"
-              description={rateLimitMessage}
-              type="warning"
+              message="Login Error"
+              description={errorMessage}
+              type="error"
               showIcon
+              closable
+              onClose={() => setErrorMessage('')}
               style={{ marginBottom: '24px' }}
             />
           )}

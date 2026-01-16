@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Button, Drawer, Typography, Space, Dropdown } from 'antd';
+import { Layout, Menu, Button, Drawer, Typography, Space } from 'antd';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  MenuOutlined, LoginOutlined, UserAddOutlined, TwitterOutlined, LinkedinOutlined, GithubOutlined, InstagramOutlined, ChevronDownOutlined
+  MenuOutlined, LoginOutlined, UserAddOutlined, TwitterOutlined, LinkedinOutlined, GithubOutlined, InstagramOutlined
 } from '@ant-design/icons';
 import LanguageSwitcher from '../common/LanguageSwitcher';
+import WhatsAppButton from '../common/WhatsAppButton';
+import { XIcon, TikTokIcon } from '../icons/SocialIcons';
 
-const {Header, Content, Footer} = Layout;
-const {Title, Text} = Typography;
+const { Header, Content, Footer } = Layout;
+const { Title, Text } = Typography;
 
 const MainLayout: React.FC = () => {
   const [visible, setVisible] = useState(false);
@@ -35,7 +37,7 @@ const MainLayout: React.FC = () => {
         type="text"
         icon={<LoginOutlined />}
         onClick={() => navigate('/login')}
-        style={{ color: scrolled ? '#4B0082' : '#4B0082' }}
+        className="text-purple-800 hover:text-purple-900 hover:bg-purple-50/10 transition-all duration-300 font-medium"
       >
         Login
       </Button>
@@ -43,11 +45,7 @@ const MainLayout: React.FC = () => {
         type="primary"
         icon={<UserAddOutlined />}
         onClick={() => navigate('/register')}
-        style={{
-          background: 'linear-gradient(135deg, #4B0082 0%, #6A0DAD 100%)',
-          border: 'none',
-          boxShadow: '0 4px 12px rgba(75, 0, 130, 0.3)',
-        }}
+        className="bg-gradient-to-r from-purple-800 to-purple-600 hover:from-purple-900 hover:to-purple-700 border-0 shadow-lg shadow-purple-900/30 transition-all duration-300 hover:shadow-xl hover:shadow-purple-900/40 hover:scale-105"
       >
         Register
       </Button>
@@ -60,264 +58,197 @@ const MainLayout: React.FC = () => {
   ];
 
   const socialLinks = [
-    { icon: <TwitterOutlined />, url: '#' },
-    { icon: <LinkedinOutlined />, url: '#' },
-    { icon: <GithubOutlined />, url: '#' },
-    { icon: <InstagramOutlined />, url: '#' },
+    { icon: <XIcon className="text-lg" />, url: '#' },
+    { icon: <TikTokIcon className="text-lg" />, url: '#' },
+    { icon: <InstagramOutlined className="text-lg" />, url: '#' },
+    { icon: <LinkedinOutlined className="text-lg" />, url: '#' },
   ];
 
+  const isActiveRoute = (path: string) => location.pathname === path;
+
   return (
-    <Layout className="min-h-screen" style={{ background: '#0E0E10' }}>
+    <Layout className="min-h-screen bg-dark-950">
+      {/* Header */}
       <Header
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 1000,
-          background: scrolled
-            ? 'rgba(14, 14, 16, 0.95)'
-            : location.pathname === '/'
-            ? 'transparent'
-            : 'rgba(14, 14, 16, 0.8)',
-          backdropFilter: 'blur(10px)',
-          borderBottom: scrolled ? '1px solid rgba(255, 179, 0, 0.2)' : 'none',
-          transition: 'all 0.3s ease',
-          padding: '0 24px',
-          height: '72px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
+        className={`
+          fixed top-0 left-0 right-0 z-50
+          backdrop-blur-xl
+          transition-all duration-300 ease-out
+          px-6 h-[72px]
+          flex items-center justify-between
+          ${scrolled || location.pathname !== '/'
+            ? 'bg-dark-950/90 border-b border-gold-400/20'
+            : 'bg-transparent border-0'
+          }
+        `}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+        {/* Logo & Navigation */}
+        <div className="flex items-center gap-8">
+          {/* Logo */}
           <Link
             to="/"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              textDecoration: 'none',
-            }}
+            className="flex items-center gap-3 hover:opacity-90 transition-opacity duration-300"
           >
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                background: 'linear-gradient(135deg, #4B0082 0%, #FFB300 100%)',
-                borderRadius: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold',
-                color: 'white',
-                fontSize: '16px',
-              }}
-            >
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-800 to-gold-400 rounded-xl flex items-center justify-center font-bold text-white text-base shadow-lg shadow-purple-900/20">
               VF
             </div>
             <Title
               level={3}
-              style={{
-                margin: 0,
-                color: scrolled || location.pathname !== '/' ? '#4B0082' : 'white',
-                fontSize: '24px',
-                fontWeight: 'bold',
-              }}
+              className={`
+                !mb-0 !text-2xl !font-bold
+                transition-colors duration-300
+                ${scrolled || location.pathname !== '/'
+                  ? 'bg-gradient-to-r from-purple-800 to-gold-400 bg-clip-text text-transparent'
+                  : 'text-white'
+                }
+              `}
             >
               ViralFX
             </Title>
           </Link>
 
-          <div className="hidden md:flex flex-1 justify-center">
+          {/* Desktop Navigation */}
+          <nav className="hidden lg:flex flex-1 justify-center">
             <Menu
               mode="horizontal"
               selectedKeys={[location.pathname]}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                minWidth: '300px',
-              }}
-            >
-              {menuItems.map((item) => (
-                <Menu.Item key={item.path}>
+              className="bg-transparent border-0 min-w-[300px]"
+              items={menuItems.map((item) => ({
+                key: item.path,
+                label: (
                   <Link
                     to={item.path}
-                    style={{
-                      color: scrolled || location.pathname !== '/' ? '#4B0082' : 'white',
-                      fontWeight: '500',
-                      fontSize: '14px',
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      transition: 'all 0.3s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(75, 0, 130, 0.1)';
-                      e.currentTarget.style.color = '#4B0082';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = scrolled || location.pathname !== '/' ? '#4B0082' : 'white';
-                    }}
+                    className={`
+                      relative font-medium text-sm
+                      transition-all duration-300
+                      ${isActiveRoute(item.path)
+                        ? 'text-gold-400'
+                        : scrolled || location.pathname !== '/'
+                        ? 'text-gray-700 hover:text-purple-800'
+                        : 'text-gray-200 hover:text-white'
+                      }
+                    `}
                   >
                     {item.label}
+                    {isActiveRoute(item.path) && (
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-400 rounded-full" />
+                    )}
                   </Link>
-                </Menu.Item>
-              ))}
-            </Menu>
-          </div>
+                ),
+              }))}
+            />
+          </nav>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {/* Right Side Actions */}
+        <div className="flex items-center gap-3">
           <div className="hidden sm:block">
             <LanguageSwitcher />
           </div>
-          <div className="hidden md:block">{authButtons}</div>
+          <div className="hidden lg:block">{authButtons}</div>
           <Button
             type="text"
             icon={<MenuOutlined />}
             onClick={() => setVisible(true)}
-            className="md:hidden"
-            style={{
-              color: scrolled || location.pathname !== '/' ? '#4B0082' : 'white',
-              fontSize: '18px',
-              padding: '8px',
-            }}
+            className={`
+              lg:hidden transition-all duration-300
+              ${scrolled || location.pathname !== '/'
+                ? 'text-purple-800 hover:bg-purple-50/10'
+                : 'text-white hover:bg-white/10'
+              }
+            `}
           />
         </div>
       </Header>
 
+      {/* Mobile Drawer */}
       <Drawer
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                background: 'linear-gradient(135deg, #4B0082 0%, #FFB300 100%)',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontWeight: 'bold',
-              }}
-            >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-purple-800 to-gold-400 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-md">
               VF
             </div>
-            <span style={{ color: '#4B0082', fontWeight: 'bold' }}>ViralFX</span>
+            <span className="bg-gradient-to-r from-purple-800 to-gold-400 bg-clip-text text-transparent font-bold">
+              ViralFX
+            </span>
           </div>
         }
         placement="right"
         onClose={() => setVisible(false)}
         open={visible}
-        width={300}
-        bodyStyle={{ padding: '24px' }}
+        width={320}
+        className="backdrop-blur-xl"
+        styles={{
+          body: { padding: '24px' },
+          mask: { backdropFilter: 'blur(8px)' },
+        }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="flex flex-col gap-4">
           <LanguageSwitcher />
-          {menuItems.map((item) => (
-            <Link
-              key={item.key}
-              to={item.path}
-              onClick={() => setVisible(false)}
-              style={{
-                padding: '12px 16px',
-                borderRadius: '8px',
-                color: '#4B0082',
-                textDecoration: 'none',
-                fontWeight: '500',
-                transition: 'all 0.3s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(75, 0, 130, 0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              {item.label}
-            </Link>
-          ))}
-          <div style={{ marginTop: '16px' }}>{authButtons}</div>
+
+          <div className="space-y-2">
+            {menuItems.map((item) => (
+              <Link
+                key={item.key}
+                to={item.path}
+                onClick={() => setVisible(false)}
+                className={`
+                  block px-4 py-3 rounded-lg font-medium
+                  transition-all duration-300
+                  ${isActiveRoute(item.path)
+                    ? 'bg-gradient-to-r from-purple-800/10 to-gold-400/10 text-gold-400 border-l-4 border-gold-400'
+                    : 'text-gray-700 hover:bg-purple-800/5 hover:text-purple-800'
+                  }
+                `}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            {authButtons}
+          </div>
         </div>
       </Drawer>
 
-      <Content style={{ marginTop: '72px', minHeight: 'calc(100vh - 72px)' }}>
+      {/* Main Content */}
+      <Content className="mt-[72px] min-h-[calc(100vh-72px)]">
         <Outlet />
       </Content>
 
-      <Footer
-        style={{
-          background: '#1A1A1C',
-          borderTop: '1px solid rgba(255, 179, 0, 0.2)',
-          padding: '48px 24px 24px',
-        }}
-      >
-        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-              gap: '48px',
-              marginBottom: '48px',
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  marginBottom: '24px',
-                }}
-              >
-                <div
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    background: 'linear-gradient(135deg, #4B0082 0%, #FFB300 100%)',
-                    borderRadius: '10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'white',
-                    fontWeight: 'bold',
-                  }}
-                >
+      {/* Footer */}
+      <Footer className="bg-dark-900 border-t border-gold-400/20 px-6 py-12">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
+            {/* Brand Section */}
+            <div className="lg:col-span-1">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-800 to-gold-400 rounded-xl flex items-center justify-center text-white font-bold text-base shadow-lg shadow-purple-900/20">
                   VF
                 </div>
-                <Title level={4} style={{ margin: 0, color: '#FFB300' }}>
+                <Title level={4} className="!mb-0 text-gold-400">
                   ViralFX
                 </Title>
               </div>
-              <Text style={{ color: '#B8BCC8', lineHeight: '1.6' }}>
+              <Text className="text-gray-400 leading-relaxed block">
                 Trade the trend with South Africa's leading viral trading platform.
                 Real-time market data powered by social media trends.
               </Text>
             </div>
 
+            {/* Footer Links */}
             {footerLinks.map((section) => (
               <div key={section.title}>
-                <Title level={5} style={{ color: '#FFB300', marginBottom: '16px' }}>
+                <Title level={5} className="text-gold-400 mb-4 font-semibold">
                   {section.title}
                 </Title>
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                <ul className="space-y-3">
                   {section.links.map((link) => (
-                    <li key={link} style={{ marginBottom: '12px' }}>
+                    <li key={link}>
                       <Link
                         to={`/${link.toLowerCase()}`}
-                        style={{
-                          color: '#B8BCC8',
-                          textDecoration: 'none',
-                          transition: 'color 0.3s ease',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = '#FFB300';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = '#B8BCC8';
-                        }}
+                        className="text-gray-400 hover:text-gold-400 transition-colors duration-300 inline-block"
                       >
                         {link}
                       </Link>
@@ -327,59 +258,50 @@ const MainLayout: React.FC = () => {
               </div>
             ))}
 
+            {/* Social & Newsletter */}
             <div>
-              <Title level={5} style={{ color: '#FFB300', marginBottom: '16px' }}>
+              <Title level={5} className="text-gold-400 mb-4 font-semibold">
                 Connect With Us
               </Title>
-              <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+              <div className="flex gap-3 mb-6">
                 {socialLinks.map((social, index) => (
                   <a
                     key={index}
                     href={social.url}
-                    style={{
-                      width: '40px',
-                      height: '40px',
-                      background: 'rgba(255, 179, 0, 0.1)',
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#FFB300',
-                      textDecoration: 'none',
-                      transition: 'all 0.3s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#FFB300';
-                      e.currentTarget.style.color = '#0E0E10';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(255, 179, 0, 0.1)';
-                      e.currentTarget.style.color = '#FFB300';
-                    }}
+                    className="
+                      w-10 h-10
+                      bg-gold-400/10
+                      rounded-full
+                      flex items-center justify-center
+                      text-gold-400
+                      hover:bg-gold-400
+                      hover:text-dark-950
+                      transition-all duration-300
+                      hover:scale-110
+                      hover:shadow-lg hover:shadow-gold-400/30
+                    "
                   >
                     {social.icon}
                   </a>
                 ))}
               </div>
-              <Text style={{ color: '#B8BCC8', fontSize: '14px' }}>
+              <Text className="text-gray-400 text-sm leading-relaxed block">
                 Subscribe to our newsletter for the latest market trends and platform updates.
               </Text>
             </div>
           </div>
 
-          <div
-            style={{
-              borderTop: '1px solid rgba(255, 179, 0, 0.2)',
-              paddingTop: '24px',
-              textAlign: 'center',
-            }}
-          >
-            <Text style={{ color: '#B8BCC8' }}>
+          {/* Bottom Bar */}
+          <div className="border-t border-gold-400/20 pt-6 text-center">
+            <Text className="text-gray-400 text-sm">
               © 2024 ViralFX. All rights reserved. | FSCA Authorized | POPIA Compliant
             </Text>
           </div>
         </div>
       </Footer>
+
+      {/* WhatsApp Button */}
+      <WhatsAppButton />
     </Layout>
   );
 };

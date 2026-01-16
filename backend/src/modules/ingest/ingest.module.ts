@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
 import { BullModule } from '@nestjs/bullmq';
+import { ScheduleModule } from '@nestjs/schedule';
 import { IngestService } from "./services/ingest.service";
 // import {
 //   TwitterIngestProcessor,
@@ -17,11 +18,13 @@ import { TikTokConnector } from "./connectors/tiktok.connector";
 import { InstagramConnector } from "./connectors/instagram.connector";
 import { YouTubeConnector } from "./connectors/youtube.connector";
 import { FacebookConnector } from "./connectors/facebook.connector";
+import { FreeTrendFetcherService } from "./services/free-trend-fetcher.service";
 
 @Module({
   imports: [
     ConfigModule,
     HttpModule,
+    ScheduleModule.forRoot(), // Enable cron jobs
     BullModule.forRoot({
       connection: {
         host: process.env.REDIS_HOST || 'localhost',
@@ -42,6 +45,7 @@ import { FacebookConnector } from "./connectors/facebook.connector";
   providers: [
     IngestService,
     IngestScheduler,
+    FreeTrendFetcherService, // NEW: Free trend fetcher
     // TwitterIngestProcessor, // Temporarily disabled - file not found
     // TikTokIngestProcessor, // Temporarily disabled - file not found
     // InstagramIngestProcessor, // Temporarily disabled - file not found
@@ -55,6 +59,7 @@ import { FacebookConnector } from "./connectors/facebook.connector";
   ],
   exports: [
     IngestService,
+    FreeTrendFetcherService, // NEW: Export for use in other modules
     TwitterConnector,
     TikTokConnector,
     InstagramConnector,

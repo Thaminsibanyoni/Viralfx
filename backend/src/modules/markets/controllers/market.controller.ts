@@ -30,14 +30,14 @@ import { MarketSettlementService } from '../services/market-settlement.service';
 
 @ApiTags('Markets')
 @Controller('markets')
-@UseGuards(JwtAuthGuard, ThrottlerGuard, RolesGuard)
-@ApiBearerAuth()
 export class MarketController {
   constructor(
     private readonly marketsService: MarketsService,
     private readonly settlementService: MarketSettlementService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, ThrottlerGuard, RolesGuard)
+  @ApiBearerAuth()
   @Roles('ADMIN', 'MARKET_CREATOR')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new market' })
@@ -129,6 +129,8 @@ export class MarketController {
   }
 
   @Put(':id/prices')
+  @UseGuards(JwtAuthGuard, ThrottlerGuard, RolesGuard)
+  @ApiBearerAuth()
   @Roles('ADMIN', 'SYSTEM')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update market prices (Admin/System only)' })
@@ -142,6 +144,8 @@ export class MarketController {
   }
 
   @Put(':id/close')
+  @UseGuards(JwtAuthGuard, ThrottlerGuard, RolesGuard)
+  @ApiBearerAuth()
   @Roles('ADMIN', 'MARKET_CREATOR')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Close a market manually' })
@@ -157,6 +161,8 @@ export class MarketController {
   }
 
   @Post(':id/settle')
+  @UseGuards(JwtAuthGuard, ThrottlerGuard, RolesGuard)
+  @ApiBearerAuth()
   @Roles('ADMIN', 'SYSTEM')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Settle a market (Admin/System only)' })
@@ -179,6 +185,8 @@ export class MarketController {
   }
 
   @Post(':id/settle/partial')
+  @UseGuards(JwtAuthGuard, ThrottlerGuard, RolesGuard)
+  @ApiBearerAuth()
   @Roles('ADMIN', 'SYSTEM')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Process partial settlement for a market' })
@@ -203,6 +211,8 @@ export class MarketController {
   }
 
   @Post(':id/verify-settlement')
+  @UseGuards(JwtAuthGuard, ThrottlerGuard, RolesGuard)
+  @ApiBearerAuth()
   @Roles('ADMIN', 'AUDITOR')
   @ApiOperation({ summary: 'Verify market settlement (Admin/Auditor only)' })
   @ApiParam({ name: 'id', description: 'Market ID' })

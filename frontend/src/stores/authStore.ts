@@ -15,6 +15,7 @@ interface AuthState {
   isInitialized: boolean;
   loginAttempts: number;
   lastLoginAttempt: number | null;
+  isRefreshing: boolean; // Track if token refresh is in progress
 
   // Actions
   login: (credentials: LoginCredentials) => Promise<{ user: User; tokens: TokenPair }>;
@@ -54,10 +55,11 @@ export const useAuthStore = create<AuthState>()(
           accessToken: null,
           refreshToken: null,
           isAuthenticated: false,
-          isLoading: false,
+          isLoading: true, // Start with true to prevent race conditions during rehydration
           isInitialized: false,
           loginAttempts: 0,
           lastLoginAttempt: null,
+          isRefreshing: false, // Track if token refresh is in progress
 
           // Login action
           login: async (credentials: LoginCredentials) => {
@@ -164,18 +166,28 @@ export const useAuthStore = create<AuthState>()(
 
           // Refresh authentication
           refreshAuth: async () => {
-            const {refreshToken} = get();
+            const state = get();
 
-            if (!refreshToken) {
+            // Prevent concurrent refresh attempts
+            if (state.isRefreshing) {
+              console.warn('Token refresh already in progress, skipping duplicate request');
+              return;
+            }
+
+            if (!state.refreshToken) {
               throw new Error('No refresh token available');
             }
 
+            // Set refreshing flag
+            set({ isRefreshing: true });
+
             try {
-              const tokens = await authApi.refreshToken({ refreshToken });
+              const tokens = await authApi.refreshToken({ refreshToken: state.refreshToken });
 
               set({
                 accessToken: tokens.accessToken,
                 refreshToken: tokens.refreshToken,
+                isRefreshing: false,
               });
 
               // Set up new token refresh
@@ -189,6 +201,7 @@ export const useAuthStore = create<AuthState>()(
                 isAuthenticated: false,
                 loginAttempts: 0,
                 lastLoginAttempt: null,
+                isRefreshing: false,
               });
 
               get().clearTokenRefresh();
@@ -350,17 +363,44 @@ export const useAuthStore = create<AuthState>()(
           }),
           onRehydrateStorage: () => (state) => {
             if (state) {
-              state.isInitialized = true;
+              // Set loading to true at the start of rehydration
+              state.isLoading = true;
 
-              // Check if token is expired on rehydrate
-              if (state.accessToken && state.isTokenExpired()) {
-                state.refreshAuth().catch(() => {
-                  // If refresh fails, clear auth state
-                  state.user = null;
-                  state.accessToken = null;
-                  state.refreshToken = null;
-                  state.isAuthenticated = false;
-                });
+              // Check if token exists and is valid
+              if (state.accessToken) {
+                if (state.isTokenExpired()) {
+                  // Token expired, attempt refresh ONCE (no retry loops)
+                  state.refreshAuth()
+                    .then(() => {
+                      // Refresh successful
+                      state.isLoading = false;
+                      state.isInitialized = true;
+                    })
+                    .catch((error) => {
+                      // Refresh failed, clear auth state and stop retrying
+                      console.error('Token refresh failed during rehydration:', error);
+                      state.user = null;
+                      state.accessToken = null;
+                      state.refreshToken = null;
+                      state.isAuthenticated = false;
+                      state.isLoading = false;
+                      state.isInitialized = true;
+                    })
+                    .finally(() => {
+                      // Ensure loading is always set to false
+                      state.isLoading = false;
+                      state.isInitialized = true;
+                    });
+                } else {
+                  // Token valid, set up refresh timer
+                  state.setupTokenRefresh();
+                  state.isLoading = false;
+                  state.isInitialized = true;
+                }
+              } else {
+                // No token exists, mark as initialized immediately
+                state.isLoading = false;
+                state.isInitialized = true;
               }
             }
           },

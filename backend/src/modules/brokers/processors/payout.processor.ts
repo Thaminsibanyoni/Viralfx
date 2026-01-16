@@ -1,5 +1,6 @@
 import { Processor } from '@nestjs/bullmq';
 import { OnWorkerEvent } from '@nestjs/bullmq';
+import { WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { RevenueSharingService } from '../services/revenue-sharing.service';
@@ -298,14 +299,14 @@ export class PayoutProcessor extends WorkerHost {
     await this.prismaService.auditLog.create({
       data: {
         action: 'PAYOUT_PROCESSING',
-        entityType: 'BROKER_PAYOUT',
+        entity: 'BROKER_PAYOUT',
         entityId: brokerId,
-        oldValues: null,
-        newValues: JSON.stringify({
+        changes: null,
+        metadata: {
           activity,
           details,
           timestamp: new Date().toISOString()
-        }),
+        },
         userId: null,
         ipAddress: null,
         userAgent: 'Payout Processor'

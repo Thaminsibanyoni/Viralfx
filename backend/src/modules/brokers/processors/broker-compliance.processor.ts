@@ -1,5 +1,6 @@
 import { Processor } from '@nestjs/bullmq';
 import { OnWorkerEvent } from '@nestjs/bullmq';
+import { WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { ComplianceService } from '../services/compliance.service';
@@ -386,14 +387,14 @@ export class BrokerComplianceProcessor extends WorkerHost {
     await this.prismaService.auditLog.create({
       data: {
         action: 'COMPLIANCE_CHECK',
-        entityType: 'BROKER_COMPLIANCE',
+        entity: 'BROKER_COMPLIANCE',
         entityId,
-        oldValues: null,
-        newValues: JSON.stringify({
+        changes: null,
+        metadata: {
           activity,
           details,
           timestamp: new Date().toISOString()
-        }),
+        },
         userId: null,
         ipAddress: null,
         userAgent: 'Compliance Processor'

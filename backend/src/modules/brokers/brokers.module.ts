@@ -17,6 +17,7 @@ import { ClientAttributionController } from "./controllers/client-attribution.co
 import { ClientDashboardController } from "./controllers/client-dashboard.controller";
 import { RevenueSharingController } from "./controllers/revenue-sharing.controller";
 import { WhiteLabelController } from "./controllers/white-label.controller";
+import { BrokerAuthController } from "./controllers/broker-auth.controller";
 
 // Services
 import { BrokersService } from "./services/brokers.service";
@@ -30,6 +31,7 @@ import { ClientAttributionService } from "./services/client-attribution.service"
 import { ClientDashboardService } from "./services/client-dashboard.service";
 import { RevenueSharingService } from "./services/revenue-sharing.service";
 import { WhiteLabelService } from "./services/white-label.service";
+import { BrokerAuthService } from "./services/broker-auth.service";
 
 // Processors
 import { BrokerVerificationProcessor } from "./processors/broker-verification.processor";
@@ -90,6 +92,7 @@ import { InvoiceGeneratorService } from '../billing/services/invoice-generator.s
     ClientDashboardController,
     RevenueSharingController,
     WhiteLabelController,
+    BrokerAuthController,
   ],
   providers: [
     BrokersService,
@@ -103,11 +106,12 @@ import { InvoiceGeneratorService } from '../billing/services/invoice-generator.s
     ClientDashboardService,
     RevenueSharingService,
     WhiteLabelService,
+    BrokerAuthService,
     InvoiceGeneratorService,
-    // BrokerVerificationProcessor,  // TEMP_DISABLED
-    // BrokerComplianceProcessor,  // TEMP_DISABLED
-    // BrokerBillingProcessor,  // TEMP_DISABLED
-    // PayoutProcessor,  // TEMP_DISABLED
+    BrokerVerificationProcessor,
+    BrokerComplianceProcessor,
+    BrokerBillingProcessor,
+    PayoutProcessor,
     ComplianceScheduler,
     BillingScheduler,
     BrokerAuthGuard,
@@ -129,6 +133,7 @@ import { InvoiceGeneratorService } from '../billing/services/invoice-generator.s
     ClientDashboardService,
     RevenueSharingService,
     WhiteLabelService,
+    BrokerAuthService,
     BrokerAuthGuard,
     BrokerRolesGuard,
   ]

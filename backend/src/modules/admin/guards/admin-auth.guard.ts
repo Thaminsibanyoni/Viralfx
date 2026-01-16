@@ -56,3 +56,6 @@ export class AdminAuthGuard implements CanActivate {
     return type === 'Bearer' ? token : undefined;
   }
 }
+
+// Alias for backward compatibility
+export { AdminAuthGuard as AdminGuard };

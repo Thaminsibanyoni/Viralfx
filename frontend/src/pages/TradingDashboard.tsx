@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Row, Col, Card, Tabs, Button, Space, Typography, Alert, Spin, Badge, Statistic, Avatar, List, Progress, Divider } from 'antd';
 import {
-  ThunderboltOutlined, WalletOutlined, HistoryOutlined, RiseOutlined, SettingOutlined, BellOutlined, SyncOutlined, EyeOutlined, EyeInvisibleOutlined, FireOutlined, ArrowUpOutlined, ArrowDownOutlined, TrophyOutlined, RiseOutlined, FallOutlined, StarOutlined, ClockCircleOutlined, MenuOutlined, UserOutlined, SearchOutlined, DashboardOutlined, BarChartOutlined, MessageOutlined
+  ThunderboltOutlined, WalletOutlined, HistoryOutlined, RiseOutlined, SettingOutlined, BellOutlined, SyncOutlined, EyeOutlined, EyeInvisibleOutlined, FireOutlined, ArrowUpOutlined, ArrowDownOutlined, TrophyOutlined, FallOutlined, StarOutlined, ClockCircleOutlined, MenuOutlined, UserOutlined, SearchOutlined, DashboardOutlined, BarChartOutlined, MessageOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../hooks/useAuth';
 import { useWebSocket } from '../hooks/useWebSocket';

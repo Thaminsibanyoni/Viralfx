@@ -967,12 +967,12 @@ class CRMClient {
 
   // Brokers Management
   async createBrokerAccount(brokerData: Partial<BrokerAccount>): Promise<ApiResponse<BrokerAccount>> {
-    const response = await this.client.post('/api/v1/crm/brokers', brokerData);
+    const response = await this.client.post('/crm/brokers', brokerData);
     return response.data;
   }
 
   async getAllBrokerAccounts(filters: BrokerFilters = {}): Promise<ApiResponse<PaginatedResponse<BrokerAccount>>> {
-    const response = await this.client.get('/api/v1/crm/brokers', { params: filters });
+    const response = await this.client.get('/crm/brokers', { params: filters });
     return response.data;
   }
 
@@ -1027,12 +1027,12 @@ class CRMClient {
 
   // Billing Management
   async generateInvoice(invoiceData: Partial<BrokerInvoice>): Promise<ApiResponse<BrokerInvoice>> {
-    const response = await this.client.post('/api/v1/crm/billing/invoices', invoiceData);
+    const response = await this.client.post('/crm/billing/invoices', invoiceData);
     return response.data;
   }
 
   async getInvoices(filters: InvoiceFilters = {}): Promise<ApiResponse<PaginatedResponse<BrokerInvoice>>> {
-    const response = await this.client.get('/api/v1/crm/billing/invoices', { params: filters });
+    const response = await this.client.get('/crm/billing/invoices', { params: filters });
     return response.data;
   }
 
@@ -1047,12 +1047,12 @@ class CRMClient {
   }
 
   async recordPayment(paymentData: Partial<BrokerPayment>): Promise<ApiResponse<BrokerPayment>> {
-    const response = await this.client.post('/api/v1/crm/billing/payments', paymentData);
+    const response = await this.client.post('/crm/billing/payments', paymentData);
     return response.data;
   }
 
   async getPayments(filters: PaymentFilters = {}): Promise<ApiResponse<PaginatedResponse<BrokerPayment>>> {
-    const response = await this.client.get('/api/v1/crm/billing/payments', { params: filters });
+    const response = await this.client.get('/crm/billing/payments', { params: filters });
     return response.data;
   }
 
@@ -1062,17 +1062,17 @@ class CRMClient {
   }
 
   async getRevenueAnalytics(filters: AnalyticsFilters = {}): Promise<ApiResponse<RevenueAnalytics>> {
-    const response = await this.client.get('/api/v1/crm/billing/analytics', { params: filters });
+    const response = await this.client.get('/crm/billing/analytics', { params: filters });
     return response.data;
   }
 
   async getOverdueInvoices(filters: InvoiceFilters = {}): Promise<ApiResponse<PaginatedResponse<BrokerInvoice>>> {
-    const response = await this.client.get('/api/v1/crm/billing/invoices/overdue', { params: { ...filters, overdue: true } });
+    const response = await this.client.get('/crm/billing/invoices/overdue', { params: { ...filters, overdue: true } });
     return response.data;
   }
 
   async initiatePayment(paymentData: PaymentInitiationData): Promise<ApiResponse<any>> {
-    const response = await this.client.post('/api/v1/crm/billing/payments/initiate', paymentData);
+    const response = await this.client.post('/crm/billing/payments/initiate', paymentData);
     return response.data;
   }
 
@@ -1083,12 +1083,12 @@ class CRMClient {
 
   // Support Management
   async createTicket(ticketData: Partial<SupportTicket>): Promise<ApiResponse<SupportTicket>> {
-    const response = await this.client.post('/api/v1/crm/support/tickets', ticketData);
+    const response = await this.client.post('/crm/support/tickets', ticketData);
     return response.data;
   }
 
   async getTickets(filters: TicketFilters = {}): Promise<ApiResponse<PaginatedResponse<SupportTicket>>> {
-    const response = await this.client.get('/api/v1/crm/support/tickets', { params: filters });
+    const response = await this.client.get('/crm/support/tickets', { params: filters });
     return response.data;
   }
 
@@ -1135,12 +1135,12 @@ class CRMClient {
 
   // Pipeline Management
   async createDeal(dealData: Partial<BrokerDeal>): Promise<ApiResponse<BrokerDeal>> {
-    const response = await this.client.post('/api/v1/crm/pipeline/deals', dealData);
+    const response = await this.client.post('/crm/pipeline/deals', dealData);
     return response.data;
   }
 
   async getDeals(filters: DealFilters = {}): Promise<ApiResponse<PaginatedResponse<BrokerDeal>>> {
-    const response = await this.client.get('/api/v1/crm/pipeline/deals', { params: filters });
+    const response = await this.client.get('/crm/pipeline/deals', { params: filters });
     return response.data;
   }
 
@@ -1175,28 +1175,28 @@ class CRMClient {
   }
 
   async getForecast(filters: AnalyticsFilters = {}): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/pipeline/forecast', { params: filters });
+    const response = await this.client.get('/crm/pipeline/forecast', { params: filters });
     return response.data;
   }
 
   async getKanbanView(filters: DealFilters = {}): Promise<ApiResponse<{ stages: DealStage[]; deals: BrokerDeal[] }>> {
-    const response = await this.client.get('/api/v1/crm/pipeline/kanban', { params: filters });
+    const response = await this.client.get('/crm/pipeline/kanban', { params: filters });
     return response.data;
   }
 
   async getDealStages(): Promise<ApiResponse<DealStage[]>> {
-    const response = await this.client.get('/api/v1/crm/pipeline/stages');
+    const response = await this.client.get('/crm/pipeline/stages');
     return response.data;
   }
 
   // Client Management
   async createClient(clientData: Partial<ClientRecord>): Promise<ApiResponse<ClientRecord>> {
-    const response = await this.client.post('/api/v1/crm/clients', clientData);
+    const response = await this.client.post('/crm/clients', clientData);
     return response.data;
   }
 
   async getClients(filters: ClientFilters = {}): Promise<ApiResponse<PaginatedResponse<ClientRecord>>> {
-    const response = await this.client.get('/api/v1/crm/clients', { params: filters });
+    const response = await this.client.get('/crm/clients', { params: filters });
     return response.data;
   }
 
@@ -1222,17 +1222,17 @@ class CRMClient {
 
   // Utilities and Analytics
   async getAnalyticsRevenue(filters: AnalyticsFilters = {}): Promise<ApiResponse<RevenueAnalytics>> {
-    const response = await this.client.get('/api/v1/crm/analytics/revenue', { params: filters });
+    const response = await this.client.get('/crm/analytics/revenue', { params: filters });
     return response.data;
   }
 
   async runInvoiceJob(): Promise<ApiResponse<void>> {
-    const response = await this.client.post('/api/v1/crm/admin/invoice-job');
+    const response = await this.client.post('/crm/admin/invoice-job');
     return response.data;
   }
 
   async exportBrokerInvoices(filters: InvoiceFilters = {}): Promise<ApiResponse<string>> {
-    const response = await this.client.get('/api/v1/crm/billing/invoices/export', {
+    const response = await this.client.get('/crm/billing/invoices/export', {
       params: filters,
       responseType: 'blob'
     });
@@ -1240,7 +1240,7 @@ class CRMClient {
   }
 
   async exportBrokerPayments(filters: PaymentFilters = {}): Promise<ApiResponse<string>> {
-    const response = await this.client.get('/api/v1/crm/billing/payments/export', {
+    const response = await this.client.get('/crm/billing/payments/export', {
       params: filters,
       responseType: 'blob'
     });
@@ -1248,7 +1248,7 @@ class CRMClient {
   }
 
   async getSystemAnalytics(): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/analytics/system');
+    const response = await this.client.get('/crm/analytics/system');
     return response.data;
   }
 
@@ -1256,7 +1256,7 @@ class CRMClient {
 
   // Bulk Operations
   async bulkUpdateBrokersStatus(ids: string[], status: string, reason?: string): Promise<ApiResponse<any>> {
-    const response = await this.client.patch('/api/v1/crm/brokers/bulk-status', {
+    const response = await this.client.patch('/crm/brokers/bulk-status', {
       ids,
       status,
       reason
@@ -1265,14 +1265,14 @@ class CRMClient {
   }
 
   async bulkSendInvoices(invoiceIds: string[]): Promise<ApiResponse<any>> {
-    const response = await this.client.post('/api/v1/crm/billing/invoices/bulk-send', {
+    const response = await this.client.post('/crm/billing/invoices/bulk-send', {
       invoiceIds
     });
     return response.data;
   }
 
   async bulkAssignTickets(ticketIds: string[], assigneeId: string): Promise<ApiResponse<any>> {
-    const response = await this.client.post('/api/v1/crm/support/tickets/bulk-assign', {
+    const response = await this.client.post('/crm/support/tickets/bulk-assign', {
       ticketIds,
       assigneeId
     });
@@ -1281,23 +1281,23 @@ class CRMClient {
 
   // Advanced Analytics
   async getConversionAnalytics(filters: AnalyticsFilters = {}): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/analytics/conversions', { params: filters });
+    const response = await this.client.get('/crm/analytics/conversions', { params: filters });
     return response.data;
   }
 
   async getPerformanceAnalytics(filters: AnalyticsFilters = {}): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/analytics/performance', { params: filters });
+    const response = await this.client.get('/crm/analytics/performance', { params: filters });
     return response.data;
   }
 
   async getComplianceReport(filters: any = {}): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/analytics/compliance', { params: filters });
+    const response = await this.client.get('/crm/analytics/compliance', { params: filters });
     return response.data;
   }
 
   // Workflow Automation
   async triggerWorkflow(workflowType: string, entityId: string, options?: any): Promise<ApiResponse<any>> {
-    const response = await this.client.post('/api/v1/crm/workflows/trigger', {
+    const response = await this.client.post('/crm/workflows/trigger', {
       workflowType,
       entityId,
       options
@@ -1328,7 +1328,7 @@ class CRMClient {
         },
       };
 
-      this.client.post('/api/v1/crm/upload', formData, config)
+      this.client.post('/crm/upload', formData, config)
         .then((response) => {
           resolve(response.data);
         })
@@ -1340,7 +1340,7 @@ class CRMClient {
 
   // Search and filtering
   async searchGlobal(query: string, filters?: any): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/search', {
+    const response = await this.client.get('/crm/search', {
       params: { q: query, ...filters }
     });
     return response.data;
@@ -1361,13 +1361,13 @@ class CRMClient {
   }
 
   async sendNotification(notificationData: any): Promise<ApiResponse<any>> {
-    const response = await this.client.post('/api/v1/crm/notifications/send', notificationData);
+    const response = await this.client.post('/crm/notifications/send', notificationData);
     return response.data;
   }
 
   // Template management
   async getEmailTemplates(type?: string): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/templates/email', {
+    const response = await this.client.get('/crm/templates/email', {
       params: { type }
     });
     return response.data;
@@ -1383,7 +1383,7 @@ class CRMClient {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await this.client.post('/api/v1/crm/clients/import', formData, {
+    const response = await this.client.post('/crm/clients/import', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -1392,7 +1392,7 @@ class CRMClient {
   }
 
   async getClientsImportTemplate(): Promise<ApiResponse<string>> {
-    const response = await this.client.get('/api/v1/crm/clients/import-template', {
+    const response = await this.client.get('/crm/clients/import-template', {
       responseType: 'blob'
     });
     return response.data;
@@ -1400,7 +1400,7 @@ class CRMClient {
 
   // Audit and Logging
   async getAuditLog(filters: any = {}): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/audit-log', { params: filters });
+    const response = await this.client.get('/crm/audit-log', { params: filters });
     return response.data;
   }
 
@@ -1411,33 +1411,33 @@ class CRMClient {
 
   // Health checks
   async getCRMHealth(): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/health');
+    const response = await this.client.get('/crm/health');
     return response.data;
   }
 
   async getAPIUsageStats(): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/stats/usage');
+    const response = await this.client.get('/crm/stats/usage');
     return response.data;
   }
 
   // CRM Settings
   async getSettings(): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/settings');
+    const response = await this.client.get('/crm/settings');
     return response.data;
   }
 
   async updateSettings(settings: any): Promise<ApiResponse<any>> {
-    const response = await this.client.put('/api/v1/crm/settings', settings);
+    const response = await this.client.put('/crm/settings', settings);
     return response.data;
   }
 
   async testEmailSettings(email: string): Promise<ApiResponse<void>> {
-    const response = await this.client.post('/api/v1/crm/settings/test-email', { email });
+    const response = await this.client.post('/crm/settings/test-email', { email });
     return response.data;
   }
 
   async resetSettingsToDefault(): Promise<ApiResponse<any>> {
-    const response = await this.client.post('/api/v1/crm/settings/reset');
+    const response = await this.client.post('/crm/settings/reset');
     return response.data;
   }
 
@@ -1482,12 +1482,12 @@ class CRMClient {
 
   // Invoice Templates
   async getInvoiceTemplates(): Promise<ApiResponse<any[]>> {
-    const response = await this.client.get('/api/v1/crm/invoices/templates');
+    const response = await this.client.get('/crm/invoices/templates');
     return response.data;
   }
 
   async createInvoiceTemplate(template: any): Promise<ApiResponse<any>> {
-    const response = await this.client.post('/api/v1/crm/invoices/templates', template);
+    const response = await this.client.post('/crm/invoices/templates', template);
     return response.data;
   }
 
@@ -1513,17 +1513,17 @@ class CRMClient {
   }
 
   async getTicketMetrics(period: string = 'month'): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/analytics/tickets/metrics', { params: { period } });
+    const response = await this.client.get('/crm/analytics/tickets/metrics', { params: { period } });
     return response.data;
   }
 
   async getBillingMetrics(period: string = 'month'): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/analytics/billing/metrics', { params: { period } });
+    const response = await this.client.get('/crm/analytics/billing/metrics', { params: { period } });
     return response.data;
   }
 
   async getSalesMetrics(period: string = 'month'): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/analytics/sales/metrics', { params: { period } });
+    const response = await this.client.get('/crm/analytics/sales/metrics', { params: { period } });
     return response.data;
   }
 
@@ -1534,7 +1534,7 @@ class CRMClient {
     if (options.skipDuplicates) formData.append('skipDuplicates', 'true');
     if (options.updateExisting) formData.append('updateExisting', 'true');
 
-    const response = await this.client.post('/api/v1/crm/import/brokers', formData, {
+    const response = await this.client.post('/crm/import/brokers', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
     return response.data;
@@ -1542,7 +1542,7 @@ class CRMClient {
 
   
   async getImportHistory(): Promise<ApiResponse<any[]>> {
-    const response = await this.client.get('/api/v1/crm/import/history');
+    const response = await this.client.get('/crm/import/history');
     return response.data;
   }
 
@@ -1563,32 +1563,32 @@ class CRMClient {
 
   // System Configuration
   async getSystemInfo(): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/system/info');
+    const response = await this.client.get('/crm/system/info');
     return response.data;
   }
 
   async getSystemLogs(filters: { level?: string; startDate?: string; endDate?: string; limit?: number } = {}): Promise<ApiResponse<any[]>> {
-    const response = await this.client.get('/api/v1/crm/system/logs', { params: filters });
+    const response = await this.client.get('/crm/system/logs', { params: filters });
     return response.data;
   }
 
   async getSystemMetrics(): Promise<ApiResponse<any>> {
-    const response = await this.client.get('/api/v1/crm/system/metrics');
+    const response = await this.client.get('/crm/system/metrics');
     return response.data;
   }
 
   async performSystemMaintenance(action: string, options: any = {}): Promise<ApiResponse<any>> {
-    const response = await this.client.post('/api/v1/crm/system/maintenance', { action, options });
+    const response = await this.client.post('/crm/system/maintenance', { action, options });
     return response.data;
   }
 
   async getBackupHistory(): Promise<ApiResponse<any[]>> {
-    const response = await this.client.get('/api/v1/crm/system/backups');
+    const response = await this.client.get('/crm/system/backups');
     return response.data;
   }
 
   async createBackup(options: { includeFiles?: boolean; compress?: boolean } = {}): Promise<ApiResponse<any>> {
-    const response = await this.client.post('/api/v1/crm/system/backups', options);
+    const response = await this.client.post('/crm/system/backups', options);
     return response.data;
   }
 

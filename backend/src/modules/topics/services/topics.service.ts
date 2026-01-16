@@ -2,26 +2,19 @@ import { Injectable, NotFoundException, ConflictException, Logger } from '@nestj
 import { PrismaService } from "../../../prisma/prisma.service";
 import { Redis } from 'ioredis';
 import { Topic } from '@prisma/client';
+import { CanonicalData, asCanonicalData } from '../dto';
 
 interface CreateTopicData {
   name: string;
   slug?: string;
   category: string;
   description?: string;
-  canonical: {
-    hashtags: string[];
-    keywords: string[];
-    entities: Array<{
-      type: string;
-      value: string;
-      confidence: number;
-    }>;
-  };
+  canonical: CanonicalData;
 }
 
 interface UpdateTopicData extends Partial<CreateTopicData> {
   isVerified?: boolean;
-  isActive?: boolean;
+  status?: 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
 }
 
 @Injectable()
@@ -58,11 +51,7 @@ export class TopicsService {
       data: {
         ...topicData,
         slug: generatedSlug,
-        canonical: data.canonical || {
-          hashtags: [],
-          keywords: [],
-          entities: []
-        }
+        canonical: data.canonical || { hashtags: [], keywords: [], entities: [] } satisfies CanonicalData
       }
     });
 
@@ -162,7 +151,7 @@ export class TopicsService {
     await this.prisma.topic.update({
       where: { id },
       data: {
-        isActive: false,
+        status: 'ARCHIVED',
         deletedAt: new Date()
       }
     });
@@ -183,7 +172,7 @@ export class TopicsService {
     const skip = (page - 1) * limit;
 
     const where: any = {
-      isActive: true,
+      status: 'ACTIVE',
       deletedAt: null
     };
 
@@ -225,21 +214,20 @@ export class TopicsService {
 
     const trendingTopics = await this.prisma.topic.findMany({
       where: {
-        isActive: true,
-        deletedAt: null,
+        status: 'ACTIVE',
         ...(category && { category }),
         viralSnapshots: {
           some: {
-            timestamp: { gte: oneHourAgo }
+            ts: { gte: oneHourAgo }
           }
         }
       },
       include: {
         viralSnapshots: {
           where: {
-            timestamp: { gte: oneHourAgo }
+            ts: { gte: oneHourAgo }
           },
-          orderBy: { timestamp: 'desc' },
+          orderBy: { ts: 'desc' },
           take: 1
         },
         _count: {
@@ -272,7 +260,7 @@ export class TopicsService {
     const topics = await this.prisma.topic.findMany({
       where: {
         category,
-        isActive: true,
+        status: 'ACTIVE',
         deletedAt: null
       },
       take: limit,
@@ -303,7 +291,7 @@ export class TopicsService {
     const sourceTopics = await this.prisma.topic.findMany({
       where: {
         id: { in: sourceTopicIds },
-        isActive: true,
+        status: 'ACTIVE',
         deletedAt: null
       }
     });
@@ -348,21 +336,25 @@ export class TopicsService {
         this.prisma.topic.update({
           where: { id },
           data: {
-            isActive: false,
+            status: 'ARCHIVED',
             deletedAt: new Date(),
             mergedInto: targetTopicId
           }
         })));
 
     // Update target topic canonical data
+    // Extract canonical data safely
+    const targetCanonical = asCanonicalData(targetTopic.canonical);
+    const sourceCanonicals = sourceTopics.map(t => asCanonicalData(t.canonical));
+
     const allHashtags = new Set([
-      ...(targetTopic.canonical?.hashtags || []),
-      ...sourceTopics.flatMap(t => t.canonical?.hashtags || []),
+      ...targetCanonical.hashtags,
+      ...sourceCanonicals.flatMap(c => c.hashtags),
     ]);
 
     const allKeywords = new Set([
-      ...(targetTopic.canonical?.keywords || []),
-      ...sourceTopics.flatMap(t => t.canonical?.keywords || []),
+      ...targetCanonical.keywords,
+      ...sourceCanonicals.flatMap(c => c.keywords),
     ]);
 
     await this.prisma.topic.update({
@@ -371,8 +363,8 @@ export class TopicsService {
         canonical: {
           hashtags: Array.from(allHashtags),
           keywords: Array.from(allKeywords),
-          entities: targetTopic.canonical?.entities || []
-        }
+          entities: targetCanonical.entities
+        } satisfies CanonicalData
       }
     });
 
@@ -393,23 +385,23 @@ export class TopicsService {
     const [ingestStats, marketStats, sentimentStats, viralStats] = await Promise.all([
       this.prisma.ingestEvent.aggregate({
         where: { topicId },
-        _count: { id: true },
-        _max: { timestamp: true },
-        _min: { timestamp: true }
+        _count: true,
+        _max: { ingestedAt: true },
+        _min: { ingestedAt: true }
       }),
       this.prisma.market.aggregate({
         where: { topicId },
-        _count: { id: true },
+        _count: true,
         _sum: { totalVolume: true }
       }),
       this.prisma.sentimentSnapshot.aggregate({
         where: { topicId },
-        _count: { id: true },
-        _avg: { sentimentScore: true }
+        _count: true,
+        _avg: { scoreFloat: true }
       }),
       this.prisma.viralIndexSnapshot.aggregate({
         where: { topicId },
-        _count: { id: true },
+        _count: true,
         _max: { viralIndex: true }
       }),
     ]);
@@ -423,17 +415,17 @@ export class TopicsService {
         isVerified: topic.isVerified
       },
       stats: {
-        totalIngestEvents: ingestStats._count.id,
+        totalIngestEvents: (ingestStats._count as number) ?? 0,
         ingestDateRange: {
-          start: ingestStats._min.timestamp,
-          end: ingestStats._max.timestamp
+          start: ingestStats._min?.ingestedAt ?? null,
+          end: ingestStats._max?.ingestedAt ?? null
         },
-        totalMarkets: marketStats._count.id,
-        totalVolume: marketStats._sum.totalVolume || 0,
-        avgSentimentScore: sentimentStats._avg.sentimentScore || 0,
-        totalSentimentSnapshots: sentimentStats._count.id,
-        maxViralIndex: viralStats._max.viralIndex || 0,
-        totalViralSnapshots: viralStats._count.id
+        totalMarkets: (marketStats._count as number) ?? 0,
+        totalVolume: marketStats._sum?.totalVolume ?? 0,
+        avgSentimentScore: sentimentStats._avg?.scoreFloat ?? 0,
+        totalSentimentSnapshots: (sentimentStats._count as number) ?? 0,
+        maxViralIndex: viralStats._max?.viralIndex ?? 0,
+        totalViralSnapshots: (viralStats._count as number) ?? 0
       }
     };
   }

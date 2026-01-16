@@ -7,6 +7,8 @@ import { Logger } from '@nestjs/common';
 export class WebSocketAdapter extends IoAdapter {
   private adapterConstructor: ReturnType<typeof createAdapter>;
   private readonly logger = new Logger(WebSocketAdapter.name);
+  private pubClient: ReturnType<typeof createClient>;
+  private subClient: ReturnType<typeof createClient>;
 
   constructor(app: any) {
     super(app);
@@ -15,10 +17,14 @@ export class WebSocketAdapter extends IoAdapter {
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
     try {
-      const pubClient = createClient({ url: redisUrl });
-      const subClient = pubClient.duplicate();
+      this.pubClient = createClient({ url: redisUrl, socket: { reconnectStrategy: () => 1000 } });
+      this.subClient = this.pubClient.duplicate();
 
-      this.adapterConstructor = createAdapter(pubClient, subClient);
+      // Connect both clients
+      this.pubClient.connect().catch(err => this.logger.error('PubClient connection error:', err));
+      this.subClient.connect().catch(err => this.logger.error('SubClient connection error:', err));
+
+      this.adapterConstructor = createAdapter(this.pubClient, this.subClient);
     } catch (error) {
       this.logger.error('Failed to initialize Redis adapter', error);
     }

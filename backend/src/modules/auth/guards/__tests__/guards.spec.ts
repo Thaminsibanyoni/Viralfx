@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
-import { PrismaService } from "../../../prisma/prisma.service";
+import { PrismaService } from "../../../../prisma/prisma.service";
 
 // Guards to test
 import { JwtAuthGuard } from '../jwt-auth.guard';

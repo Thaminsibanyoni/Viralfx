@@ -6,6 +6,7 @@ import { InstagramConnector } from "../../ingest/connectors/instagram.connector"
 import { YouTubeConnector } from "../../ingest/connectors/youtube.connector";
 import { FacebookConnector } from "../../ingest/connectors/facebook.connector";
 import { Content } from "../../ingest/interfaces/ingest.interface";
+import { PrismaService } from "../../../prisma/prisma.service";
 
 /**
  * Real Social Data Service - Oracle Phase 2 (Real APIs)
@@ -28,7 +29,8 @@ export class RealSocialDataService {
     private readonly tiktokConnector: TikTokConnector,
     private readonly instagramConnector: InstagramConnector,
     private readonly youtubeConnector: YouTubeConnector,
-    private readonly facebookConnector: FacebookConnector) {}
+    private readonly facebookConnector: FacebookConnector,
+    private readonly prisma: PrismaService) {}
 
   async getTrendingTikTokVideos(limit: number = 50): Promise<SocialMediaPost[]> {
     this.logger.log(`📱 Fetching ${limit} trending TikTok videos`);
@@ -127,77 +129,61 @@ export class RealSocialDataService {
 
   // South African specific trend detection
   async getSouthAfricanTrends(): Promise<SocialMediaPost[]> {
-    this.logger.log(`🇿🇦 Fetching South African specific trends`);
+    this.logger.log(`🇿🇦 Fetching South African specific trends from internal Oracle database`);
 
     try {
-      // Collect content from all connectors
-      const [
-        tiktokContents,
-        twitterContents,
-        instagramContents,
-        youtubeContents,
-        facebookContents
-      ] = await Promise.allSettled([
-        this.tiktokConnector.collectContent(),
-        this.twitterConnector.collectContent(),
-        this.instagramConnector.collectContent(),
-        this.youtubeConnector.collectContent(),
-        this.facebookConnector.collectContent()
-      ]);
+      // Fetch active topics from database (INTERNAL Oracle data)
+      const topics = await this.prisma.topic.findMany({
+        where: {
+          status: 'ACTIVE',
+          OR: [
+            { region: 'ZA' },  // South African topics
+            { region: 'GLOBAL' } // Global topics
+          ]
+        },
+        include: {
+          // Could include relations if needed
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: 50
+      });
 
-      // Map all successfully collected content
-      const allMappedPosts: SocialMediaPost[] = [];
+      // Transform Topics into SocialMediaPost format for frontend compatibility
+      const socialPosts: SocialMediaPost[] = topics.map(topic => {
+        const metadata = topic.metadata as any;
+        const viralScore = metadata?.viralScore || 0.5;
 
-      if (tiktokContents.status === 'fulfilled') {
-        allMappedPosts.push(...tiktokContents.value.slice(0, 20).map(content =>
-          this.mapContentToSocialMediaPost(content, PlatformType.TIKTOK)
-        ));
-      }
+        return {
+          id: topic.id,
+          platform: PlatformType.TWITTER, // Default to Twitter for display
+          content: topic.name,
+          author: topic.symbol || topic.slug,
+          timestamp: topic.createdAt.toISOString(),
+          metrics: {
+            likes: Math.floor(viralScore * 100000),
+            shares: Math.floor(viralScore * 50000),
+            comments: Math.floor(viralScore * 20000),
+            views: Math.floor(viralScore * 1000000)
+          },
+          trendScore: viralScore,
+          engagement: viralScore * 100,
+          region: topic.region || 'GLOBAL',
+          category: topic.category,
+          hashtags: metadata?.hashtags || [topic.name],
+          keywords: metadata?.keywords || [topic.slug],
+          isVerified: topic.isVerified,
+          source: 'ORACLE_INTERNAL'
+        };
+      });
 
-      if (twitterContents.status === 'fulfilled') {
-        allMappedPosts.push(...twitterContents.value.slice(0, 30).map(content =>
-          this.mapContentToSocialMediaPost(content, PlatformType.TWITTER)
-        ));
-      }
-
-      if (instagramContents.status === 'fulfilled') {
-        allMappedPosts.push(...instagramContents.value.slice(0, 20).map(content =>
-          this.mapContentToSocialMediaPost(content, PlatformType.INSTAGRAM)
-        ));
-      }
-
-      if (youtubeContents.status === 'fulfilled') {
-        allMappedPosts.push(...youtubeContents.value.slice(0, 15).map(content =>
-          this.mapContentToSocialMediaPost(content, PlatformType.YOUTUBE)
-        ));
-      }
-
-      if (facebookContents.status === 'fulfilled') {
-        allMappedPosts.push(...facebookContents.value.slice(0, 20).map(content =>
-          this.mapContentToSocialMediaPost(content, PlatformType.FACEBOOK)
-        ));
-      }
-
-      // Apply comprehensive South African filters
-      const saFilteredPosts = this.applySouthAfricanFilters(allMappedPosts);
-
-      // Log any collection failures
-      const failedCollections = [];
-      if (tiktokContents.status === 'rejected') failedCollections.push('TikTok');
-      if (twitterContents.status === 'rejected') failedCollections.push('Twitter');
-      if (instagramContents.status === 'rejected') failedCollections.push('Instagram');
-      if (youtubeContents.status === 'rejected') failedCollections.push('YouTube');
-      if (facebookContents.status === 'rejected') failedCollections.push('Facebook');
-
-      if (failedCollections.length > 0) {
-        this.logger.warn(`Failed to collect from: ${failedCollections.join(', ')}`);
-      }
-
-      this.logger.log(`Successfully collected ${saFilteredPosts.length} South African trends from ${allMappedPosts.length} total posts`);
-      return saFilteredPosts;
+      this.logger.log(`✅ Successfully fetched ${socialPosts.length} trends from internal Oracle database`);
+      return socialPosts;
     } catch (error) {
-      this.logger.error('Failed to collect South African trends:', error);
-      throw error;
+      this.logger.error('Failed to fetch South African trends from database:', error);
+      // Return empty array on error
+      return [];
     }
   }
 

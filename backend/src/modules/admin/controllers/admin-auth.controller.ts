@@ -1,4 +1,4 @@
-import { 
+import {
   Controller,
   Post,
   Get,
@@ -11,6 +11,7 @@ import {
   Request,
   HttpCode,
   HttpStatus, Req } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AdminAuthGuard } from '../guards/admin-auth.guard';
 import { Permissions, ROLES } from '../decorators/permissions.decorator';
 import { AdminAuthService } from '../services/admin-auth.service';
@@ -24,12 +25,14 @@ export class AdminAuthController {
     private rbacService: AdminRbacService) {}
 
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 attempts per minute
   @HttpCode(HttpStatus.OK)
   async login(@Body() loginDto: AdminLoginDto) {
     return await this.adminAuthService.login(loginDto);
   }
 
   @Post('refresh')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 attempts per minute
   @HttpCode(HttpStatus.OK)
   async refreshToken(@Body('refreshToken') refreshToken: string) {
     return { tokens: await this.adminAuthService.refreshToken(refreshToken) };

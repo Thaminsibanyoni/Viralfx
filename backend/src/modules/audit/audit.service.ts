@@ -112,4 +112,42 @@ export class AuditService {
       hmac: '', // HMAC will be generated if needed
     });
   }
+
+  /**
+   * Log a market control action with simplified interface
+   * For use by services that may not have admin context
+   */
+  async log(params: {
+    action: string;
+    entityType: string;
+    entityId: string;
+    details: Record<string, any>;
+    severity: string;
+  }): Promise<any> {
+    // Map severity strings to enum values
+    const severityMap: Record<string, AuditSeverity> = {
+      'info': AuditSeverity.INFO,
+      'warning': AuditSeverity.WARNING,
+      'critical': AuditSeverity.CRITICAL,
+      'low': AuditSeverity.LOW,
+      'medium': AuditSeverity.MEDIUM,
+      'high': AuditSeverity.HIGH,
+    };
+
+    const severity = severityMap[params.severity.toLowerCase()] || AuditSeverity.INFO;
+
+    return await this.logAuditEvent({
+      adminId: params.details.adminId || params.details.frozenBy || params.details.reviewedBy || 'system',
+      entity: params.entityType,
+      action: params.action as AuditAction,
+      entityId: params.entityId,
+      changeDiff: JSON.stringify({
+        severity,
+        metadata: params.details,
+        description: `${params.action} on ${params.entityType}`,
+      }),
+      timestamp: new Date(),
+      hmac: '',
+    });
+  }
 }

@@ -5,6 +5,7 @@ import { HttpModule } from '@nestjs/axios';
 import { PaymentModule } from '../payment/payment.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { StorageModule } from '../storage/storage.module';
+import { AuthModule } from '../auth/auth.module';
 
 // Services
 import { ProductsService } from "./services/products.service";
@@ -24,9 +25,9 @@ import { BillingController } from "./controllers/billing.controller";
 import { WebhooksController } from "./controllers/webhooks.controller";
 
 // Processors
-// import { UsageProcessor } from "./processors/usage.processor"; // Temporarily disabled - files not found
-// import { BillingProcessor } from "./processors/billing.processor"; // Temporarily disabled - files not found
-// import { WebhookProcessor } from "./processors/webhook.processor"; // Temporarily disabled - files not found
+import { UsageProcessor } from "./processors/usage.processor";
+import { BillingProcessor } from "./processors/billing.processor";
+import { WebhookProcessor } from "./processors/webhook.processor";
 
 // Guards & Interceptors
 import { ApiKeyGuard } from "./guards/api-key.guard";
@@ -34,52 +35,53 @@ import { ApiUsageInterceptor } from "./interceptors/api-usage.interceptor";
 
 @Module({
   imports: [
-   // RedisModule, // Temporarily disabled - Processor file not found
-   // HttpModule, // Temporarily disabled - Processor file not found
-   // PaymentModule, // Temporarily disabled - Processor file not found
-   // NotificationsModule, // Temporarily disabled - Processor file not found
-   // StorageModule, // Temporarily disabled - Processor file not found
+    RedisModule,
+    HttpModule,
+    AuthModule,
+    PaymentModule,
+    NotificationsModule,
+    StorageModule,
     BullModule.registerQueue(
       { name: 'api-usage' },
       { name: 'api-billing' },
       { name: 'api-webhooks' }),
   ],
   controllers: [
-   // ProductsController, // Temporarily disabled - Processor file not found
-   // PlansController, // Temporarily disabled - Processor file not found
-   // KeysController, // Temporarily disabled - Processor file not found
-   // UsageController, // Temporarily disabled - Processor file not found
-   // BillingController, // Temporarily disabled - Processor file not found
-   // WebhooksController, // Temporarily disabled - Processor file not found
+    ProductsController,
+    PlansController,
+    KeysController,
+    UsageController,
+    BillingController,
+    WebhooksController,
   ],
   providers: [
     // Services
-   // ProductsService, // Temporarily disabled - Processor file not found
-   // PlansService, // Temporarily disabled - Processor file not found
-   // KeysService, // Temporarily disabled - Processor file not found
-   // UsageService, // Temporarily disabled - Processor file not found
-   // BillingService, // Temporarily disabled - Processor file not found
-   // RateLimitService, // Temporarily disabled - Processor file not found
-   // WebhookService, // Temporarily disabled - Processor file not found
+    ProductsService,
+    PlansService,
+    KeysService,
+    UsageService,
+    BillingService,
+    RateLimitService,
+    WebhookService,
 
     // Processors
-   // UsageProcessor, // Temporarily disabled - Processor file not found
-   // BillingProcessor, // Temporarily disabled - Processor file not found
-   // WebhookProcessor, // Temporarily disabled - Processor file not found
+    UsageProcessor,
+    BillingProcessor,
+    WebhookProcessor,
 
     // Guards & Interceptors
-   // ApiKeyGuard, // Temporarily disabled - Processor file not found
-   // ApiUsageInterceptor, // Temporarily disabled - Processor file not found
+    ApiKeyGuard,
+    ApiUsageInterceptor,
   ],
   exports: [
     // Export services for use in other modules
-   // ProductsService, // Temporarily disabled - Processor file not found
-   // KeysService, // Temporarily disabled - Processor file not found
-   // BillingService, // Temporarily disabled - Processor file not found
-   // RateLimitService, // Temporarily disabled - Processor file not found
-   // WebhookService, // Temporarily disabled - Processor file not found
-   // ApiKeyGuard, // Temporarily disabled - Processor file not found
-   // ApiUsageInterceptor, // Temporarily disabled - Processor file not found
+    ProductsService,
+    KeysService,
+    BillingService,
+    RateLimitService,
+    WebhookService,
+    ApiKeyGuard,
+    ApiUsageInterceptor,
   ]
 })
 export class ApiMarketplaceModule {}
